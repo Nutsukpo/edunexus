@@ -1,0 +1,2 @@
+# edunexus
+School Management System
