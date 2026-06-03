@@ -6,149 +6,83 @@
 
 <div class="container-fluid">
 
-    {{-- PAGE HEADER --}}
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between mb-3 mt-3">
 
-        <div>
-            <h3 class="fw-bold mb-1">
-                <i class="fas fa-money-check-alt me-2"></i>
-                Payments
-            </h3>
-
-            <p class="text-muted mb-0">
-                Manage all student payments
-            </p>
-        </div>
+        <h4>Payments</h4>
 
         <a href="{{ route('payments.create') }}"
-           class="btn btn-primary">
+           class="btn btn-white text-dark">
 
-            <i class="fas fa-plus-circle me-1"></i>
-            Add Payment
+            Receive Payment
 
         </a>
 
     </div>
 
-    {{-- SUCCESS ALERT --}}
-    @if(session('success'))
-
-        <div class="alert alert-success alert-dismissible fade show">
-
-            {{ session('success') }}
-
-            <button type="button"
-                    class="btn-close"
-                    data-bs-dismiss="alert"></button>
-
-        </div>
-
-    @endif
-
-    {{-- TABLE CARD --}}
-    <div class="card border-0 shadow-sm">
+    <div class="card">
 
         <div class="card-body">
 
-            <div class="table-responsive">
+            <table class="table table-bordered">
 
-                <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Receipt</th>
+                        <th>Student</th>
+                        <th>Amount</th>
+                        <th>Date</th>
+                        <th>Method</th>
+                        <th>Action</th>
+                        <th></th>
+                    </tr>
+                </thead>
 
-                    <thead class="table-light">
+                <tbody>
 
-                        <tr>
-                            <th>#</th>
-                            <th>Student</th>
-                            <th>Amount</th>
-                            <th>Method</th>
-                            <th>Date</th>
-                            <th width="180">Actions</th>
-                        </tr>
+                @foreach($payments as $payment)
 
-                    </thead>
+                    <tr>
 
-                    <tbody>
+                        <td>
+                            {{ $payment->receipt_number }}
+                        </td>
 
-                        @forelse($payments as $payment)
+                        <td>
+                            {{ $payment->student?->full_name }}
+                        </td>
 
-                            <tr>
+                        <td>
+                            GH₵{{ number_format($payment->amount,2) }}
+                        </td>
 
-                                <td>{{ $loop->iteration }}</td>
+                        <td>
+                            {{ $payment->payment_date }}
+                        </td>
 
-                                <td>
-                                    {{ $payment->student->first_name ?? '' }}
-                                    {{ $payment->student->last_name ?? '' }}
-                                </td>
+                        <td>
+                            {{ $payment->payment_method }}
+                        </td>
 
-                                <td>
-                                    GHS {{ number_format($payment->amount, 2) }}
-                                </td>
+                        <td>
 
-                                <td>
-                                    {{ $payment->payment_method }}
-                                </td>
+                            <a href="{{ route('payments.show',$payment) }}"
+                               class="btn btn-whit text-dark">
 
-                                <td>
-                                    {{ $payment->payment_date }}
-                                </td>
+                                View
 
-                                <td>
+                            </a>
 
-                                    <a href="{{ route('payments.show', $payment->id) }}"
-                                       class="btn btn-sm btn-info">
+                        </td>
 
-                                        <i class="fas fa-eye"></i>
+                    </tr>
 
-                                    </a>
+                @endforeach
 
-                                    <a href="{{ route('payments.edit', $payment->id) }}"
-                                       class="btn btn-sm btn-warning">
+                </tbody>
 
-                                        <i class="fas fa-edit"></i>
+            </table>
 
-                                    </a>
-
-                                    <form action="{{ route('payments.destroy', $payment->id) }}"
-                                          method="POST"
-                                          class="d-inline">
-
-                                        @csrf
-                                        @method('DELETE')
-
-                                        <button type="submit"
-                                                class="btn btn-sm btn-danger"
-                                                onclick="return confirm('Delete payment?')">
-
-                                            <i class="fas fa-trash"></i>
-
-                                        </button>
-
-                                    </form>
-
-                                </td>
-
-                            </tr>
-
-                        @empty
-
-                            <tr>
-
-                                <td colspan="6"
-                                    class="text-center text-muted py-4">
-
-                                    No payments found
-
-                                </td>
-
-                            </tr>
-
-                        @endforelse
-
-                    </tbody>
-
-                </table>
-
-            </div>
+            {{ $payments->links() }}
 
         </div>
 

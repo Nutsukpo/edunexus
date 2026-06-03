@@ -809,7 +809,7 @@
                                 <i class="fas fa-book"></i>
                                 <span>Subjects</span>
                             </a>
-                            <a href="/timetable" class="nav-item-custom">
+                            <a href="/timetables" class="nav-item-custom">
                                 <i class="fas fa-clock"></i>
                                 <span>Timetable</span>
                             </a>
@@ -820,13 +820,13 @@
                         </div>
                     </div>
 
-                    <!-- EXAMINATIONS -->
+                    <!-- Results -->
                     <div class="nav-section">
-                        <div class="nav-section-title">EXAMINATIONS</div>
+                        <div class="nav-section-title">Examination</div>
                         <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#examMenu">
                             <i class="fas fa-clipboard-list"></i>
-                            <span>Examinations</span>
-                            <span class="nav-badge">New</span>
+                            <span>Results</span>
+                            
                             <i class="fas fa-chevron-down ms-auto"></i>
                         </a>
                         <div class="collapse nav-collapse" id="examMenu">
@@ -834,9 +834,17 @@
                                 <i class="fas fa-file-alt"></i>
                                 <span>Exam Lists</span>
                             </a>
-                            <a href="/results" class="nav-item-custom">
+                            <a href="/broadsheet" class="nav-item-custom">
                                 <i class="fas fa-chart-line"></i>
-                                <span>Results</span>
+                                <span>Class Results</span>
+                            </a>
+                            <a href="/scores" class="nav-item-custom">
+                                <i class="fas fa-chart-line"></i>
+                                <span>Subject Scores</span>
+                            </a>
+                            <a href="/subject-results" class="nav-item-custom">
+                                <i class="fas fa-chart-line"></i>
+                                <span>Subject Results</span>
                             </a>
                             <a href="/report-cards" class="nav-item-custom">
                                 <i class="fas fa-id-card"></i>
@@ -889,7 +897,11 @@
                             <a href="/billing" class="nav-item-custom">
                                 <i class="fas fa-money-bill"></i>
                                 <span>Billing</span>
-                            </a>                       
+                            </a>  
+                            <a href="/payments" class="nav-item-custom">
+                                <i class="fas fa-money-bill"></i>
+                                <span>Payments</span>
+                            </a>                      
                         </div>
                     </div>
 

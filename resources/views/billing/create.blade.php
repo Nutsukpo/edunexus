@@ -14,6 +14,30 @@
 
         <div class="card-body">
 
+            {{-- SUCCESS / ERROR MESSAGES --}}
+            @if(session('success'))
+                <div class="alert alert-success">
+                    {{ session('success') }}
+                </div>
+            @endif
+
+            @if(session('error'))
+                <div class="alert alert-danger">
+                    {{ session('error') }}
+                </div>
+            @endif
+
+            {{-- VALIDATION ERRORS --}}
+            @if ($errors->any())
+                <div class="alert alert-danger">
+                    <ul class="mb-0">
+                        @foreach ($errors->all() as $error)
+                            <li>{{ $error }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
             <form method="POST" action="{{ route('billing.store') }}">
                 @csrf
 
@@ -28,7 +52,7 @@
 
                             @foreach($students as $student)
                                 <option value="{{ $student->id }}">
-                                    {{ $student->first_name }} {{ $student->last_name }}
+                                    {{ $student->student_id }} - {{ $student->first_name }} {{ $student->last_name }}
                                 </option>
                             @endforeach
 
@@ -69,9 +93,14 @@
 
                 </div>
 
-                <div class="mt-4 d-flex justify-content-end">
+                <div class="mt-4 d-flex justify-content-between">
 
-                    <button type="submit" class="btn btn-primary px-4">
+                    {{-- INFO NOTE --}}
+                    <small class="text-muted">
+                        Invoice will be generated based on the student’s current class assignment.
+                    </small>
+
+                    <button type="submit" class="btn btn-white text-dark px-4">
                         <i class="fas fa-file-invoice me-1"></i>
                         Generate Invoice
                     </button>

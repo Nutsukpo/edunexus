@@ -9,7 +9,7 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
         <div>
             <h5 class="fw-bold mb-1">
-                <i class="fas fa-plus-circle me-2 text-primary"></i>
+                <i class="fas fa-plus-circle me-2 text-danger"></i>
                 Create Fee Structure
             </h5>
             <p class="text-muted mb-0">Add a new school fee structure</p>
@@ -163,11 +163,11 @@
                     <div class="col-12">
                         <div class="form-check">
                             <input type="checkbox" name="is_mandatory" class="form-check-input" id="isMandatory" checked>
-                            <label class="form-check-label" for="isMandatory">Mandatory Fee</label>
+                            <label class="form-check-label-dark" for="isMandatory">Mandatory Fee</label>
                         </div>
-                        <div class="form-check">
+                        <div class="form-check text-dark ">
                             <input type="checkbox" name="is_active" class="form-check-input" id="isActive" checked>
-                            <label class="form-check-label" for="isActive">Active</label>
+                            <label class="form-check-label text-dark" for="isActive">Active</label>
                         </div>
                     </div>
                 </div>
@@ -176,7 +176,7 @@
                     <a href="{{ route('school-fee-structures.index') }}" class="btn btn-outline-secondary px-4">
                         <i class="fas fa-times me-1"></i> Cancel
                     </a>
-                    <button type="submit" class="btn btn-primary px-5">
+                    <button type="submit" class="btn btn-white text-dark px-5">
                         <i class="fas fa-save me-1"></i> Save Fee Structure
                     </button>
                 </div>

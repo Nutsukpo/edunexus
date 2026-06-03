@@ -9,7 +9,7 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
         <div>
             <h5 class="fw-bold mb-1">
-                <i class="fas fa-arrow-up me-2 text-primary"></i>
+                <i class="fas fa-arrow-up me-2 text-danger"></i>
                 Student Promotion & Graduation
             </h5>
             <p class="text-muted mb-0">Manage student promotions, repetitions, and graduations</p>
@@ -32,19 +32,11 @@
         </div>
     @endif
 
-    @if(session('warning'))
-        <div class="alert alert-warning alert-dismissible fade show shadow-sm mb-4">
-            <i class="fas fa-exclamation-triangle me-2"></i>
-            {{ session('warning') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-        </div>
-    @endif
-
     <!-- Selection Form -->
     <div class="card border-0 shadow-sm rounded-4 mb-4">
         <div class="card-header bg-white py-3">
             <h5 class="mb-0 fw-bold">
-                <i class="fas fa-filter me-2 text-primary"></i>
+                <i class="fas fa-filter me-2 text-danger"></i>
                 Select Options
             </h5>
         </div>
@@ -75,7 +67,7 @@
                     </div>
                     <div class="col-md-2">
                         <label class="form-label d-none d-md-block">&nbsp;</label>
-                        <button type="submit" class="btn btn-primary w-100">
+                        <button type="submit" class="btn btn-danger w-100">
                             <i class="fas fa-search me-1"></i> Load Students
                         </button>
                     </div>
@@ -86,7 +78,7 @@
 
     <!-- Students List -->
     @if(request('class_id') && request('academic_year_id'))
-        @if($students->count() > 0)
+        @if(isset($students) && $students->count() > 0)
             <form method="POST" action="{{ route('student-progressions.process') }}" id="progressionForm">
                 @csrf
                 <input type="hidden" name="academic_year_id" value="{{ request('academic_year_id') }}">
@@ -95,11 +87,11 @@
                     <div class="card-header bg-white py-3">
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                             <h5 class="mb-0 fw-bold">
-                                <i class="fas fa-users me-2 text-primary"></i>
-                                Students in {{ $selectedClass->name }}
+                                <i class="fas fa-users me-2 text-danger"></i>
+                                Students in {{ $selectedClass->name ?? 'Selected Class' }}
                             </h5>
                             <div class="d-flex gap-2">
-                                <button type="button" onclick="selectAll()" class="btn btn-sm btn-outline-primary">
+                                <button type="button" onclick="selectAll()" class="btn btn-sm btn-outline-danger">
                                     <i class="fas fa-check-double me-1"></i> Select All
                                 </button>
                                 <button type="submit" class="btn btn-sm btn-success">
@@ -117,30 +109,43 @@
                                             <input type="checkbox" id="selectAllCheckbox" onclick="toggleSelectAll(this)">
                                         </th>
                                         <th width="50">#</th>
-                                        <th width="100">Student ID</th>
+                                        <th>Student ID</th>
                                         <th>Student Name</th>
-                                        <th width="150">Current Class</th>
+                                        <th>Current Class</th>
                                         <th width="150">Action</th>
                                         <th width="200">Promote To</th>
                                         <th width="200">Remarks</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    @forelse($students as $index => $student)
+                                    @foreach($students as $index => $student)
+                                    @php
+                                        // Get the current class name safely
+                                        $currentClassName = 'N/A';
+                                        if($student->studentClass) {
+                                            $currentClassName = $student->studentClass->name;
+                                        } elseif($student->classAssignments->where('is_current', true)->first()) {
+                                            $currentClassName = $student->classAssignments->where('is_current', true)->first()->studentClass->name ?? 'N/A';
+                                        }
+                                    @endphp
                                     <tr>
                                         <td class="text-center">
-                                            <input type="checkbox" name="students[{{ $student->id }}][selected]" 
-                                                   class="student-checkbox" value="1">
+                                            <input type="checkbox" 
+                                                   name="students[{{ $student->id }}][selected]" 
+                                                   class="student-checkbox" 
+                                                   value="1">
                                         </td>
                                         <td class="text-muted">{{ $index + 1 }}</td>
                                         <td><code>{{ $student->student_id }}</code></td>
                                         <td>
                                             <strong>{{ $student->first_name }} {{ $student->last_name }}</strong>
                                         </td>
-                                        <td>{{ $student->studentClass->name ?? 'N/A' }}</td>
+                                        <td>
+                                            <span class="badge bg-white text-dark">{{ $currentClassName }}</span>
+                                        </td>
                                         <td>
                                             <select name="students[{{ $student->id }}][action]" 
-                                                    class="form-select form-select-sm action-select"
+                                                    class="form-select form-select-sm action-select" 
                                                     data-student-id="{{ $student->id }}">
                                                 <option value="promoted">🎓 Promote</option>
                                                 <option value="repeated">🔄 Repeat</option>
@@ -149,7 +154,7 @@
                                         </td>
                                         <td>
                                             <select name="students[{{ $student->id }}][to_class_id]" 
-                                                    class="form-select form-select-sm target-class-select"
+                                                    class="form-select form-select-sm target-class-select" 
                                                     data-student-id="{{ $student->id }}"
                                                     disabled>
                                                 <option value="">-- Select Class --</option>
@@ -161,24 +166,18 @@
                                             </select>
                                         </td>
                                         <td>
-                                            <input type="text" name="students[{{ $student->id }}][remarks]" 
+                                            <input type="text" 
+                                                   name="students[{{ $student->id }}][remarks]" 
                                                    class="form-control form-control-sm"
-                                                   placeholder="Enter remarks (optional)">
+                                                   placeholder="Optional remarks">
                                         </td>
                                     </tr>
-                                    @empty
-                                    <tr>
-                                        <td colspan="8" class="text-center py-5 text-muted">
-                                            <i class="fas fa-user-graduate fa-3x mb-3 d-block"></i>
-                                            No students found in this class.
-                                        </td>
-                                    </tr>
-                                    @endforelse
+                                    @endforeach
                                 </tbody>
                             </table>
                         </div>
                     </div>
-                    <div class="card-footer bg-white py-3">
+                    <!-- <div class="card-footer bg-white py-3">
                         <div class="d-flex justify-content-end gap-2">
                             <button type="button" onclick="selectAll()" class="btn btn-outline-primary">
                                 <i class="fas fa-check-double me-1"></i> Select All
@@ -187,7 +186,7 @@
                                 <i class="fas fa-save me-1"></i> Process Selected Students
                             </button>
                         </div>
-                    </div>
+                    </div> -->
                 </div>
             </form>
         @else
@@ -215,7 +214,7 @@ function selectAll() {
     });
 }
 
-// Handle action change - Enable/Disable target class select
+// Handle action change
 document.querySelectorAll('.action-select').forEach(select => {
     select.addEventListener('change', function() {
         const studentId = this.dataset.studentId;
@@ -234,12 +233,10 @@ document.querySelectorAll('.action-select').forEach(select => {
             targetSelect.style.cursor = 'not-allowed';
         }
     });
-    
-    // Trigger on page load
     select.dispatchEvent(new Event('change'));
 });
 
-// Form validation before submit
+// Form validation
 document.getElementById('progressionForm')?.addEventListener('submit', function(e) {
     const checkedBoxes = document.querySelectorAll('.student-checkbox:checked');
     
@@ -291,7 +288,7 @@ document.getElementById('progressionForm')?.addEventListener('submit', function(
         border-radius: 12px;
     }
     
-    select:disabled, select[disabled] {
+    select:disabled {
         background-color: #e9ecef;
         cursor: not-allowed;
     }

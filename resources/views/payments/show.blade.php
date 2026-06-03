@@ -1,114 +1,55 @@
 @extends('layouts.master')
 
-@section('title', 'Payment Details')
+@section('title', 'Payment Receipt')
 
 @section('content')
 
 <div class="container-fluid">
 
-    <div class="card border-0 shadow-sm">
-
-        <div class="card-header bg-white d-flex justify-content-between align-items-center">
-
-            <h4 class="mb-0">
-                Payment Details
-            </h4>
-
-            <a href="{{ route('payments.index') }}"
-               class="btn btn-secondary btn-sm">
-
-                Back
-
-            </a>
-
-        </div>
+    <div class="card">
 
         <div class="card-body">
 
-            <div class="row g-4">
+            <h3 class="mb-4">
+                PAYMENT RECEIPT
+            </h3>
 
-                <div class="col-md-6">
+            <p>
+                Receipt:
+                {{ $payment->receipt_number }}
+            </p>
 
-                    <div class="border rounded p-3">
+            <p>
+                Student:
+                {{ $payment->student?->full_name }}
+            </p>
 
-                        <h6 class="text-muted">
-                            Student
-                        </h6>
+            <p>
+                Invoice:
+                {{ $payment->invoice?->invoice_number }}
+            </p>
 
-                        <h5>
-                            {{ $payment->student->first_name ?? '' }}
-                            {{ $payment->student->last_name ?? '' }}
-                        </h5>
+            <p>
+                Amount:
+                GH₵{{ number_format($payment->amount,2) }}
+            </p>
 
-                    </div>
+            <p>
+                Method:
+                {{ $payment->payment_method }}
+            </p>
 
-                </div>
+            <p>
+                Date:
+                {{ $payment->payment_date }}
+            </p>
 
-                <div class="col-md-6">
+            <button onclick="window.print()"
+                    class="btn btn-dark">
 
-                    <div class="border rounded p-3">
+                Print Receipt
 
-                        <h6 class="text-muted">
-                            Amount
-                        </h6>
-
-                        <h5>
-                            GHS {{ number_format($payment->amount, 2) }}
-                        </h5>
-
-                    </div>
-
-                </div>
-
-                <div class="col-md-6">
-
-                    <div class="border rounded p-3">
-
-                        <h6 class="text-muted">
-                            Payment Method
-                        </h6>
-
-                        <h5>
-                            {{ $payment->payment_method }}
-                        </h5>
-
-                    </div>
-
-                </div>
-
-                <div class="col-md-6">
-
-                    <div class="border rounded p-3">
-
-                        <h6 class="text-muted">
-                            Payment Date
-                        </h6>
-
-                        <h5>
-                            {{ $payment->payment_date }}
-                        </h5>
-
-                    </div>
-
-                </div>
-
-                <div class="col-md-12">
-
-                    <div class="border rounded p-3">
-
-                        <h6 class="text-muted">
-                            Note
-                        </h6>
-
-                        <p class="mb-0">
-                            {{ $payment->note ?? 'No note added' }}
-                        </p>
-
-                    </div>
-
-                </div>
-
-            </div>
+            </button>
 
         </div>
 

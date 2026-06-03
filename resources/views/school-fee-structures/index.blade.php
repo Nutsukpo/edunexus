@@ -9,11 +9,10 @@
     <div class="d-flex justify-content-between align-items-center mb-4 mt-3">
         <div>
             <h3 class="fw-bold mb-0">School Fee Structures</h3>
-            <small class="text-muted">Manage all fee structures by class, term, and academic year</small>
         </div>
 
         <a href="{{ route('school-fee-structures.create') }}"
-           class="btn btn-primary">
+           class="btn btn-white text-dark">
             <i class="fas fa-plus-circle me-1"></i>
             Add Structure
         </a>

@@ -181,7 +181,7 @@
                             </small>
 
                             <h3 class="fw-bold mt-2 mb-0">
-                                {{ $attendanceRate ?? 0 }}%
+                                {{ number_format($attendanceRate ?? 0, 1) }}%
                             </h3>
 
                         </div>
@@ -233,9 +233,9 @@
                 <li class="nav-item bg-light text-dark">
                     <button class="nav-link bg-light text-dark"
                             data-bs-toggle="tab"
-                            data-bs-target="#students">
+                            data-bs-target="#fees">
 
-                        <i class="fas fa-users me-2"></i>
+                        <i class="fas fa-money-bill me-2"></i>
                         Fees
                     </button>
                 </li>
@@ -268,7 +268,7 @@
                             data-bs-target="#prefect">
 
                         <i class="fas fa-user-shield me-2"></i>
-                        Prefect
+                        Class Prefect
 
                     </button>
                 </li>
@@ -276,20 +276,21 @@
                 <li class="nav-item">
                     <button class="nav-link bg-light text-dark"
                             data-bs-toggle="tab"
-                            data-bs-target="#prefect">
+                            data-bs-target="#results">
 
-                        <i class="fas fa-user-shield me-2"></i>
+                        <i class="fas fa-chart-line me-2"></i>
                         Results
 
                     </button>
                 </li>
+                
                 <li class="nav-item">
                     <button class="nav-link bg-light text-dark"
                             data-bs-toggle="tab"
-                            data-bs-target="#prefect">
+                            data-bs-target="#classTimetable">
 
-                        <i class="fas fa-user-shield me-2"></i>
-                        Class Exercise
+                        <i class="fas fa-calendar-alt me-2"></i>
+                        Timetable
 
                     </button>
                 </li>
@@ -297,10 +298,10 @@
                 <li class="nav-item">
                     <button class="nav-link bg-light text-dark"
                             data-bs-toggle="tab"
-                            data-bs-target="#prefect">
+                            data-bs-target="#promotions">
 
-                        <i class="fas fa-user-shield me-2"></i>
-                        Assignment
+                        <i class="fas fa-graduation-cap me-2"></i>
+                        Promotions
 
                     </button>
                 </li>
@@ -401,7 +402,7 @@
                                     <td>
 
                                         <span class="badge bg-success">
-                                            {{ $attendanceRate ?? 0 }}%
+                                            {{ number_format($attendanceRate ?? 0, 1) }}%
                                         </span>
 
                                     </td>
@@ -438,7 +439,6 @@
                                 <th>Student</th>
                                 <th>Student ID</th>
                                 <th>Gender</th>
-                                <!-- <th>DOB</th> -->
                                 <th>Status</th>
                                 <th>Actions</th>
 
@@ -498,12 +498,6 @@
 
                                     </td>
 
-                                    <!-- <td>
-
-                                        {{ optional($assignment->student->date_of_birth)->format('d M Y') ?? 'N/A' }}
-
-                                    </td> -->
-
                                     <td>
 
                                         <span class="badge bg-success">
@@ -522,17 +516,6 @@
                                                 <i class="fas fa-eye"></i>
 
                                             </a>
-<!-- 
-                                            <button type="button"
-                                                    class="btn btn-outline-danger"
-                                                    data-bs-toggle="modal"
-                                                    data-bs-target="#removeStudentModal"
-                                                    data-student-id="{{ $assignment->student->id }}"
-                                                    data-student-name="{{ $assignment->student->first_name }} {{ $assignment->student->last_name }}">
-
-                                                <i class="fas fa-trash"></i>
-
-                                            </button> -->
 
                                         </div>
 
@@ -544,7 +527,7 @@
 
                                 <tr>
 
-                                    <td colspan="7"
+                                    <td colspan="6"
                                         class="text-center py-5">
 
                                         No students assigned.
@@ -565,26 +548,48 @@
 
         </div>
 
-            {{-- ATTENDANCE --}}
-    <div class="tab-pane fade" id="attendance">
+        {{-- FEES TAB --}}
+        <div class="tab-pane fade"
+             id="fees">
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
+            <div class="card border-0 shadow-sm">
 
-        <div>
-            <small class="text-muted">
-                All attendance records for this class
-            </small>
+                <div class="card-body text-center py-5">
+
+                    <i class="fas fa-money-bill-wave fs-1 text-muted mb-3 d-block"></i>
+
+                    <h5>Fees Management</h5>
+
+                    <p class="text-muted">
+                        Fees module coming soon.
+                    </p>
+
+                </div>
+
+            </div>
+
         </div>
 
-        <a href="{{ route('attendance.create-for-class', $studentClass->id) }}"
-        class="btn btn-light text-dark mt-2">
+        {{-- ATTENDANCE --}}
+        <div class="tab-pane fade" id="attendance">
 
-            <i class="fas fa-plus-circle me-1"></i>
-            Take Attendance
+            <div class="d-flex justify-content-between align-items-center mb-3">
 
-        </a>
+                <div>
+                    <small class="text-muted">
+                        All attendance records for this class
+                    </small>
+                </div>
 
-        </div>
+                <a href="{{ route('attendance.create-for-class', $studentClass->id) }}"
+                   class="btn btn-light text-dark mt-2">
+
+                    <i class="fas fa-plus-circle me-1"></i>
+                    Take Attendance
+
+                </a>
+
+            </div>
 
             <div class="card border-0 shadow-sm">
 
@@ -616,9 +621,6 @@
                                 @forelse($attendanceSessions ?? [] as $session)
 
                                     @php
-                                        // Calculate statistics from the session's attendances relationship
-                                        // This assumes $session->attendances is loaded
-                                        
                                         $presentCount = $session->attendances->where('status', 'present')->count();
                                         $absentCount = $session->attendances->where('status', 'absent')->count();
                                         $lateCount = $session->attendances->where('status', 'late')->count();
@@ -626,11 +628,20 @@
                                         
                                         $totalCount = $presentCount + $absentCount + $lateCount + $excusedCount;
                                         
-                                        // Calculate rate: Present + Late are considered present for rate
                                         $presentAndLate = $presentCount + $lateCount;
                                         $rate = $totalCount > 0
                                             ? round(($presentAndLate / $totalCount) * 100, 1)
                                             : 0;
+                                        
+                                        if ($rate >= 90) {
+                                            $badgeClass = 'bg-success';
+                                        } elseif ($rate >= 75) {
+                                            $badgeClass = 'bg-info';
+                                        } elseif ($rate >= 60) {
+                                            $badgeClass = 'bg-warning text-dark';
+                                        } else {
+                                            $badgeClass = 'bg-danger';
+                                        }
                                     @endphp
 
                                     <tr>
@@ -641,89 +652,57 @@
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="badge bg-light text-dark">
+                                            <span class="badge bg-success text-white">
                                                 {{ $presentCount }}
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="badge bg-light text-dark">
+                                            <span class="badge bg-danger text-white">
                                                 {{ $absentCount }}
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="badge bg-light text-dark">
+                                            <span class="badge bg-warning text-dark">
                                                 {{ $lateCount }}
                                             </span>
                                         </td>
                                         <td>
-                                            <span class="badge bg-light text-dark">
+                                            <span class="badge bg-secondary text-white">
                                                 {{ $excusedCount }}
                                             </span>
                                         </td>
                                         <td>
-                                            {{ $totalCount }}
+                                            <span class="fw-bold">{{ $totalCount }}</span>
                                         </td>
                                         <td>
-
-                                            @php
-                                                $badgeClass = 'bg-danger';
-
-                                                if ($rate >= 80) {
-                                                    $badgeClass = 'bg-success';
-                                                } elseif ($rate >= 60) {
-                                                    $badgeClass = 'bg-warning text-dark';
-                                                } elseif ($rate >= 40) {
-                                                    $badgeClass = 'bg-info';
-                                                } else {
-                                                    $badgeClass = 'bg-danger';
-                                                }
-                                            @endphp
-
-                                            <span class="badge {{ $badgeClass }}">
+                                            <span class="badge {{ $badgeClass }} p-2">
+                                                <i class="fas fa-chart-line me-1"></i>
                                                 {{ $rate }}%
                                             </span>
-
-                                            @if(isset($excused) && $excused > 0)
-                                                <span class="badge bg-info ms-1">
-                                                    Excused: {{ $excused }}
-                                                </span>
-                                            @endif
-
                                         </td>
                                         <td>
-                                            {{ $session->takenBy->name ?? 'System' }}
+                                            <small>{{ $session->takenBy->name ?? 'System' }}</small>
                                         </td>
-                                        <td class="d-flex gap-1">
+                                        <td>
                                             <a href="{{ route('attendance-sessions.show', $session->id) }}"
-                                            class="btn btn-sm btn-light">
+                                               class="btn btn-sm btn-light">
                                                 <i class="fas fa-eye"></i>
                                             </a>
-
-                                            <!-- <form action="{{ route('attendance-sessions.destroy', $session->id) }}"
-                                                method="POST"
-                                                onsubmit="return confirm('Delete this attendance session?')">
-                                                @csrf
-                                                @method('DELETE')
-                                                <button type="submit" class="btn btn-sm btn-danger">
-                                                    <i class="fas fa-trash"></i>
-                                                </button>
-                                            </form> -->
                                         </td>
                                     </tr>
 
                                 @empty
 
                                     <tr>
-                                        <td colspan="9" class="text-center py-5 text-muted">
+                                        <td colspan="10" class="text-center py-5 text-muted">
                                             <i class="fas fa-calendar-times fs-3 mb-2 d-block"></i>
-                                            No attendance sessions found for this class.
-                                            <div class="mt-3">
-                                                <a href="{{ route('attendance.create-for-class', $studentClass->id) }}"
-                                                class="btn btn-sm btn-primary">
-                                                    <i class="fas fa-plus-circle me-1"></i>
-                                                    Take First Attendance
-                                                </a>
-                                            </div>
+                                            <h6>No Attendance Records Found</h6>
+                                            <p class="mb-3">No attendance sessions have been recorded for this class yet.</p>
+                                            <a href="{{ route('attendance.create-for-class', $studentClass->id) }}"
+                                               class="btn btn-primary btn-sm">
+                                                <i class="fas fa-plus-circle me-1"></i>
+                                                Take First Attendance
+                                            </a>
                                         </td>
                                     </tr>
 
@@ -804,7 +783,7 @@
                                         <th>Education Level</th>
                                         <th>Subject Teacher</th>
                                         <th width="100">Actions</th>
-                                    </tr>
+                                    </td>
 
                                 </thead>
 
@@ -988,6 +967,280 @@
 
                 </div>
 
+            </div>
+
+        </div>
+
+        {{-- RESULTS TAB WITH BROADSHEET --}}
+        <div class="tab-pane fade"
+             id="results">
+
+            <div class="card border-0 shadow-sm">
+
+                <div class="card-header bg-white">
+
+                    <h5 class="fw-bold mb-0">
+
+                        <i class="fas fa-chart-line me-2"></i>
+                        Class Results 
+
+                    </h5>
+
+                </div>
+
+                <div class="card-body">
+
+                    {{-- Academic Year and Term Selection --}}
+                    <div class="row mb-4">
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Academic Year</label>
+                            <select id="academicYearSelect" class="form-select">
+                                <option value="">Select Academic Year</option>
+                                @foreach(\App\Models\AcademicYear::orderBy('name', 'desc')->get() as $year)
+                                    <option value="{{ $year->id }}">{{ $year->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">Term</label>
+                            <select id="termSelect" class="form-select">
+                                <option value="">Select Term</option>
+                                @foreach(\App\Models\Term::orderBy('name')->get() as $term)
+                                    <option value="{{ $term->id }}">{{ $term->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">&nbsp;</label>
+                            <button id="loadResultsBtn" class="btn btn-primary d-block w-100">
+                                <i class="fas fa-chart-line me-1"></i> Load Results
+                            </button>
+                        </div>
+                    </div>
+
+                    {{-- Search and Filter Section (shown after results load) --}}
+                    <div id="filterSection" style="display: none;">
+                        <div class="card bg-light mb-3">
+                            <div class="card-body">
+                                <div class="row">
+                                    <div class="col-md-4">
+                                        <input type="text" id="searchInput" class="form-control" placeholder="Search Student Name or ID...">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <select id="positionFilter" class="form-control">
+                                            <option value="">All Positions</option>
+                                            <option value="top3">Top 3</option>
+                                            <option value="top10">Top 10</option>
+                                            <option value="others">Others</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <select id="performanceFilter" class="form-control">
+                                            <option value="">All Performance</option>
+                                            <option value="excellent">Excellent (80+)</option>
+                                            <option value="good">Good (70-79)</option>
+                                            <option value="average">Average (50-69)</option>
+                                            <option value="poor">Poor (&lt;50)</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-2">
+                                        <button class="btn btn-secondary w-100" onclick="resetFilters()">Reset</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Results Container --}}
+                    <div id="resultsContainer">
+                        <div class="text-center py-5 text-muted">
+                            <i class="fas fa-chart-line fs-1 mb-3 d-block"></i>
+                            <h5>No Results Loaded</h5>
+                            <p>Please select Academic Year and Term to view results.</p>
+                        </div>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+        {{-- CLASS TIMETABLE TAB --}}
+        <div class="tab-pane fade"
+             id="classTimetable">
+
+            <div class="card border-0 shadow-sm">
+
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+
+                    <h5 class="fw-bold mb-0">
+
+                        <i class="fas fa-calendar-alt me-2"></i>
+                        Class Timetable
+
+                    </h5>
+
+                </div>
+
+                <div class="card-body">
+
+                    @php
+                        $timetable = \App\Models\Timetable::where('student_class_id', $studentClass->id)
+                            ->orderBy('created_at', 'desc')
+                            ->first();
+                    @endphp
+
+                    @if($timetable)
+
+                        {{-- Timetable Preview --}}
+                        @if(in_array($timetable->file_type, ['pdf']))
+
+                            <iframe
+                                src="{{ asset('storage/' . $timetable->file_path) }}"
+                                width="100%"
+                                height="700px"
+                                style="border: 1px solid #ddd; border-radius: 5px;">
+                            </iframe>
+
+                        @elseif(in_array($timetable->file_type, ['jpg', 'jpeg', 'png', 'gif']))
+
+                            <div class="text-center">
+                                <img
+                                    src="{{ asset('storage/' . $timetable->file_path) }}"
+                                    class="img-fluid rounded shadow-sm"
+                                    alt="Timetable"
+                                    style="max-height: 600px; width: auto;">
+                            </div>
+
+                        @else
+
+                            <div class="alert alert-info text-center">
+                                <i class="fas fa-file-alt fa-2x mb-2 d-block"></i>
+                                <p>Preview not available for this file type.</p>
+                                <a href="{{ route('timetables.download', $timetable->id) }}" 
+                                   class="btn btn-primary">
+                                    <i class="fas fa-download me-1"></i> Download File
+                                </a>
+                            </div>
+
+                        @endif
+
+                    @else
+
+                        <div class="text-center py-5">
+
+                            <i class="fas fa-calendar-alt fs-1 text-muted mb-3 d-block"></i>
+
+                            <h5>No Timetable Uploaded</h5>
+
+                            <p class="text-muted mb-4">
+                                No timetable has been uploaded for this class yet.
+                            </p>
+
+                            <a href="{{ route('timetables.create', ['class_id' => $studentClass->id]) }}" 
+                               class="btn btn-primary">
+
+                                <i class="fas fa-plus me-1"></i>
+                                Upload Timetable
+
+                            </a>
+
+                        </div>
+
+                    @endif
+
+                </div>
+
+            </div>
+
+        </div>
+
+        {{-- PROMOTIONS TAB - FIXED BUTTON --}}
+        <div class="tab-pane fade"
+             id="promotions">
+
+            <div class="card border-0 shadow-sm rounded-4">
+                <div class="card-header bg-white py-3">
+                    <h5 class="mb-0 fw-bold">
+                        <i class="fas fa-arrow-up me-2 text-danger"></i>
+                        Student Promotion & Graduation
+                    </h5>
+                    <p class="text-muted mb-0 mt-1">Manage student promotions, repetitions, and graduations for this class</p>
+                </div>
+                <div class="card-body">
+                    
+                    @if(session('success'))
+                        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4">
+                            <i class="fas fa-check-circle me-2"></i>
+                            {{ session('success') }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    @endif
+
+                    @if(session('error'))
+                        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4">
+                            <i class="fas fa-exclamation-circle me-2"></i>
+                            {{ session('error') }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    @endif
+
+                    <!-- Academic Year Selection -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Select Academic Year <span class="text-danger">*</span></label>
+                            <select id="progressionAcademicYear" class="form-select">
+                                <option value="">-- Select Academic Year --</option>
+                                @foreach(\App\Models\AcademicYear::orderBy('name', 'desc')->get() as $year)
+                                    <option value="{{ $year->id }}">{{ $year->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label fw-semibold">&nbsp;</label>
+                            <button id="goToProgressionsBtn" class="btn btn-danger w-100" type="button">
+                                <i class="fas fa-arrow-right me-1"></i> Manage Progressions
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Current Class Info -->
+                    <div class="alert alert-info">
+                        <i class="fas fa-info-circle me-2"></i>
+                        <strong>Current Class:</strong> {{ $studentClass->name }}<br>
+                        Click "Manage Progressions" to go to the full student progression page where you can promote, repeat, or graduate students from this class to the next academic level.
+                    </div>
+
+                    <!-- Quick Stats -->
+                    <div class="row mt-4">
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h3 class="text-primary mb-0">{{ $totalStudents }}</h3>
+                                    <small class="text-muted">Total Students</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h3 class="text-success mb-0">{{ $maleCount }}</h3>
+                                    <small class="text-muted">Male Students</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="card bg-light">
+                                <div class="card-body text-center">
+                                    <h3 class="text-info mb-0">{{ $femaleCount }}</h3>
+                                    <small class="text-muted">Female Students</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
             </div>
 
         </div>
@@ -1272,29 +1525,452 @@
 
 @push('scripts')
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
 <script>
 
-    const removeStudentModal = document.getElementById('removeStudentModal');
-
-    if (removeStudentModal) {
-
-        removeStudentModal.addEventListener('show.bs.modal', function (event) {
-
-            const button = event.relatedTarget;
-
-            const studentId = button.getAttribute('data-student-id');
-
-            const studentName = button.getAttribute('data-student-name');
-
-            document.getElementById('studentNameToRemove').textContent = studentName;
-
-            document.getElementById('removeStudentForm').action =
-                `/classes/{{ $studentClass->id }}/students/${studentId}/remove`;
-
+    // Results loading functionality
+    document.getElementById('loadResultsBtn').addEventListener('click', function() {
+        const academicYearId = document.getElementById('academicYearSelect').value;
+        const termId = document.getElementById('termSelect').value;
+        
+        if (!academicYearId || !termId) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Missing Selection',
+                text: 'Please select both Academic Year and Term'
+            });
+            return;
+        }
+        
+        // Show loading state
+        const container = document.getElementById('resultsContainer');
+        container.innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h5>Loading Results...</h5>
+                <p class="text-muted">Please wait while we fetch the data</p>
+            </div>
+        `;
+        
+        // Hide filter section initially
+        document.getElementById('filterSection').style.display = 'none';
+        
+        // Make AJAX request to your existing broadsheet controller
+        fetch('{{ route("broadsheet.ajax") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+                academic_year_id: academicYearId,
+                term_id: termId,
+                student_class_id: {{ $studentClass->id }}
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderBroadsheet(data);
+                document.getElementById('filterSection').style.display = 'block';
+                initializeFilters();
+            } else {
+                container.innerHTML = `
+                    <div class="text-center py-5 text-muted">
+                        <i class="fas fa-exclamation-triangle fs-1 mb-3 d-block text-warning"></i>
+                        <h5>No Results Found</h5>
+                        <p>${data.message || 'No results available for the selected criteria.'}</p>
+                    </div>
+                `;
+                document.getElementById('filterSection').style.display = 'none';
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            container.innerHTML = `
+                <div class="text-center py-5 text-muted">
+                    <i class="fas fa-exclamation-circle fs-1 mb-3 d-block text-danger"></i>
+                    <h5>Error Loading Results</h5>
+                    <p>There was an error loading the results. Please try again.</p>
+                </div>
+            `;
+            document.getElementById('filterSection').style.display = 'none';
         });
-
+    });
+    
+    function renderBroadsheet(data) {
+        const container = document.getElementById('resultsContainer');
+        
+        let html = `
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover mb-0" id="broadsheet-table">
+                    <thead class="table-primary">
+                        <tr>
+                            <th class="text-center">#</th>
+                            <th style="min-width:220px;">Student Name</th>
+        `;
+        
+        // Subject headers
+        data.subjects.forEach(subject => {
+            html += `<th class="text-center" style="min-width:90px;">${subject.name}</th>`;
+        });
+        
+        html += `
+                            <th class="text-center bg-light">Total</th>
+                            <th class="text-center bg-light">Average</th>
+                            <th class="text-center bg-light">Position</th>
+                        </tr>
+                    </thead>
+                    <tbody id="broadsheet-tbody">
+        `;
+        
+        // Student rows
+        data.students.forEach((student, index) => {
+            const studentRank = data.positions[student.id] || '-';
+            const averageScore = data.rankings[student.id]?.average || 0;
+            const totalScore = data.rankings[student.id]?.total || 0;
+            const studentName = student.full_name || student.name || (student.first_name + ' ' + student.last_name);
+            
+            html += `
+                <tr class="student-row" 
+                    data-name="${studentName.toLowerCase()}" 
+                    data-id="${student.student_id || student.id}" 
+                    data-position="${studentRank}" 
+                    data-average="${averageScore}">
+                    <td class="text-center align-middle">
+                        <span class="fw-bold p-2">${student.student_id || student.id}</span>
+                    </td>
+                    <td class="align-middle">
+                        <div class="fw-bold p-2">${studentName}</div>
+                    </td>
+            `;
+            
+            // Subject scores
+            data.subjects.forEach(subject => {
+                const key = student.id + '_' + subject.id;
+                const mark = data.results[key]?.total_score || 0;
+                const grade = data.results[key]?.grade || '';
+                
+                html += `
+                    <td class="text-center align-middle">
+                        <div>
+                            <span class="badge bg-white text-dark p-2">${mark}</span>
+                        </div>
+                        ${grade ? `<small class="d-block text-muted mt-1">${grade}</small>` : ''}
+                    </td>
+                `;
+            });
+            
+            // Total, Average, Position
+            html += `
+                    <td class="text-center align-middle">
+                        <span class="fw-bold bg-white text-dark">${parseInt(totalScore).toLocaleString()}</span>
+                    </td>
+                    <td class="text-center align-middle">
+                        <span class="badge bg-white text-dark p-2">${averageScore.toFixed(1)}</span>
+                    </td>
+                    <td class="text-center align-middle">
+            `;
+            
+            if (studentRank == 1) {
+                html += `<span class="badge bg-warning text-dark p-2">🏆 1st</span>`;
+            } else if (studentRank == 2) {
+                html += `<span class="badge bg-secondary p-2">🥈 2nd</span>`;
+            } else if (studentRank == 3) {
+                html += `<span class="badge bg-danger p-2">🥉 3rd</span>`;
+            } else {
+                let suffix = 'th';
+                if (studentRank == 1) suffix = 'st';
+                else if (studentRank == 2) suffix = 'nd';
+                else if (studentRank == 3) suffix = 'rd';
+                html += `<span class="badge bg-light text-dark border p-2">${studentRank}${suffix}</span>`;
+            }
+            
+            html += `
+                    <td>
+                </table>
+            `;
+        });
+        
+        // Footer
+        html += `
+                    </tbody>
+                    <tfoot>
+                        <tr class="table-light fw-bold">
+                            <td colspan="${data.subjects.length + 5}">
+                                Total Students: ${data.studentCount} |
+                                Subjects: ${data.subjectCount} |
+                                Class Average: ${data.classAverage.toFixed(1)} |
+                                Pass Rate: ${data.passRate}%
+                            </td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+            <div class="mt-3">
+                <button onclick="exportToPDF()" class="btn btn-sm btn-danger">
+                    <i class="fas fa-file-pdf"></i> Export PDF
+                </button>
+                <button onclick="exportToExcel()" class="btn btn-sm btn-success">
+                    <i class="fas fa-file-excel"></i> Export Excel
+                </button>
+            </div>
+        `;
+        
+        container.innerHTML = html;
     }
+    
+    function initializeFilters() {
+        const searchInput = document.getElementById('searchInput');
+        const positionFilter = document.getElementById('positionFilter');
+        const performanceFilter = document.getElementById('performanceFilter');
+        
+        if (searchInput) searchInput.addEventListener('keyup', filterRows);
+        if (positionFilter) positionFilter.addEventListener('change', filterRows);
+        if (performanceFilter) performanceFilter.addEventListener('change', filterRows);
+    }
+    
+    function filterRows() {
+        const search = document.getElementById('searchInput')?.value.toLowerCase() || '';
+        const position = document.getElementById('positionFilter')?.value || '';
+        const performance = document.getElementById('performanceFilter')?.value || '';
+        
+        const rows = document.querySelectorAll('#broadsheet-tbody .student-row');
+        let visibleCount = 0;
+        
+        rows.forEach(row => {
+            let visible = true;
+            
+            const name = row.getAttribute('data-name') || '';
+            const id = row.getAttribute('data-id') || '';
+            const rank = parseInt(row.getAttribute('data-position')) || 999;
+            const average = parseFloat(row.getAttribute('data-average')) || 0;
+            
+            // Search filter
+            if (search && !name.includes(search) && !id.includes(search)) {
+                visible = false;
+            }
+            
+            // Position filter
+            if (visible && position) {
+                if (position === 'top3' && rank > 3) visible = false;
+                if (position === 'top10' && rank > 10) visible = false;
+                if (position === 'others' && rank <= 10) visible = false;
+            }
+            
+            // Performance filter
+            if (visible && performance) {
+                if (performance === 'excellent' && average < 80) visible = false;
+                if (performance === 'good' && (average < 70 || average >= 80)) visible = false;
+                if (performance === 'average' && (average < 50 || average >= 70)) visible = false;
+                if (performance === 'poor' && average >= 50) visible = false;
+            }
+            
+            row.style.display = visible ? '' : 'none';
+            if (visible) visibleCount++;
+        });
+        
+        // Update stats if needed
+        const totalRows = rows.length;
+        const statsDiv = document.getElementById('filterStats');
+        if (statsDiv) {
+            statsDiv.innerHTML = `Showing ${visibleCount} of ${totalRows} students`;
+        }
+    }
+    
+    function resetFilters() {
+        const searchInput = document.getElementById('searchInput');
+        const positionFilter = document.getElementById('positionFilter');
+        const performanceFilter = document.getElementById('performanceFilter');
+        
+        if (searchInput) searchInput.value = '';
+        if (positionFilter) positionFilter.value = '';
+        if (performanceFilter) performanceFilter.value = '';
+        
+        filterRows();
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'Filters Reset',
+            text: 'All filters have been cleared',
+            timer: 1500,
+            showConfirmButton: false
+        });
+    }
+    
+    function exportToPDF() {
+        const element = document.querySelector('#resultsContainer .table-responsive');
+        
+        if (!element || !element.querySelector('table')) {
+            Swal.fire({ icon: 'error', title: 'No Data', text: 'No results to export' });
+            return;
+        }
+        
+        Swal.fire({
+            title: 'Generating PDF...',
+            text: 'Please wait',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+        
+        const options = {
+            margin: 0.3,
+            filename: 'Class_Broadsheet_{{ date("Ymd_His") }}.pdf',
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 },
+            jsPDF: { unit: 'in', format: 'a3', orientation: 'landscape' }
+        };
+        
+        html2pdf().set(options).from(element).save()
+            .then(() => {
+                Swal.fire({ icon: 'success', title: 'PDF Downloaded', timer: 1500, showConfirmButton: false });
+            })
+            .catch(() => {
+                Swal.fire({ icon: 'error', title: 'Export Failed', text: 'Error generating PDF' });
+            });
+    }
+    
+    function exportToExcel() {
+        const table = document.getElementById('broadsheet-table');
+        
+        if (!table) {
+            Swal.fire({ icon: 'error', title: 'No Data', text: 'No results to export' });
+            return;
+        }
+        
+        try {
+            Swal.fire({
+                title: 'Exporting...',
+                text: 'Please wait',
+                allowOutsideClick: false,
+                didOpen: () => Swal.showLoading()
+            });
+            
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.table_to_sheet(table);
+            
+            // Auto-size columns
+            ws['!cols'] = [];
+            for (let i = 0; i < table.rows[0]?.cells.length || 0; i++) {
+                ws['!cols'].push({ wch: 18 });
+            }
+            
+            XLSX.utils.book_append_sheet(wb, ws, 'Broadsheet');
+            XLSX.writeFile(wb, `Class_Broadsheet_{{ date("Ymd_His") }}.xlsx`);
+            
+            Swal.fire({ icon: 'success', title: 'Excel Downloaded', timer: 1500, showConfirmButton: false });
+        } catch(error) {
+            Swal.fire({ icon: 'error', title: 'Export Failed', text: error.message });
+        }
+    }
+
+    // ==================== PROMOTIONS TAB - FIXED BUTTON ====================
+    
+    // Wait for DOM to be fully loaded
+    document.addEventListener('DOMContentLoaded', function() {
+        const goToProgressionsBtn = document.getElementById('goToProgressionsBtn');
+        
+        if (goToProgressionsBtn) {
+            // Remove any existing event listeners by cloning and replacing
+            const newBtn = goToProgressionsBtn.cloneNode(true);
+            goToProgressionsBtn.parentNode.replaceChild(newBtn, goToProgressionsBtn);
+            
+            // Add click event to the new button
+            newBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                const academicYearId = document.getElementById('progressionAcademicYear').value;
+                
+                if (!academicYearId) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'Missing Selection',
+                        text: 'Please select Academic Year first',
+                        confirmButtonColor: '#d33'
+                    });
+                    return;
+                }
+                
+                // Build the URL
+                const url = '{{ route("student-progressions.index") }}?class_id={{ $studentClass->id }}&academic_year_id=' + academicYearId;
+                
+                // Show loading state and redirect
+                Swal.fire({
+                    title: 'Redirecting...',
+                    text: 'Taking you to the progression management page',
+                    icon: 'info',
+                    showConfirmButton: false,
+                    timer: 800,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                
+                // Redirect after a short delay
+                setTimeout(function() {
+                    window.location.href = url;
+                }, 500);
+            });
+        }
+    });
 
 </script>
 
+@endpush
+
+@push('styles')
+<style>
+    .form-label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-bottom: 0.4rem;
+    }
+    
+    .table th {
+        font-size: 13px;
+        font-weight: 600;
+        white-space: nowrap;
+    }
+    
+    .table td {
+        font-size: 13px;
+        vertical-align: middle;
+    }
+    
+    .card {
+        border-radius: 12px;
+    }
+    
+    select:disabled {
+        background-color: #e9ecef;
+        cursor: not-allowed;
+    }
+    
+    .badge {
+        font-weight: 500;
+        padding: 5px 10px;
+    }
+    
+    .table tbody tr:hover {
+        background-color: rgba(0,0,0,0.02);
+        transition: background-color 0.3s ease;
+    }
+    
+    #goToProgressionsBtn {
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+    
+    #goToProgressionsBtn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+    }
+</style>
 @endpush

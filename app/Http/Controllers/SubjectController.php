@@ -13,10 +13,11 @@ class SubjectController extends Controller
      */
     public function index()
     {
+        // Fetch ALL subjects with their related staff/teacher
         $subjects = Subject::with('staff')
-            ->latest()
-            ->paginate(10);
-
+            ->orderBy('name')
+            ->get();  // This fetches ALL subjects without pagination
+        
         return view('subjects.index', compact('subjects'));
     }
 

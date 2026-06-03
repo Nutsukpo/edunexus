@@ -14,7 +14,7 @@
             </h5>
         </div>
 
-        <a href="{{ route('staffattendance.create') }}" class="btn btn-white text-dark mt-3">
+        <a href="{{ route('staff-attendance.create') }}" class="btn btn-white text-dark mt-3">
             <i class="fas fa-fingerprint me-1"></i>
             Take Attendance
         </a>
@@ -146,11 +146,11 @@
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm">
-                                        <a href="{{ route('staffattendance.show', $attendance->id) }}"
+                                        <a href="{{ route('staff-attendance.show', $attendance->id) }}"
                                            class="btn tn-white text-darko" title="View Details">
                                             <i class="fas fa-eye"></i>
                                         </a>
-                                        <a href="{{ route('staffattendance.edit', $attendance->id) }}"
+                                        <a href="{{ route('staff-attendance.edit', $attendance->id) }}"
                                            class="btn btn-white text-dark" title="Edit">
                                             <i class="fas fa-edit"></i>
                                         </a>

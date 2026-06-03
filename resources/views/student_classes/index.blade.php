@@ -65,7 +65,7 @@
                     <thead class="table-light">
                         <tr>
                             <th>Name</th>
-                            <th>Code</th>
+                            <th>Class Code</th>
                             <th>Education Type</th>
                             <th>Class Type</th>
                             <th>Stream</th>
