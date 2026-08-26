@@ -107,7 +107,7 @@ Route::middleware(['auth:web'])->group(function () {
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
     
     Route::prefix('dashboard')->name('dashboard.')->group(function () {
-        Route::get('/attendance-data', [DashboardController::class, 'getAttendanceData'])->name('attendance-data');
+        
         Route::get('/attendance-summary', [DashboardController::class, 'getAttendanceSummary'])->name('attendance.summary');
         Route::get('/class-attendance', [DashboardController::class, 'getClassAttendance'])->name('class-attendance');
     });
