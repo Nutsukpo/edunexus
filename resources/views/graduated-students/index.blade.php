@@ -117,7 +117,7 @@
             <!-- Search and Filter Section -->
             <div class="row g-3 mb-4">
                 <div class="col-md-8">
-                    <form method="GET" action="{{ route('graduated-students.index') }}" class="row g-2">
+                    <form method="GET" action="{{ route('graduates.index') }}" class="row g-2">
                         <!-- Search -->
                         <div class="col-md-5">
                             <div class="input-group">
@@ -168,7 +168,7 @@
                 </div>
 
                 <div class="col-md-4 text-md-end">
-                    <a href="{{ route('graduated-students.index') }}" class="btn btn-outline-secondary btn-sm me-2">
+                    <a href="{{ route('graduates.index') }}" class="btn btn-outline-secondary btn-sm me-2">
                         <i class="fas fa-undo me-1"></i> Reset
                     </a>
                     <span class="text-muted small">
@@ -187,7 +187,7 @@
                         <tr>
                             <th style="width: 50px;" class="text-center">#</th>
                             <th>
-                                <a href="{{ route('graduated-students.index', array_merge(request()->query(), ['sort' => 'student_id', 'direction' => request('direction') == 'asc' ? 'desc' : 'asc'])) }}" 
+                                <a href="{{ route('graduates.index', array_merge(request()->query(), ['sort' => 'student_id', 'direction' => request('direction') == 'asc' ? 'desc' : 'asc'])) }}" 
                                    class="text-decoration-none text-dark d-flex align-items-center gap-1">
                                     Student ID
                                     @if(request('sort') == 'student_id')
@@ -198,7 +198,7 @@
                                 </a>
                             </th>
                             <th>
-                                <a href="{{ route('graduated-students.index', array_merge(request()->query(), ['sort' => 'name', 'direction' => request('direction') == 'asc' ? 'desc' : 'asc'])) }}" 
+                                <a href="{{ route('graduates.index', array_merge(request()->query(), ['sort' => 'name', 'direction' => request('direction') == 'asc' ? 'desc' : 'asc'])) }}" 
                                    class="text-decoration-none text-dark d-flex align-items-center gap-1">
                                     Name
                                     @if(request('sort') == 'name')
@@ -209,7 +209,7 @@
                                 </a>
                             </th>
                             <th>
-                                <a href="{{ route('graduated-students.index', array_merge(request()->query(), ['sort' => 'class', 'direction' => request('direction') == 'asc' ? 'desc' : 'asc'])) }}" 
+                                <a href="{{ route('graduates.index', array_merge(request()->query(), ['sort' => 'class', 'direction' => request('direction') == 'asc' ? 'desc' : 'asc'])) }}" 
                                    class="text-decoration-none text-dark d-flex align-items-center gap-1">
                                     Class
                                     @if(request('sort') == 'class')
@@ -220,7 +220,7 @@
                                 </a>
                             </th>
                             <th>
-                                <a href="{{ route('graduated-students.index', array_merge(request()->query(), ['sort' => 'academic_year', 'direction' => request('direction') == 'asc' ? 'desc' : 'asc'])) }}" 
+                                <a href="{{ route('graduates.index', array_merge(request()->query(), ['sort' => 'academic_year', 'direction' => request('direction') == 'asc' ? 'desc' : 'asc'])) }}" 
                                    class="text-decoration-none text-dark d-flex align-items-center gap-1">
                                     Academic Year
                                     @if(request('sort') == 'academic_year')
@@ -232,7 +232,7 @@
                             </th>
                             <th style="width: 100px;">Status</th>
                             <th style="width: 140px;">
-                                <a href="{{ route('graduated-students.index', array_merge(request()->query(), ['sort' => 'graduation_date', 'direction' => request('direction') == 'asc' ? 'desc' : 'asc'])) }}" 
+                                <a href="{{ route('graduates.index', array_merge(request()->query(), ['sort' => 'graduation_date', 'direction' => request('direction') == 'asc' ? 'desc' : 'asc'])) }}" 
                                    class="text-decoration-none text-dark d-flex align-items-center gap-1">
                                     Grad. Date
                                     @if(request('sort') == 'graduation_date')
@@ -308,7 +308,7 @@
                                         <i class="fas fa-inbox fa-4x text-muted mb-3 d-block"></i>
                                         <h5 class="text-muted">No Graduated Students Found</h5>
                                         <p class="text-muted mb-0">Try adjusting your search or filter criteria</p>
-                                        <a href="{{ route('graduated-students.index') }}" class="btn btn-primary btn-sm mt-3">
+                                        <a href="{{ route('graduates.index') }}" class="btn btn-primary btn-sm mt-3">
                                             <i class="fas fa-undo me-1"></i> Reset Filters
                                         </a>
                                     </div>
