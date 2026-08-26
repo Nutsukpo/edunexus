@@ -314,7 +314,7 @@
 
                 {{-- ACTION BUTTONS --}}
                 <div class="d-flex justify-content-end gap-2 border-top pt-4 mt-3">
-                    <button type="submit" class="btn btn-white text-dark px-5">
+                    <button type="submit" class="btn btn-danger text-white px-5">
                         <i class="fas fa-save me-1"></i> Update Staff
                     </button>
                 </div>

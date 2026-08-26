@@ -131,7 +131,7 @@
                     <button type="reset" class="btn btn-outline-white text-dark px-4">
                         <i class="fas fa-undo-alt me-1"></i> Reset
                     </button>
-                    <button type="submit" class="btn btn-white text-dark px-2">
+                    <button type="submit" class="btn btn-danger  px-2">
                         <i class="fas fa-save me-1"></i> Save Department
                     </button>
                 </div>

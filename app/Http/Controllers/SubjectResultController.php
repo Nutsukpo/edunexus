@@ -9,14 +9,21 @@ use App\Models\StudentClass;
 use App\Models\AcademicYear;
 use App\Models\Term;
 use Illuminate\Support\Facades\DB;
+use App\Services\EdunexusAuthorizationService;
 
 class SubjectResultController extends Controller
 {
+    public function __construct(private EdunexusAuthorizationService $authorization)
+    {
+    }
+
     /**
      * Display subject results.
      */
     public function index(Request $request)
     {
+        abort_unless(auth()->user()->can('results.view'), 403);
+
         $query = StudentResult::with([
             'student',
             'subject',
@@ -24,6 +31,35 @@ class SubjectResultController extends Controller
             'academicYear',
             'term'
         ]);
+
+        if ($this->authorization->isScopedStaff(auth()->user())) {
+            $classQuery = $this->authorization->accessibleClassSubjects(
+                auth()->user(),
+                $request->filled('academic_year_id') ? (int) $request->academic_year_id : null
+            );
+
+            $query->whereIn('student_class_id', $classQuery->select('student_classes.id'));
+
+            if ($request->filled('subject_id')) {
+                $allowed = $this->authorization->canAccessClassSubject(
+                    auth()->user(),
+                    (int) $request->student_class_id,
+                    (int) $request->subject_id,
+                    $request->filled('academic_year_id') ? (int) $request->academic_year_id : null
+                );
+
+                if ($request->filled('student_class_id')) {
+                    abort_unless($allowed, 403);
+                }
+
+                $staff = $this->authorization->staffFor(auth()->user());
+                $query->whereHas('studentClass.subjectStaff', function ($q) use ($staff) {
+                    $q->where('staff_id', $staff->id)
+                      ->whereColumn('class_subject_staff.student_class_id', 'student_results.student_class_id')
+                      ->where('subject_id', request('subject_id'));
+                });
+            }
+        }
 
         // Filter by Academic Year
         if ($request->filled('academic_year_id')) {
@@ -132,6 +168,8 @@ class SubjectResultController extends Controller
      */
     public function show($id)
     {
+        abort_unless(auth()->user()->can('results.view'), 403);
+
         $result = StudentResult::with([
             'student',
             'subject',
@@ -139,6 +177,16 @@ class SubjectResultController extends Controller
             'academicYear',
             'term'
         ])->findOrFail($id);
+
+        abort_unless(
+            $this->authorization->canAccessClassSubject(
+                auth()->user(),
+                (int) $result->student_class_id,
+                (int) $result->subject_id,
+                (int) $result->academic_year_id
+            ),
+            403
+        );
 
         // Get position for this specific result in its subject and class
         $position = $this->getStudentPositionInSubject(

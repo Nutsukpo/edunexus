@@ -298,4 +298,8 @@ return [
         'enable_html5_parser' => true,
     ],
 
+    'isRemoteEnabled' => true,
+    'isFontSubsettingEnabled' => true,
+    'defaultFont' => 'DejaVu Sans',
+
 ];

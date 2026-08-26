@@ -113,7 +113,7 @@
                                         <span class="badge bg-success">Present</span>
 
                                     @elseif($attendance->status == 'absent')
-                                        <span class="badge bg-danger">Absent</span>
+                                        <span class="badge bg-primary">Absent</span>
 
                                     @elseif($attendance->status == 'late')
                                         <span class="badge bg-warning text-dark">Late</span>

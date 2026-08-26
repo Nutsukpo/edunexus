@@ -8,14 +8,11 @@ use App\Models\Staff;
 use App\Models\Subject;
 use App\Models\ClassSubjectStaff;
 use App\Models\StudentClassAssignment;
-// use App\Models\Student;
 use Illuminate\Http\Request;
 use App\Models\AttendanceSession;
-// use App\Models\Attendance;
 use App\Models\AttendanceRecord;
 use Carbon\Carbon;
-
-// use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\DB;
 
 class StudentClassController extends Controller
 {
@@ -55,7 +52,7 @@ class StudentClassController extends Controller
     | STORE CLASS
     |--------------------------------------------------------------------------
     */
-        public function store(Request $request)
+    public function store(Request $request)
     {
         $validated = $request->validate([
             'academic_year_id' => 'required|exists:academic_years,id',
@@ -76,77 +73,55 @@ class StudentClassController extends Controller
 
     /*
     |--------------------------------------------------------------------------
-    | SHOW SINGLE CLASS (FIXED - WITH ATTENDANCE SESSIONS)
+    | SHOW SINGLE CLASS (WITH PROPER ATTENDANCE FETCHING)
     |--------------------------------------------------------------------------
     */
-    public function show($student_class)
+        /*
+|--------------------------------------------------------------------------
+| SHOW SINGLE CLASS (WITH PROPER ATTENDANCE FETCHING)
+|--------------------------------------------------------------------------
+*/
+    // In your StudentClassController.php or relevant controller
+
+
+
+    public function show($id)
     {
         $studentClass = StudentClass::with([
-            'students',
+            'assignments.student',
             'subjects',
-            'staff',
-            'classTeacher',
-            'classPrefect'
-        ])->findOrFail($student_class);
-        
-        // Get attendance sessions for this class
-        $attendanceSessions = AttendanceSession::where('student_class_id', $student_class)
-            ->with('takenBy')
-            ->latest('attendance_date')
-            ->get()
-            ->map(function ($session) {
-                // Calculate present and absent counts for each session
-                $presentCount = AttendanceRecord::where('attendance_session_id', $session->id)
-                    ->where('status', 'present')
-                    ->count();
-                
-                $absentCount = AttendanceRecord::where('attendance_session_id', $session->id)
-                    ->where('status', 'absent')
-                    ->count();
-                
-                $session->present_count = $presentCount;
-                $session->absent_count = $absentCount;
-                
-                return $session;
-            });
-        
-        // Calculate attendance rate for the class
-        $totalStudents = $studentClass->students()
-            ->wherePivot('is_current', true)
-            ->count();
-        
-        $recentSessions = AttendanceSession::where('student_class_id', $student_class)
-            ->whereDate('attendance_date', '>=', now()->subDays(30))
-            ->get();
-        
-        $totalPresent = 0;
-        $totalPossible = 0;
-        
-        foreach ($recentSessions as $session) {
-            $presentCount = AttendanceRecord::where('attendance_session_id', $session->id)
-                ->whereIn('status', ['present', 'late'])
-                ->count();
-            $totalPresent += $presentCount;
-            $totalPossible += $totalStudents;
-        }
-        
-        $attendanceRate = $totalPossible > 0 
-            ? round(($totalPresent / $totalPossible) * 100, 1) 
+            'classTeacher'
+        ])->findOrFail($id);
+    
+        $studentIds = $studentClass->assignments
+                        ->where('is_current', true)
+                        ->pluck('student_id');
+    
+                        $attendanceStats = DB::table('attendances')
+                        ->join('attendance_sessions', 'attendance_sessions.id', '=', 'attendances.attendance_session_id')
+                        ->where('attendance_sessions.student_class_id', $studentClass->id)
+                        ->whereIn('attendances.student_id', $studentClass->assignments()
+                            ->where('is_current', true)
+                            ->pluck('student_id'))
+                        ->selectRaw("
+                            COUNT(*) as total,
+                            SUM(CASE WHEN LOWER(attendances.status) IN ('present', 'late') THEN 1 ELSE 0 END) as present_count
+                        ")
+                        ->first();
+    
+        $totalSessions = $attendanceStats->total ?? 0;
+        $presentSessions = $attendanceStats->present_count ?? 0;
+    
+        $attendanceRate = $totalSessions > 0
+            ? round(($presentSessions / $totalSessions) * 100, 1)
             : 0;
-        
-        // Calculate fees paid percentage (if you have this logic)
-        $feesPaidPercentage = 0; // Implement your fees logic here
-        
-        return view('student_classes.show', [
-            'studentClass' => $studentClass,
-            'students' => $studentClass->students ?? collect(),
-            'subjects' => $studentClass->subjects ?? collect(),
-            'staff' => $studentClass->staff ?? collect(),
-            'attendanceSessions' => $attendanceSessions,
-            'attendanceRate' => $attendanceRate,
-            'feesPaidPercentage' => $feesPaidPercentage,
-        ]);
+    
+        return view(
+            'student_classes.show',
+            compact('studentClass', 'attendanceRate')
+        );
     }
+    
 
     /*
     |--------------------------------------------------------------------------
@@ -299,23 +274,52 @@ class StudentClassController extends Controller
         return back()->with('success', 'Class prefect assigned successfully.');
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | GET ATTENDANCE DATA FOR CHART (FIXED)
+    |--------------------------------------------------------------------------
+    */
     public function getAttendanceData(StudentClass $studentClass, Request $request)
     {
-        $period = $request->get('period', 'month'); // week, month, term
+        $period = $request->get('period', 'month');
         $endDate = Carbon::now();
-        $startDate = match($period) {
-            'week' => Carbon::now()->subDays(7),
-            'month' => Carbon::now()->subDays(30),
-            'term' => Carbon::now()->subMonths(4),
-            default => Carbon::now()->subDays(30),
-        };
+        
+        switch($period) {
+            case 'week':
+                $startDate = Carbon::now()->subDays(7);
+                break;
+            case 'month':
+                $startDate = Carbon::now()->subDays(30);
+                break;
+            case 'term':
+                $startDate = Carbon::now()->subMonths(4);
+                break;
+            default:
+                $startDate = Carbon::now()->subDays(30);
+        }
         
         // Get all attendance sessions for this class in date range
         $sessions = AttendanceSession::where('student_class_id', $studentClass->id)
             ->whereBetween('attendance_date', [$startDate, $endDate])
-            ->with('attendances')
-            ->orderBy('attendance_date', 'desc')
+            ->orderBy('attendance_date', 'asc')
             ->get();
+        
+        // Daily attendance data
+        $dailyData = [];
+        foreach ($sessions as $session) {
+            $date = $session->attendance_date->format('M d');
+            $presentCount = AttendanceRecord::where('attendance_session_id', $session->id)
+                ->whereIn('status', ['present', 'late'])
+                ->count();
+            
+            if (!isset($dailyData[$date])) {
+                $dailyData[$date] = 0;
+            }
+            $dailyData[$date] += $presentCount;
+        }
+        
+        $chartLabels = array_keys($dailyData);
+        $chartRates = array_values($dailyData);
         
         // Calculate overall statistics
         $totalSessions = $sessions->count();
@@ -325,131 +329,56 @@ class StudentClassController extends Controller
         $totalExcused = 0;
         
         foreach ($sessions as $session) {
-            $totalPresent += $session->attendances->where('status', 'present')->count();
-            $totalAbsent += $session->attendances->where('status', 'absent')->count();
-            $totalLate += $session->attendances->where('status', 'late')->count();
-            $totalExcused += $session->attendances->where('status', 'excused')->count();
+            $totalPresent += AttendanceRecord::where('attendance_session_id', $session->id)->where('status', 'present')->count();
+            $totalAbsent += AttendanceRecord::where('attendance_session_id', $session->id)->where('status', 'absent')->count();
+            $totalLate += AttendanceRecord::where('attendance_session_id', $session->id)->where('status', 'late')->count();
+            $totalExcused += AttendanceRecord::where('attendance_session_id', $session->id)->where('status', 'excused')->count();
         }
         
         $totalMarked = $totalPresent + $totalAbsent + $totalLate + $totalExcused;
         $overallRate = $totalMarked > 0 ? round(($totalPresent + $totalLate) / $totalMarked * 100, 1) : 0;
         
-        // Chart data: daily attendance rate over time
-        $chartLabels = [];
-        $chartRates = [];
-        
-        $groupedByDate = $sessions->groupBy(function($session) {
-            return $session->attendance_date->format('Y-m-d');
-        });
-        
-        foreach ($groupedByDate as $date => $daySessions) {
-            $dayTotal = 0;
-            $dayPresent = 0;
-            foreach ($daySessions as $session) {
-                $presentCount = $session->attendances->whereIn('status', ['present', 'late'])->count();
-                $totalCount = $session->attendances->count();
-                if ($totalCount > 0) {
-                    $dayPresent += $presentCount;
-                    $dayTotal += $totalCount;
-                }
-            }
-            $rate = $dayTotal > 0 ? round($dayPresent / $dayTotal * 100, 1) : 0;
-            $chartLabels[] = Carbon::parse($date)->format('M d');
-            $chartRates[] = $rate;
-        }
-        
-        // Student-wise attendance
-        $students = $studentClass->students()
-            ->wherePivot('is_current', true)
-            ->with(['attendances' => function($q) use ($startDate, $endDate) {
-                $q->whereHas('session', function($sq) use ($startDate, $endDate) {
-                    $sq->whereBetween('attendance_date', [$startDate, $endDate]);
-                });
-            }])
-            ->get();
-        
-        $studentAttendance = [];
-        foreach ($students as $student) {
-            $present = $student->attendances->whereIn('status', ['present', 'late'])->count();
-            $absent = $student->attendances->where('status', 'absent')->count();
-            $total = $present + $absent;
-            $rate = $total > 0 ? round($present / $total * 100, 1) : 0;
-            
-            $studentAttendance[] = [
-                'id' => $student->id,
-                'name' => $student->first_name . ' ' . $student->last_name,
-                'student_id' => $student->student_id,
-                'present' => $present,
-                'absent' => $absent,
-                'rate' => $rate,
-                'status' => $rate >= 90 ? 'good' : ($rate >= 75 ? 'warning' : 'danger')
-            ];
-        }
-        
-        // Recent sessions with attendance summary
-        $recentSessions = $sessions->take(10)->map(function($session) {
-            $total = $session->attendances->count();
-            $present = $session->attendances->whereIn('status', ['present', 'late'])->count();
-            $absent = $session->attendances->where('status', 'absent')->count();
-            
-            return [
-                'id' => $session->id,
-                'date' => $session->attendance_date->format('d M Y'),
-                'total_students' => $total,
-                'present' => $present,
-                'absent' => $absent,
-                'rate' => $total > 0 ? round($present / $total * 100, 1) : 0,
-                'taken_by' => $session->takenBy->name ?? 'Unknown'
-            ];
-        });
+        // Get total students count
+        $totalStudents = $studentClass->assignments->where('is_current', true)->count();
         
         return response()->json([
+            'labels' => $chartLabels,
+            'data' => $chartRates,
+            'termAvg' => count($chartRates) > 0 ? round(array_sum($chartRates) / count($chartRates), 0) : 0,
+            'totalStudents' => $totalStudents,
             'stats' => [
                 'total_sessions' => $totalSessions,
                 'overall_rate' => $overallRate,
                 'total_present' => $totalPresent,
                 'total_absent' => $totalAbsent,
                 'total_late' => $totalLate,
-                'total_excused' => $totalExcused,
-                'total_students' => $students->count()
-            ],
-            'chart' => [
-                'labels' => array_reverse($chartLabels),
-                'rates' => array_reverse($chartRates)
-            ],
-            'recent_sessions' => $recentSessions,
-            'student_attendance' => $studentAttendance
+                'total_excused' => $totalExcused
+            ]
         ]);
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | ATTENDANCE DATA FOR MODAL (FIXED)
+    |--------------------------------------------------------------------------
+    */
     public function attendanceData(Request $request, $id)
     {
-        $studentClass = StudentClass::with([
-            'assignments.student'
-        ])->findOrFail($id);
+        $studentClass = StudentClass::with(['assignments.student'])
+            ->findOrFail($id);
     
-        $fromDate = $request->from_date ?? now()->startOfMonth();
-        $toDate   = $request->to_date ?? now();
+        $fromDate = $request->from_date ?? Carbon::now()->startOfMonth();
+        $toDate   = $request->to_date ?? Carbon::now();
     
-        /*
-        |--------------------------------------------------------------------------
-        | GET ATTENDANCE SESSIONS
-        |--------------------------------------------------------------------------
-        */
-    
+        // GET ATTENDANCE SESSIONS
         $sessions = AttendanceSession::where('student_class_id', $id)
             ->whereBetween('attendance_date', [$fromDate, $toDate])
             ->latest()
             ->get();
     
-        /*
-        |--------------------------------------------------------------------------
-        | TODAY SUMMARY
-        |--------------------------------------------------------------------------
-        */
-    
+        // TODAY SUMMARY
         $todaySession = AttendanceSession::where('student_class_id', $id)
-            ->whereDate('attendance_date', today())
+            ->whereDate('attendance_date', Carbon::today())
             ->latest()
             ->first();
     
@@ -457,8 +386,7 @@ class StudentClassController extends Controller
         $absentCount  = 0;
         $todayRate    = 0;
     
-        if ($todaySession)
-        {
+        if ($todaySession) {
             $presentCount = AttendanceRecord::where('attendance_session_id', $todaySession->id)
                 ->where('status', 'present')
                 ->count();
@@ -468,20 +396,11 @@ class StudentClassController extends Controller
                 ->count();
     
             $total = $presentCount + $absentCount;
-    
-            $todayRate = $total > 0
-                ? round(($presentCount / $total) * 100)
-                : 0;
+            $todayRate = $total > 0 ? round(($presentCount / $total) * 100) : 0;
         }
     
-        /*
-        |--------------------------------------------------------------------------
-        | FORMAT SESSIONS
-        |--------------------------------------------------------------------------
-        */
-    
+        // FORMAT SESSIONS
         $formattedSessions = $sessions->map(function ($session) {
-    
             $present = AttendanceRecord::where('attendance_session_id', $session->id)
                 ->where('status', 'present')
                 ->count();
@@ -491,14 +410,11 @@ class StudentClassController extends Controller
                 ->count();
     
             $total = $present + $absent;
-    
-            $rate = $total > 0
-                ? round(($present / $total) * 100)
-                : 0;
+            $rate = $total > 0 ? round(($present / $total) * 100) : 0;
     
             return [
                 'id' => $session->id,
-                'date' => \Carbon\Carbon::parse($session->attendance_date)->format('d M Y'),
+                'date' => Carbon::parse($session->attendance_date)->format('d M Y'),
                 'present' => $present,
                 'absent' => $absent,
                 'rate' => $rate,
@@ -506,37 +422,29 @@ class StudentClassController extends Controller
             ];
         });
     
-        /*
-        |--------------------------------------------------------------------------
-        | STUDENT SUMMARY
-        |--------------------------------------------------------------------------
-        */
-    
+        // STUDENT SUMMARY
         $students = [];
+        $activeAssignments = $studentClass->assignments->where('is_current', true);
     
-        foreach ($studentClass->assignments as $assignment)
-        {
+        foreach ($activeAssignments as $assignment) {
             $student = $assignment->student;
     
             $present = AttendanceRecord::where('student_id', $student->id)
                 ->where('status', 'present')
-                ->whereHas('session', function ($query) use ($fromDate, $toDate) {
+                ->whereHas('attendanceSession', function ($query) use ($fromDate, $toDate) {
                     $query->whereBetween('attendance_date', [$fromDate, $toDate]);
                 })
                 ->count();
     
             $absent = AttendanceRecord::where('student_id', $student->id)
                 ->where('status', 'absent')
-                ->whereHas('session', function ($query) use ($fromDate, $toDate) {
+                ->whereHas('attendanceSession', function ($query) use ($fromDate, $toDate) {
                     $query->whereBetween('attendance_date', [$fromDate, $toDate]);
                 })
                 ->count();
     
             $total = $present + $absent;
-    
-            $rate = $total > 0
-                ? round(($present / $total) * 100)
-                : 0;
+            $rate = $total > 0 ? round(($present / $total) * 100) : 0;
     
             $students[] = [
                 'id' => $student->id,
@@ -548,26 +456,14 @@ class StudentClassController extends Controller
             ];
         }
     
-        /*
-        |--------------------------------------------------------------------------
-        | CHART DATA
-        |--------------------------------------------------------------------------
-        */
-    
+        // CHART DATA
         $chartLabels = [];
         $chartRates  = [];
     
-        foreach ($formattedSessions as $session)
-        {
+        foreach ($formattedSessions as $session) {
             $chartLabels[] = $session['date'];
             $chartRates[]  = $session['rate'];
         }
-    
-        /*
-        |--------------------------------------------------------------------------
-        | RESPONSE
-        |--------------------------------------------------------------------------
-        */
     
         return response()->json([
             'today_rate' => $todayRate,
@@ -583,6 +479,62 @@ class StudentClassController extends Controller
         ]);
     }
 
+            // In app/Models/StudentClass.php
 
+public function getAttendanceRateAttribute()
+{
+    // Get all active students in this class
+    $students = $this->assignments()->where('is_current', true)->with('student')->get();
+    
+    if ($students->isEmpty()) {
+        return 0;
+    }
+    
+    $totalSessions = 0;
+    $presentSessions = 0;
+    
+    foreach ($students as $assignment) {
+        // Count total attendance sessions for each student
+        $attendance = \App\Models\Attendance::where('student_id', $assignment->student_id)
+            ->where('student_class_id', $this->id)
+            ->get();
         
+        $totalSessions += $attendance->count();
+        $presentSessions += $attendance->where('status', 'present')->count();
+    }
+    
+    if ($totalSessions == 0) {
+        return 0;
+    }
+    
+    return round(($presentSessions / $totalSessions) * 100, 1);
+}
+
+        // Or a more efficient version using a single query
+        public function getAttendanceRateEfficientAttribute()
+        {
+            // Get all active students in this class
+            $studentIds = $this->assignments()
+                ->where('is_current', true)
+                ->pluck('student_id');
+            
+            if ($studentIds->isEmpty()) {
+                return 0;
+            }
+            
+            // Get all attendance records for these students in this class
+            $attendance = \App\Models\Attendance::whereIn('student_id', $studentIds)
+                ->where('student_class_id', $this->id)
+                ->selectRaw('
+                    COUNT(*) as total,
+                    SUM(CASE WHEN status = "present" THEN 1 ELSE 0 END) as present_count
+                ')
+                ->first();
+            
+            if (!$attendance || $attendance->total == 0) {
+                return 0;
+            }
+            
+            return round(($attendance->present_count / $attendance->total) * 100, 1);
+        }
 }

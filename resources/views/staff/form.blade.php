@@ -10,7 +10,7 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
         <div>
             <h5 class="fw-bold mb-1">
-                <i class="fas fa-user-plus me-2 text-dark"></i>
+                <i class="fas fa-user-plus me-2 text-danger"></i>
                 {{ isset($staff) ? 'Edit Staff Member' : 'Add New Staff Member' }}
             </h5>
             <p class="text-muted mb-0">Fill in the staff information below</p>
@@ -363,7 +363,7 @@
                     <a href="{{ route('staff.index') }}" class="btn btn-secondary">
                         <i class="fas fa-times me-1"></i> Cancel
                     </a>
-                    <button type="submit" class="btn btn-primary">
+                    <button type="submit" class="btn btn-danger">
                         <i class="fas fa-save me-1"></i> 
                         {{ isset($staff) ? 'Update Staff' : 'Save Staff' }}
                     </button>

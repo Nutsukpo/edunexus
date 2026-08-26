@@ -10,11 +10,11 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-2">
         <div>
             <h5 class="fw-bold mb-1">
-                <i class="fas fa-user-graduate me-2 text-danger"></i>
+                <i class="fas fa-user-graduate me-2 text-primary"></i>
                 Student Class Enrolled
             </h5>
         </div>
-        <a href="{{ route('student-class-assignments.create') }}" class="btn btn-white text-dark">
+        <a href="{{ route('student-class-assignments.create') }}" class="btn btn-primary text-white">
             <i class="fas fa-plus-circle me-1"></i> Assign Student
         </a>
     </div>
@@ -29,7 +29,7 @@
     @endif
 
     @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4">
+        <div class="alert alert-primary alert-dismissible fade show shadow-sm mb-4">
             <i class="fas fa-exclamation-circle me-2"></i>
             {{ session('error') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
@@ -41,7 +41,7 @@
         <div class="card-header bg-white py-3">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 class="mb-0">
-                    <i class="fas fa-list me-2 text-dark"></i>
+                    <i class="fas fa-list me-2 text-primary"></i>
                     Assignment Records
                     <span id="visibleCount" class="badge bg-dar ms-2 text-dark">{{ $assignments->count() }}</span>
                 </h5>
@@ -124,15 +124,25 @@
                                     </span>
                                 </td>
                                 <td>
-                                    @if($assignment->is_current)
-                                        <span class="badge bg-success px-3 py-2">
-                                            <i class="fas fa-check-circle me-1"></i> Current
-                                        </span>
-                                    @else
-                                        <span class="badge bg-secondary px-3 py-2">
-                                            <i class="fas fa-history me-1"></i> Old
-                                        </span>
-                                    @endif
+                                @if($assignment->is_current)
+
+                                <span class="badge bg-success px-3 py-2">
+                                    <i class="fas fa-check-circle me-1"></i> Current
+                                </span>
+
+                                @elseif($assignment->status == 'Graduated')
+
+                                <span class="badge bg-dark px-3 py-2">
+                                    <i class="fas fa-graduation-cap me-1"></i> Graduated
+                                </span>
+
+                                @else
+
+                                <span class="badge bg-secondary px-3 py-2">
+                                    <i class="fas fa-history me-1"></i> Old
+                                </span>
+
+                                @endif
                                 </td>
                                 <td>
                                     <div class="btn-group btn-group-sm">

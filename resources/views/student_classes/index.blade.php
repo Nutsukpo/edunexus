@@ -10,10 +10,10 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4 mt-3">
         <div>
             <h5 class="fw-bold mb-1">
-                <i class="fas fa-school me-2 text-danger"></i>Class/Forms
+                <i class="fas fa-school me-2 text-primary"></i>Class/Forms
             </h5>
         </div>
-        <a href="{{ route('student-classes.create') }}" class="btn btn-white text-dark">
+        <a href="{{ route('student-classes.create') }}" class="btn btn-primary text-white">
             <i class="fas fa-plus-circle me-1"></i> Add New Class
         </a>
     </div>
@@ -54,7 +54,7 @@
     <div class="card">
         <div class="card-header bg-white py-3">
             <h5 class="mb-0">
-                <i class="fas fa-list me-2 text-danger"></i>
+                <i class="fas fa-list me-2 text-primary"></i>
                 Class Records
                 <span id="visibleCount" class="badge bg-dark ms-2">{{ $classes->count() }}</span>
             </h5>

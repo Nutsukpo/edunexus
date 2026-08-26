@@ -6,14 +6,14 @@
 
 <div class="container-fluid">
 
-    <h4>Create Class</h4>
+    <h5 class="mb-4 mt-3">Create Class</h5>
 
     <form method="POST" action="{{ route('student-classes.store') }}">
         @csrf
 
         @include('student_classes.form')
 
-        <button class="btn btn-light text-dark">Save</button>
+        <button class="btn btn-danger text-white">Save</button>
     </form>
 
 </div>

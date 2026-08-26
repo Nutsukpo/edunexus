@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class StudentController extends Controller
 {
@@ -65,7 +66,7 @@ class StudentController extends Controller
             'guardian_email' => 'nullable|email|max:255',
 
             // SCHOOL INFO
-            'admission_date' => 'nullable|date',
+            'admission_date' => 'required|date',
 
             // PHOTO
             'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
@@ -79,6 +80,28 @@ class StudentController extends Controller
         // DEFAULT ACTIVE STATUS
         $validated['is_active'] = true;
 
+        // =============================================
+        // FIX: GENERATE STUDENT_ID
+        // =============================================
+        // Option 1: Generate a unique student ID
+        $validated['student_id'] = $this->generateStudentId();
+
+        // Option 2: Or use the format: STU + Year + Random numbers
+        // $validated['student_id'] = 'STU' . date('Y') . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
+
+        // Option 3: Or use the format: YYYY-XXXXX (Year + sequential number)
+        // $latestStudent = Student::orderBy('id', 'desc')->first();
+        // $nextNumber = $latestStudent ? (intval(substr($latestStudent->student_id, -5)) + 1) : 1;
+        // $validated['student_id'] = date('Y') . '-' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+
+        // OPTIONAL: Set default values for nullable fields that might be required
+        $validated['disability_type'] = $validated['disability_type'] ?? null;
+        $validated['father_occupation'] = $validated['father_occupation'] ?? null;
+        $validated['mother_occupation'] = $validated['mother_occupation'] ?? null;
+        $validated['guardian_name'] = $validated['guardian_name'] ?? null;
+        $validated['guardian_phone'] = $validated['guardian_phone'] ?? null;
+        $validated['guardian_email'] = $validated['guardian_email'] ?? null;
+
         Student::create($validated);
 
         return redirect()
@@ -87,10 +110,43 @@ class StudentController extends Controller
     }
 
     /**
+     * GENERATE UNIQUE STUDENT ID
+     */
+    private function generateStudentId(): string
+    {
+        // Format: STU + Year + 5 digit sequential number
+        $year = date('Y');
+        $prefix = 'STD-' . $year;
+
+        // Get the latest student with this year's prefix
+        $latestStudent = Student::where('student_id', 'like', $prefix . '%')
+            ->orderBy('student_id', 'desc')
+            ->first();
+
+        if ($latestStudent) {
+            // Extract the number from the last student ID
+            $lastNumber = intval(substr($latestStudent->student_id, -5));
+            $nextNumber = $lastNumber + 1;
+        } else {
+            $nextNumber = 1;
+        }
+
+        // Pad with leading zeros to 5 digits
+        return $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
      * SHOW SINGLE STUDENT
      */
-    public function show(Student $student)
+    public function show($id)
     {
+        $student = Student::with([
+            'classAssignments.studentClass',
+            'classAssignments.academicYear',
+            'studentResults.academicYear',
+            'studentResults.term'
+        ])->findOrFail($id);
+
         return view('students.show', compact('student'));
     }
 
@@ -175,12 +231,27 @@ class StudentController extends Controller
             ->with('success', 'Student deleted successfully');
     }
 
-        public function getClassStudents($classId)
+    /**
+     * GET STUDENTS BY CLASS
+     */
+    public function getClassStudents($classId)
     {
-        $students = Student::where('student_class_id', $classId)
-            ->orderBy('name')
-            ->get();
+        $students = Student::whereHas('classAssignments', function ($query) use ($classId) {
+            $query->where('student_class_id', $classId)
+                ->whereNull('end_date');
+        })
+        ->orderBy('first_name')
+        ->get(['id', 'student_id', 'first_name', 'middle_name', 'last_name']);
 
-        return response()->json($students);
+        // Format the response
+        $formattedStudents = $students->map(function ($student) {
+            return [
+                'id' => $student->id,
+                'student_id' => $student->student_id,
+                'name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
+            ];
+        });
+
+        return response()->json($formattedStudents);
     }
 }

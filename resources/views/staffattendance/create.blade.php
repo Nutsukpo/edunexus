@@ -11,7 +11,7 @@
 
         <div>
             <h3 class="fw-bold mb-1">
-                <i class="fas fa-clock text-danger me-2"></i>
+                <i class="fas fa-clock text-primary me-2"></i>
                 Staff Attendance
             </h3>
 
@@ -32,7 +32,7 @@
 
 
 {{-- Flash Messages --}}
-@foreach (['success'=>'success','error'=>'danger','warning'=>'warning','info'=>'info'] as $msg => $type)
+@foreach (['success'=>'success','error'=>'primary','warning'=>'warning','info'=>'info'] as $msg => $type)
     @if(session($msg))
         <div class="alert alert-{{ $type }} alert-dismissible fade show shadow-sm">
             {{ session($msg) }}
@@ -47,7 +47,7 @@
 
     <div class="card-header bg-white">
         <h5 class="mb-0">
-            <i class="fas fa-fingerprint text-danger me-2"></i>
+            <i class="fas fa-fingerprint text-primary me-2"></i>
             Attendance Form
         </h5>
     </div>
@@ -206,7 +206,7 @@ if (navigator.geolocation) {
         function(error) {
 
             document.getElementById('gpsStatus').innerHTML =
-                '<span class="text-danger">' +
+                '<span class="text-primary">' +
                 '<i class="fas fa-times-circle me-2"></i>' +
                 'Unable to detect location. Please enable GPS.' +
                 '</span>';
@@ -219,7 +219,7 @@ if (navigator.geolocation) {
 else {
 
     document.getElementById('gpsStatus').innerHTML =
-        '<span class="text-danger">' +
+        '<span class="text-primary">' +
         'Geolocation is not supported by this browser.' +
         '</span>';
 

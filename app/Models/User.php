@@ -7,69 +7,69 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Permission\Traits\HasRoles;
+use App\Models\Staff;
 
 class User extends Authenticatable
 {
     use HasFactory, Notifiable, SoftDeletes, HasRoles;
 
-    /**
-     * The attributes that are mass assignable.
-     */
     protected $fillable = [
         'name',
         'email',
         'phone',
-        'role',
+        'role', // kept for backward compatibility; Spatie role is authoritative
         'password',
         'status',
         'profile_photo',
     ];
 
-    /**
-     * The attributes that should be hidden for serialization.
-     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
-    /**
-     * The attributes that should be cast.
-     */
     protected $casts = [
         'email_verified_at' => 'datetime',
         'password' => 'hashed',
     ];
 
     /**
-     * Check if user is admin
+     * Spatie is the authoritative RBAC system.
+     * These legacy helpers remain for compatibility with older code.
      */
-    public function isAdmin()
+    public function isAdmin(): bool
     {
-        return $this->role === 'admin';
+        return $this->hasRole('Super Admin') || $this->hasRole('Administrator');
     }
 
-    /**
-     * Check if user is staff
-     */
-    public function isStaff()
+    public function isStaff(): bool
     {
-        return $this->role === 'staff';
+        return $this->hasAnyRole([
+            'Teaching Staff',
+            'Non-Teaching Staff',
+            'MIS',
+            'Power User',
+            'Accountant',
+            'Administrator',
+            'Super Admin',
+        ]);
     }
 
-    /**
-     * Check if user is active
-     */
-    public function isActive()
+    public function isActive(): bool
     {
         return $this->status === 'active';
     }
 
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
+    }
+
     /**
- * User Department
- */
-public function department()
-{
-    return $this->belongsTo(Department::class);
-}
+     * A user account may have one linked staff record.
+     */
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'email', 'email');
+    }
 }

@@ -1,77 +1,127 @@
 <?php
+// app/Models/SchoolFeeStructure.php
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class SchoolFeeStructure extends Model
 {
-    use HasFactory, SoftDeletes;
-
-    protected $table = 'school_fee_structures';
+    use SoftDeletes;
 
     protected $fillable = [
-        'name',
-        'code',
-        'academic_year_id',
-        'term_id',
         'student_class_id',
+        'academic_year_id',
         'fee_category_id',
-        'amount',
-        'fee_type',
-        'payment_frequency',
+        'name',
         'description',
-        'due_date',
-        'is_mandatory',
+        'amount',
+        'is_optional',
         'is_active',
+        'sort_order',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
-        'due_date' => 'date',
-        'is_mandatory' => 'boolean',
+        'is_optional' => 'boolean',
         'is_active' => 'boolean',
-        'created_at' => 'datetime',
-        'updated_at' => 'datetime',
-        'deleted_at' => 'datetime',
+        'sort_order' => 'integer',
     ];
 
-    // Relationships
-    public function academicYear()
-    {
-        return $this->belongsTo(AcademicYear::class, 'academic_year_id');
-    }
-
-    public function term()
-    {
-        return $this->belongsTo(Term::class, 'term_id');
-    }
-
+    /**
+     * Get the student class that this fee structure belongs to.
+     */
     public function studentClass()
     {
-        return $this->belongsTo(StudentClass::class, 'student_class_id');
+        return $this->belongsTo(StudentClass::class);
     }
 
+    /**
+     * Get the academic year that this fee structure belongs to.
+     */
+    public function academicYear()
+    {
+        return $this->belongsTo(AcademicYear::class);
+    }
+
+    /**
+     * Get the fee category that this fee structure belongs to.
+     */
     public function feeCategory()
     {
-        return $this->belongsTo(FeeCategory::class, 'fee_category_id');
+        return $this->belongsTo(FeeCategory::class);
     }
 
-    // Accessors
+    /**
+     * Get the student fee allocations for this fee structure.
+     */
+    public function studentFeeAllocations()
+    {
+        return $this->hasMany(StudentFeeAllocation::class);
+    }
+
+    /**
+     * Scope a query to only include active fee structures.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
+    }
+
+    /**
+     * Scope a query to only include optional fee structures.
+     */
+    public function scopeOptional($query)
+    {
+        return $query->where('is_optional', true);
+    }
+
+    /**
+     * Scope a query to only include required fee structures.
+     */
+    public function scopeRequired($query)
+    {
+        return $query->where('is_optional', false);
+    }
+
+    /**
+     * Get formatted amount.
+     */
     public function getFormattedAmountAttribute()
     {
-        return 'GHS ' . number_format($this->amount, 2);
+        return '₦' . number_format($this->amount, 2);
     }
 
-    public function getFeeTypeLabelAttribute()
+    /**
+     * Get status badge class.
+     */
+    public function getStatusBadgeAttribute()
     {
-        return ucfirst($this->fee_type);
+        return $this->is_active ? 'badge-success' : 'badge-danger';
     }
 
-    public function getPaymentFrequencyLabelAttribute()
+    /**
+     * Get status label.
+     */
+    public function getStatusLabelAttribute()
     {
-        return ucfirst(str_replace('-', ' ', $this->payment_frequency));
+        return $this->is_active ? 'Active' : 'Inactive';
+    }
+
+    /**
+     * Get optional badge class.
+     */
+    public function getOptionalBadgeAttribute()
+    {
+        return $this->is_optional ? 'badge-warning' : 'badge-primary';
+    }
+
+    /**
+     * Get optional label.
+     */
+    public function getOptionalLabelAttribute()
+    {
+        return $this->is_optional ? 'Optional' : 'Required';
     }
 }

@@ -1,352 +1,343 @@
-
 @extends('layouts.master')
-
 
 @section('title', 'Dashboard - Kabore USMS')
 
 @section('content')
-<!-- MAIN DASHBOARD CONTENT -->
 <div class="container-fluid py-4 px-4">
-    <!-- ROW 1 – KEY METRICS -->
+    {{-- TOP METRICS --}}
     <div class="row g-4 mb-4">
+        <div class="col-md-6 col-xl-3">
+            <div class="card stats-card shadow-sm h-100 border-0">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div>
+                            <small class="text-uppercase fw-bold text-muted">
+                                <i class="fas fa-chalkboard-user me-1 text-dark"></i>
+                                Total Students
+                            </small>
+                            <h1 class="fw-bold display-5 mt-2 mb-1">
+                                {{ number_format($totalStudents) }}
+                            </h1>
+                        </div>
+                        <div class="bg-primary bg-opacity-10 rounded-circle p-3">
+                            <i class="fas fa-user-graduate text-dark fs-3"></i>
+                        </div>
+                    </div>
 
-    {{-- TOTAL STUDENTS --}}
-    <div class="col-md-6 col-xl-3">
+                    <div class="d-flex gap-2 flex-wrap mt-3">
+                        <span class="badge bg-light text-dark px-3 py-2">
+                            <i class="fas fa-male me-1"></i>
+                            Male: {{ $maleCount }}
+                        </span>
+                        <span class="badge bg-light text-dark px-3 py-2">
+                            <i class="fas fa-female me-1"></i>
+                            Female: {{ $femaleCount }}
+                        </span>
+                    </div>
 
-    <div class="card stats-card shadow-sm h-100 border-0">
-
-        <div class="card-body p-4">
-
-            <div class="d-flex justify-content-between align-items-start mb-3">
-
-                <div>
-
-                    <small class="text-uppercase fw-bold text-muted">
-                        <i class="fas fa-chalkboard-user me-1 text-success"></i>
-                        Total Students
-                    </small>
-
-                    <h1 class="fw-bold display-5 mt-2 mb-1">
-                        {{ number_format($totalStudents) }}
-                    </h1>
-
+                    <div class="mt-3">
+                        <small class="text-primary fw-semibold">
+                            <i class="fas fa-arrow-up me-1"></i>
+                            +{{ $studentsThisYear }} new this Academic Year
+                        </small>
+                    </div>
                 </div>
-
-                <div class="bg-primary bg-opacity-10 rounded-circle p-3">
-
-                    <i class="fas fa-user-graduate text-info fs-3"></i>
-
-                </div>
-
             </div>
-
-            <div class="d-flex gap-2 flex-wrap mt-3">
-
-                <span class="badge bg-light text-dark px-3 py-2">
-
-                    <i class="fas fa-male me-1"></i>
-                    Male:
-                    {{ $maleCount }}
-
-                </span>
-
-                <span class="badge bg-light text-dark px-3 py-2">
-
-                    <i class="fas fa-female me-1"></i>
-                    Female:
-                    {{ $femaleCount }}
-
-                </span>
-
-            </div>
-
-            <div class="mt-3">
-
-                <small class="text-success fw-semibold">
-
-                    <i class="fas fa-arrow-up me-1"></i>
-
-                    {{ $studentsThisMonth }} new this month
-
-                </small>
-
-            </div>
-
         </div>
 
-    </div>
-
-</div>
-
-
-    {{-- TOTAL STAFF --}}
-<div class="col-md-6 col-xl-3">
-
-<div class="card stats-card border-0 shadow-sm h-100 overflow-hidden">
-
-    <div class="card-body p-4 position-relative">
-
-        {{-- HEADER --}}
-        <div class="d-flex justify-content-between align-items-start">
-
-            <div>
-
-                <div class="analytics-header text-uppercase fw-bold small text-muted">
-
-                    <i class="fas fa-chalkboard-user me-1 text-success"></i>
-                    Total Staff
-
+        <div class="col-md-6 col-xl-3">
+            <div class="card stats-card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-uppercase fw-bold small text-muted">
+                                <i class="fas fa-chalkboard-user me-1 text-primary"></i>
+                                Total Staff
+                            </div>
+                            <h1 class="fw-bold display-4 mt-3 mb-1">
+                                {{ number_format($totalStaff) }}
+                            </h1>
+                            <small class="fw-semibold text-primary">
+                                <i class="fas fa-arrow-up me-1"></i>
+                                +{{ $staffThisYear }} new this Academic Year
+                            </small>
+                        </div>
+                        <div class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
+                             style="width:70px; height:70px;">
+                            <i class="fas fa-user-tie text-primary fs-2"></i>
+                        </div>
+                    </div>
                 </div>
-
-                <h1 class="fw-bold display-4 mt-3 mb-1 stat-number">
-                    {{ number_format($totalStaff) }}
-                </h1>
-
-                <small class="trend-up fs-6 fw-semibold text-success">
-
-                    <i class="fas fa-arrow-up me-1"></i>
-                    +{{ $staffThisMonth ?? 0 }} new this month
-
-                </small>
-
             </div>
-
-            {{-- ICON AVATAR --}}
-            <div class="rounded-circle bg-success bg-opacity-10 d-flex align-items-center justify-content-center"
-                 style="width:70px; height:70px;">
-
-                <i class="fas fa-user-tie text-success fs-2"></i>
-
-            </div>
-
         </div>
 
-    </div>
-
-</div>
-
-</div>
-
-
-{{-- ACTIVE CLASSES --}}
-<div class="col-md-6 col-xl-3">
-
-<div class="card stats-card border-0 shadow-sm h-100 overflow-hidden">
-
-    <div class="card-body p-4 position-relative">
-
-        {{-- HEADER --}}
-        <div class="d-flex justify-content-between align-items-start">
-
-            <div>
-
-                <div class="analytics-header text-uppercase fw-bold small text-muted">
-
-                    <i class="fas fa-chalkboard me-1 text-warning"></i>
-                    Active Classes
-
+        <div class="col-md-6 col-xl-3">
+            <div class="card stats-card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-uppercase fw-bold small text-muted">
+                                <i class="fas fa-chalkboard me-1 text-info"></i>
+                                Active Classes
+                            </div>
+                            <h1 class="fw-bold display-4 mt-3 mb-1">
+                                {{ number_format($activeClasses) }}
+                            </h1>
+                            <small class="fw-semibold text-dark">
+                                <i class="fas fa-calendar-week me-1"></i>
+                                Current Academic Term
+                            </small>
+                        </div>
+                        <div class="rounded-circle bg-info bg-opacity-10 d-flex align-items-center justify-content-center"
+                             style="width:70px; height:70px;">
+                            <i class="fas fa-school text-info fs-2"></i>
+                        </div>
+                    </div>
                 </div>
-
-                <h1 class="fw-bold display-4 mt-3 mb-1 stat-number">
-                    {{ number_format($activeClasses) }}
-                </h1>
-
-                <small class="trend-neutral fs-6 fw-semibold text-dark">
-
-                    <i class="fas fa-calendar-week me-1"></i>
-                    Current Academic Term
-
-                </small>
-
             </div>
-
-            {{-- ICON AVATAR --}}
-            <div class="rounded-circle bg-warning bg-opacity-10 d-flex align-items-center justify-content-center"
-                 style="width:70px; height:70px;">
-
-                <i class="fas fa-school text-warning fs-2"></i>
-
-            </div>
-
         </div>
 
-    </div>
-
-</div>
-
-</div>
-
-
-{{-- ATTENDANCE RATE --}}
-<div class="col-md-6 col-xl-3">
-
-<div class="card stats-card border-0 shadow-sm h-100 overflow-hidden">
-
-    <div class="card-body p-4 position-relative">
-
-        {{-- HEADER --}}
-        <div class="d-flex justify-content-between align-items-start">
-
-            <div>
-
-                <div class="analytics-header text-uppercase fw-bold small text-muted">
-
-                    <i class="fas fa-percent me-1 text-danger"></i>
-                    Attendance Rate
-
+        <div class="col-md-6 col-xl-3">
+            <div class="card stats-card border-0 shadow-sm h-100">
+                <div class="card-body p-4">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <div class="text-uppercase fw-bold small text-muted">
+                                <i class="fas fa-percent me-1 text-danger"></i>
+                                Attendance Rate
+                            </div>
+                            <h1 class="fw-bold display-4 mt-3 mb-1">
+                                {{ $studentAttendanceRate ?? 0 }}%
+                            </h1>
+                            <small class="fw-semibold text-dark">
+                                <i class="fas fa-chart-line me-1"></i>
+                                Student Attendance Performance
+                            </small>
+                        </div>
+                        <div class="rounded-circle bg-danger bg-opacity-10 d-flex align-items-center justify-content-center"
+                             style="width:70px; height:70px;">
+                            <i class="fas fa-calendar-check text-danger fs-2"></i>
+                        </div>
+                    </div>
                 </div>
-
-                <h1 class="fw-bold display-4 mt-3 mb-1 stat-number">
-                    {{ $attendanceRate ?? 90 }}%
-                </h1>
-
-                <small class="trend-up fs-6 fw-semibold text-dark">
-
-                    <i class="fas fa-chart-line me-1"></i>
-                    Student Attendance Performance
-
-                </small>
-
             </div>
-
-            {{-- ICON AVATAR --}}
-            <div class="rounded-circle bg-danger bg-opacity-10 d-flex align-items-center justify-content-center"
-                 style="width:70px; height:70px;">
-
-                <i class="fas fa-calendar-check text-danger fs-2"></i>
-
-            </div>
-
         </div>
-
     </div>
 
-</div>
-
-</div>
-</div>
-
-    <!-- DAILY ATTENDANCE CHART - ENHANCED WITH 5 CHART TYPES -->
+    {{-- DAILY ATTENDANCE CHART --}}
     <div class="row mb-4">
         <div class="col-12">
             <div class="card dashboard-card border-0 shadow-sm overflow-hidden">
                 <div class="card-body p-4">
-                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-1">
+                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
                         <div>
                             <h2 class="fw-light mb-1 fs-3">
-                                <i class="fas fa-chart-line text-danger me-2"></i> Daily Attendance Analysis
+                                <i class="fas fa-chart-line text-primary me-2"></i>
+                                Daily Attendance Analysis
                             </h2>
-                            <small class="text-secondary">Students present per day | <strong class="text-dark">Feb 9 – May 4</strong></small>
+                            <small class="text-secondary">
+                                Students present per day from database
+                            </small>
                         </div>
-                        <div class="d-flex gap-2 mt-1 mt-lg-0 flex-wrap">
-                            <!-- Period Selector -->
-                            <select class="form-select" id="periodSelect" style="width: auto;">
+
+                        <div class="d-flex gap-2 mt-2 mt-lg-0 flex-wrap">
+                            <select class="form-select" id="periodSelect" style="width:auto;">
                                 <option value="90">Last 90 Days</option>
                                 <option value="30" selected>Last 30 Days</option>
                                 <option value="7">Last 7 Days</option>
                             </select>
-                            
-                            <!-- Chart Type Selector with ALL options: Line, Bar, Spline, Area, SplineArea -->
-                            <select class="form-select" id="chartTypeSelect" style="width: auto;">
+
+                            <select class="form-select" id="chartTypeSelect" style="width:auto;">
                                 <option value="line">📈 Line Chart</option>
                                 <option value="bar">📊 Bar Chart</option>
                                 <option value="spline">〰️ Spline Chart</option>
                                 <option value="area">📉 Area Chart</option>
                                 <option value="splineArea">🌀 Spline Area Chart</option>
                             </select>
-                            
-                            <!-- Color Picker -->
+
                             <div class="color-picker-group">
                                 <label><i class="fas fa-palette me-1"></i> Color:</label>
-                                <input type="color" id="lineColorPicker" value="#e11d48" title="Chart Color">
+                                <input type="color" id="lineColorPicker" value="#1a4b8c" title="Chart Color">
                             </div>
                         </div>
                     </div>
 
                     <div class="d-flex justify-content-between align-items-center flex-wrap">
                         <div class="custom-legend">
-                            <div><span class="legend-dot-red" id="legendColorDot" style="background:#e11d48;"></span> <span class="fw-semibold">Daily attendance (students)</span></div>
-                            <div><span class="legend-dot-blue"></span> <span class="fw-semibold">Current term benchmark</span> <span class="text-muted small">(term average)</span></div>
+                            <div>
+                                <span class="legend-dot-blue" id="legendColorDot" style="background:#1a4b8c;"></span>
+                                <span class="fw-semibold">Daily attendance (students)</span>
+                            </div>
+                            <div>
+                                <span class="legend-dot-lightblue"></span>
+                                <span class="fw-semibold">Current term benchmark</span>
+                                <span class="text-muted small">(average)</span>
+                            </div>
                         </div>
-                        <div class="attendance-insight mt-2 mt-sm-0">
-                            <i class="fas fa-chart-simple me-1 text-info"></i> Peak attendance: 1,145 students (Apr 20)
+
+                        <div class="attendance-insight mt-2 mt-sm-0" id="attendanceInsight">
+                            <i class="fas fa-chart-simple me-1 text-info"></i>
+                            Loading attendance insight...
                         </div>
                     </div>
 
-                    <!-- CHART CONTAINER -->
                     <div class="chart-container mt-3" style="height: 500px;">
                         <canvas id="attendanceChartCanvas"></canvas>
                     </div>
 
                     <div class="text-muted small mt-3 text-end border-top pt-2">
-                        <i class="fas fa-info-circle me-1"></i> Y-axis: number of students present | 
-                        <span id="chartTypeIndicator">Line Chart</span> | 
-                        Interactive chart with smooth animations
+                        <i class="fas fa-info-circle me-1"></i>
+                        Y-axis: number of students present |
+                        <span id="chartTypeIndicator">Line Chart</span> |
+                        Live attendance data from database
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- BOTTOM FINANCIAL & SCHOOL STATS -->
+    {{-- BOTTOM STATS CARDS --}}
     <div class="row g-4">
-        <div class="col-md-6 col-xl-3 bottom-card">
+        <div class="col-md-6 col-xl-3">
             <div class="card stats-card shadow-sm h-100">
                 <div class="card-body p-4">
-                    <div class="analytics-header"><i class="fas fa-coins me-1 text-success"></i> TOTAL FEES PAID</div>
-                    <h1 class="fw-bold display-5 mt-2 stat-number">GH₵ 10,284,000</h1>
-                    <small class="trend-up fs-6">
+                    <div class="analytics-header">
+                        <i class="fas fa-coins me-1 text-success"></i> TOTAL FEES PAID
+                    </div>
+                    <h1 class="fw-bold display-5 mt-2">GH₵ 10,284,000</h1>
+                    <small class="text-success">
                         <i class="fas fa-arrow-up me-1"></i> +12% this month
                     </small>
-                    <div class="mt-2 small text-secondary">↑ collection rate improved</div>
                 </div>
             </div>
         </div>
-        <div class="col-md-6 col-xl-3 bottom-card">
+
+        <div class="col-md-6 col-xl-3">
             <div class="card stats-card shadow-sm h-100">
                 <div class="card-body p-4">
-                    <div class="analytics-header"><i class="fas fa-exclamation-triangle me-1 text-warning"></i> OUTSTANDING FEES</div>
-                    <h1 class="fw-bold display-5 mt-2 stat-number">GH₵ 3,500,297</h1>
-                    <small class="trend-neutral fs-6">
-                        <i class="fas fa-clock me-1"></i> Pending payments (25% of total)
+                    <div class="analytics-header">
+                        <i class="fas fa-exclamation-triangle me-1 text-warning"></i> OUTSTANDING FEES
+                    </div>
+                    <h1 class="fw-bold display-5 mt-2">GH₵ 3,500,297</h1>
+                    <small class="text-dark">
+                        <i class="fas fa-clock me-1"></i> Pending payments
                     </small>
                 </div>
             </div>
         </div>
-        <div class="col-md-6 col-xl-3 bottom-card">
+
+        <div class="col-md-6 col-xl-3">
             <div class="card stats-card shadow-sm h-100">
                 <div class="card-body p-4">
-                    <div class="analytics-header"><i class="fas fa-user-friends me-1 text-info"></i> TOTAL PARENTS</div>
-                    <h1 class="fw-bold display-4 mt-2 stat-number">700</h1>
-                    <small class="trend-up fs-6">
-                        <i class="fas fa-arrow-up me-1"></i> +2.1% from last semester
+                    <div class="analytics-header">
+                        <i class="fas fa-user-friends me-1 text-info"></i> STAFF ATTENDANCE
+                    </div>
+                    <h1 class="fw-bold display-4 mt-2">{{$staffAttendanceRate ?? 0 }}%</h1>
+                    <small class="text-dark">
+                        <i class="fas fa-arrow-up me-1"></i> Staff Attendance Performance
                     </small>
                 </div>
             </div>
         </div>
-        <div class="col-md-6 col-xl-3 bottom-card">
+
+        <div class="col-md-6 col-xl-3">
             <div class="card stats-card shadow-sm h-100">
                 <div class="card-body p-4">
-                    <div class="analytics-header"><i class="fas fa-chalkboard me-1 text-secondary"></i> STUDENT/TEACHER RATIO</div>
-                    <h1 class="fw-bold display-4 mt-2 stat-number">53:1</h1>
+                    <div class="analytics-header">
+                        <i class="fas fa-chalkboard me-1 text-secondary"></i> STUDENT/TEACHER RATIO
+                    </div>
+                    <h1 class="fw-bold display-4 mt-2">
+                        {{ $totalStaff > 0 ? round($totalStudents / $totalStaff) : 0 }}:1
+                    </h1>
                     <small class="text-primary fs-6">
-                        <i class="fas fa-graduation-cap me-1"></i> 24 teachers, 1,284 students
+                        <i class="fas fa-graduation-cap me-1"></i>
+                        {{ $totalStaff }} teachers, {{ $totalStudents }} students
                     </small>
-                    <div class="mt-2 small text-muted">Optimal target: 40:1</div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- insight row -->
-    <div class="row mt-1 g-2">
+    {{-- CLASS ATTENDANCE TABLE --}}
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+                    <h5 class="fw-bold mb-0">
+                        <i class="fas fa-calendar-check text-primary me-2"></i>
+                        Daily Attendance by Class
+                        <span class="badge bg-light text-dark ms-2" id="attendanceDateDisplay">
+                            {{ \Carbon\Carbon::now()->format('d M Y') }}
+                        </span>
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <input type="date" id="attendanceDateFilter" class="form-control form-control-sm" 
+                               style="width: auto;" value="{{ date('Y-m-d') }}">
+                        <button class="btn btn-sm btn-primary" id="loadClassAttendanceBtn">
+                            <i class="fas fa-sync me-1"></i> Load
+                        </button>
+                        <button class="btn btn-sm btn-outline-success" onclick="exportClassAttendance()">
+                            <i class="fas fa-file-excel me-1"></i> Export
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover align-middle" id="classAttendanceTable">
+                            <thead class="table-light">
+                                <tr>
+                                    <th width="50">#</th>
+                                    <th>Class Name</th>
+                                    <th class="text-center">Total Students</th>
+                                    <th class="text-center">Present</th>
+                                    <th class="text-center">Absent</th>
+                                    <th class="text-center">Late</th>
+                                    <th class="text-center">Excused</th>
+                                    <th class="text-center">Attendance Rate</th>
+                                    <th class="text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="classAttendanceBody">
+                                <tr>
+                                    <td colspan="9" class="text-center py-4">
+                                        <div class="spinner-border text-primary me-2" role="status"></div>
+                                        Loading attendance data...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-3 text-muted small" id="attendanceSummaryFooter">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Showing attendance for <span id="totalClassesCount">0</span> classes | 
+                        Last updated: <span id="lastUpdatedTime">{{ \Carbon\Carbon::now()->format('H:i:s') }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- FOOTER INSIGHT --}}
+    <div class="row mt-4 g-2">
         <div class="col-12">
             <div class="card bg-white border-0 shadow-sm rounded-4 insight-card">
                 <div class="card-body py-3 px-4">
                     <div class="d-flex flex-wrap gap-4 align-items-center justify-content-between">
-                        <div><i class="fas fa-chart-pie text-primary me-2"></i> <strong>Fee collection rate:</strong> <span class="fw-bold text-success">74.6%</span> paid</div>
-                        <div><i class="fas fa-arrow-trend-up text-success"></i> Outstanding decreased by 3% vs last term</div>
-                        <div><small class="text-muted"><i class="far fa-calendar-alt"></i> Data as of {{ \Carbon\Carbon::now()->format('d-M-Y | H:i') }}</small></div>
+                        <div>
+                            <i class="fas fa-chart-pie text-primary me-2"></i>
+                            <strong>Attendance dashboard:</strong>
+                            <span class="fw-bold text-primary">Live data enabled</span>
+                        </div>
+                        <div>
+                            <i class="fas fa-database text-info me-1"></i>
+                            <span class="text-muted">Real-time class attendance</span>
+                        </div>
+                        <div>
+                            <small class="text-muted">
+                                <i class="far fa-calendar-alt"></i>
+                                Data as of {{ \Carbon\Carbon::now()->format('d-M-Y | H:i') }}
+                            </small>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -357,16 +348,16 @@
 
 @push('styles')
 <style>
-    /* Additional dashboard-specific styles */
     .display-4 {
         font-size: 2.5rem;
         font-weight: 700;
     }
+
     .display-5 {
         font-size: 2rem;
         font-weight: 700;
     }
-    
+
     .custom-legend {
         display: flex;
         gap: 28px;
@@ -375,31 +366,34 @@
         justify-content: flex-end;
         flex-wrap: wrap;
     }
-    .legend-dot-red {
+
+    .legend-dot-blue,
+    .legend-dot-lightblue {
         width: 12px;
         height: 12px;
-        background: #e11d48;
         border-radius: 20px;
         display: inline-block;
         margin-right: 8px;
     }
+
     .legend-dot-blue {
-        width: 12px;
-        height: 12px;
-        background: #3b82f6;
-        border-radius: 20px;
-        display: inline-block;
-        margin-right: 8px;
+        background: #1a4b8c;
     }
+
+    .legend-dot-lightblue {
+        background: #3b82f6;
+    }
+
     .attendance-insight {
-        background: #fefaf5;
+        background: #eff6ff;
         border-radius: 40px;
         padding: 5px 18px;
         font-size: 0.75rem;
         font-weight: 500;
-        color: #7c3aed;
-        border: 1px solid #f3e8ff;
+        color: #1a4b8c;
+        border: 1px solid #bfdbfe;
     }
+
     .color-picker-group {
         background: #f8fafc;
         padding: 4px 14px;
@@ -409,26 +403,48 @@
         gap: 12px;
         border: 1px solid #eef2ff;
     }
+
     .color-picker-group label {
         font-size: 0.75rem;
         font-weight: 600;
         color: #1e293b;
         margin: 0;
     }
+
     #lineColorPicker {
         width: 34px;
         height: 34px;
         border: 2px solid white;
         border-radius: 12px;
         cursor: pointer;
-        background: #e11d48;
+        background: #1a4b8c;
         box-shadow: 0 1px 4px rgba(0,0,0,0.1);
     }
+
     .chart-container {
         position: relative;
         width: 100%;
     }
-    
+
+    #classAttendanceTable th {
+        font-size: 0.75rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    #classAttendanceTable td {
+        vertical-align: middle;
+        font-size: 0.9rem;
+    }
+
+    .attendance-badge {
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.75rem;
+    }
+
     @media (max-width: 768px) {
         .display-4 { font-size: 1.8rem; }
         .display-5 { font-size: 1.5rem; }
@@ -439,138 +455,213 @@
 
 @push('scripts')
 <script>
-    // Dynamic greeting
-    function updateGreeting() {
-        const hour = new Date().getHours();
-        let greeting = '';
-        if(hour < 12) greeting = 'Good Morning';
-        else if(hour < 18) greeting = 'Good Afternoon';
-        else greeting = 'Good Evening';
-        const greetingEl = document.getElementById('greetingMessage');
-        if(greetingEl) {
-            greetingEl.style.opacity = '0';
-            setTimeout(() => {
-                greetingEl.innerHTML = `${greeting}, Kabore USMS 👋`;
-                greetingEl.style.transition = 'opacity 0.3s';
-                greetingEl.style.opacity = '1';
-            }, 80);
-        }
-    }
-    updateGreeting();
-
-    // Attendance data
-    const labels = [
-        'Feb 9', 'Feb 16', 'Feb 23', 'Mar 2', 'Mar 9', 'Mar 16',
-        'Mar 23', 'Mar 30', 'Apr 6', 'Apr 13', 'Apr 20', 'Apr 27', 'May 4'
-    ];
-    const attendanceData = [890, 912, 945, 968, 1002, 988, 1024, 1051, 1078, 1103, 1145, 1120, 1093];
-    const termAvg = attendanceData.reduce((a,b) => a+b,0) / attendanceData.length;
-    const benchmarkData = Array(labels.length).fill(Math.floor(termAvg));
-
+    // ========================================
+    // CHART CONFIGURATION
+    // ========================================
     let currentChart = null;
     let currentChartType = 'line';
-    let currentColor = '#e11d48';
+    let currentColor = '#1a4b8c';
+    let chartDataFromServer = {
+        labels: [],
+        attendance: [],
+        benchmark: [],
+        peak: 0,
+        peak_day: 'N/A',
+        average: 0,
+        total: 0
+    };
 
-    // Function to get tension based on chart type (spline effect)
     function getChartTension(chartType) {
-        switch(chartType) {
-            case 'spline':
-            case 'splineArea':
-                return 0.4;  // High tension for smooth spline curve
-            default:
-                return 0.2;  // Standard tension for line/area
-        }
+        return (chartType === 'spline' || chartType === 'splineArea') ? 0.4 : 0.2;
     }
 
-    // Function to determine if fill is enabled
     function shouldFill(chartType) {
         return chartType === 'area' || chartType === 'splineArea';
     }
 
-    // Function to get chart type for Chart.js (line or bar)
     function getBaseChartType(chartType) {
-        if (chartType === 'bar') return 'bar';
-        return 'line'; // line, spline, area, splineArea all use line type with different styling
+        return chartType === 'bar' ? 'bar' : 'line';
     }
 
     function updateLegendDot(color) {
         const dot = document.getElementById('legendColorDot');
-        if(dot) dot.style.backgroundColor = color;
+        if (dot) dot.style.backgroundColor = color;
     }
 
-    // Update chart type indicator text
     function updateChartTypeIndicator(chartType) {
         const indicator = document.getElementById('chartTypeIndicator');
-        if(indicator) {
-            const names = {
-                'line': 'Line Chart',
-                'bar': 'Bar Chart',
-                'spline': 'Spline Chart (Smooth Curve)',
-                'area': 'Area Chart',
-                'splineArea': 'Spline Area Chart'
+        if (!indicator) return;
+
+        const names = {
+            line: 'Line Chart',
+            bar: 'Bar Chart',
+            spline: 'Spline Chart (Smooth Curve)',
+            area: 'Area Chart',
+            splineArea: 'Spline Area Chart'
+        };
+
+        indicator.textContent = names[chartType] || 'Line Chart';
+    }
+
+    function updateAttendanceInsight(data) {
+        const insight = document.getElementById('attendanceInsight');
+        if (!insight) return;
+
+        if (!data.labels.length) {
+            insight.innerHTML = `
+                <i class="fas fa-exclamation-circle me-1 text-danger"></i>
+                No attendance data found for this period
+            `;
+            return;
+        }
+
+        insight.innerHTML = `
+            <i class="fas fa-chart-simple me-1 text-info"></i>
+            Peak attendance: ${data.peak.toLocaleString()} students (${data.peak_day})
+        `;
+    }
+
+    // ========================================
+    // LOAD ATTENDANCE DATA FOR CHART
+    // ========================================
+    async function loadAttendanceData(days = 30) {
+        const insight = document.getElementById('attendanceInsight');
+        if (insight) {
+            insight.innerHTML = `
+                <i class="fas fa-spinner fa-spin me-1 text-info"></i>
+                Loading attendance data...
+            `;
+        }
+
+        try {
+            const response = await fetch(`{{ route('dashboard.attendance-data') }}?days=${days}`, {
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            const data = await response.json();
+
+            chartDataFromServer = {
+                labels: data.labels || [],
+                attendance: data.attendance || [],
+                benchmark: data.benchmark || [],
+                peak: data.peak || 0,
+                peak_day: data.peak_day || 'N/A',
+                average: data.average || 0,
+                total: data.total || 0
             };
-            indicator.textContent = names[chartType] || 'Line Chart';
+
+            updateAttendanceInsight(chartDataFromServer);
+            renderAttendanceChart(currentChartType, currentColor);
+        } catch (error) {
+            console.error('Error loading attendance data:', error);
+
+            if (insight) {
+                insight.innerHTML = `
+                    <i class="fas fa-exclamation-circle me-1 text-danger"></i>
+                    Failed to load attendance data
+                `;
+            }
         }
     }
 
+    // ========================================
+    // RENDER ATTENDANCE CHART
+    // ========================================
     function renderAttendanceChart(chartType = currentChartType, lineColor = currentColor) {
         const canvas = document.getElementById('attendanceChartCanvas');
-        if(!canvas) return;
+        if (!canvas) return;
+
         const ctx = canvas.getContext('2d');
-        if(currentChart) currentChart.destroy();
+        if (currentChart) currentChart.destroy();
+
+        const labels = chartDataFromServer.labels;
+        const attendanceData = chartDataFromServer.attendance;
+        const benchmarkData = chartDataFromServer.benchmark;
+
+        updateChartTypeIndicator(chartType);
+
+        if (!labels.length || !attendanceData.length) {
+            currentChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ['No data'],
+                    datasets: [{
+                        label: 'Daily Attendance',
+                        data: [0],
+                        borderColor: lineColor,
+                        backgroundColor: `${lineColor}20`
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false }
+                    },
+                    scales: {
+                        y: { beginAtZero: true },
+                        x: { display: true }
+                    }
+                }
+            });
+            return;
+        }
 
         const isBar = chartType === 'bar';
         const fillArea = shouldFill(chartType);
         const tension = getChartTension(chartType);
         const baseType = getBaseChartType(chartType);
-        
-        // Update indicator
-        updateChartTypeIndicator(chartType);
-
-        const datasets = [
-            {
-                label: 'Daily Attendance (students present)',
-                data: attendanceData,
-                borderColor: lineColor,
-                backgroundColor: fillArea ? `${lineColor}30` : (isBar ? lineColor : `${lineColor}08`),
-                pointBackgroundColor: lineColor,
-                pointBorderColor: '#ffffff',
-                pointBorderWidth: 2,
-                pointRadius: isBar ? 0 : 4,
-                pointHoverRadius: isBar ? 4 : 7,
-                fill: fillArea,
-                tension: tension,
-                borderWidth: isBar ? 0 : 2.8,
-                borderRadius: isBar ? 8 : 0,
-                barPercentage: isBar ? 0.7 : 0.65,
-                categoryPercentage: isBar ? 0.8 : 0.8,
-                animation: { duration: 700, easing: 'easeOutQuart' }
-            },
-            {
-                label: 'Current term benchmark (avg)',
-                data: benchmarkData,
-                borderColor: '#3b82f6',
-                backgroundColor: 'transparent',
-                borderWidth: 2.2,
-                borderDash: [8, 5],
-                pointRadius: 3,
-                pointBackgroundColor: '#3b82f6',
-                pointBorderColor: '#fff',
-                pointBorderWidth: 1.5,
-                fill: false,
-                tension: 0.1,
-                type: 'line',
-                animation: { duration: 700 }
-            }
-        ];
 
         currentChart = new Chart(ctx, {
             type: baseType,
-            data: { labels, datasets },
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Daily Attendance (students present)',
+                        data: attendanceData,
+                        borderColor: lineColor,
+                        backgroundColor: fillArea
+                            ? `${lineColor}30`
+                            : (isBar ? lineColor : `${lineColor}10`),
+                        pointBackgroundColor: lineColor,
+                        pointBorderColor: '#ffffff',
+                        pointBorderWidth: 2,
+                        pointRadius: isBar ? 0 : 4,
+                        pointHoverRadius: isBar ? 4 : 7,
+                        fill: fillArea,
+                        tension: tension,
+                        borderWidth: isBar ? 0 : 2.8,
+                        borderRadius: isBar ? 8 : 0,
+                        barPercentage: isBar ? 0.7 : 0.65,
+                        categoryPercentage: 0.8
+                    },
+                    {
+                        label: 'Current term benchmark (avg)',
+                        data: benchmarkData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'transparent',
+                        borderWidth: 2.2,
+                        borderDash: [8, 5],
+                        pointRadius: 3,
+                        pointBackgroundColor: '#3b82f6',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 1.5,
+                        fill: false,
+                        tension: 0.1,
+                        type: 'line'
+                    }
+                ]
+            },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                interaction: { intersect: false, mode: 'index' },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                },
                 plugins: {
                     tooltip: {
                         backgroundColor: '#1e293b',
@@ -580,138 +671,257 @@
                         cornerRadius: 12,
                         callbacks: {
                             label: function(context) {
-                                let label = context.dataset.label || '';
-                                let val = context.raw;
-                                if(context.dataset.label.includes('Attendance')) {
-                                    return `${label}: ${val.toLocaleString()} students (${Math.round((val/1284)*100)}% of enrollment)`;
-                                }
-                                return `${label}: ${val.toLocaleString()} students`;
+                                const label = context.dataset.label || '';
+                                const value = context.raw || 0;
+                                return `${label}: ${value.toLocaleString()} students`;
                             }
                         }
                     },
-                    legend: { display: false }
+                    legend: {
+                        display: false
+                    }
                 },
                 scales: {
                     y: {
-                        beginAtZero: false,
-                        min: 700,
-                        max: 1250,
-                        ticks: { 
-                            stepSize: 100, 
-                            callback: val => val.toLocaleString() + ' students', 
-                            color: '#6c7283' 
+                        beginAtZero: true,
+                        ticks: {
+                            color: '#6c7283',
+                            callback: value => value.toLocaleString() + ' students'
                         },
-                        title: { 
-                            display: true, 
-                            text: 'Number of Students Present', 
-                            color: '#4b5563', 
-                            font: { weight: '500', size: 11 } 
-                        },
-                        grid: { color: '#eef2f6' }
+                        grid: {
+                            color: '#eef2f6'
+                        }
                     },
-                    x: { 
-                        ticks: { color: '#6c7283', font: { size: 11 }, maxRotation: 35 }, 
-                        grid: { display: false } 
+                    x: {
+                        ticks: {
+                            color: '#6c7283',
+                            font: { size: 11 },
+                            maxRotation: 35
+                        },
+                        grid: {
+                            display: false
+                        }
                     }
                 }
             }
         });
     }
 
-    // Initialize chart when DOM is ready
-    document.addEventListener('DOMContentLoaded', function() {
-        renderAttendanceChart('line', '#e11d48');
+    // ========================================
+    // LOAD CLASS ATTENDANCE TABLE
+    // ========================================
+    function loadClassAttendance(date = null) {
+        if (!date) {
+            date = document.getElementById('attendanceDateFilter').value;
+        }
+
+        const tbody = document.getElementById('classAttendanceBody');
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="text-center py-4">
+                    <div class="spinner-border text-primary me-2" role="status"></div>
+                    Loading class attendance data...
+                </td>
+            </tr>
+        `;
+
+        fetch(`/dashboard/class-attendance?date=${date}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.classes.length > 0) {
+                    renderClassAttendanceTable(data);
+                    document.getElementById('attendanceDateDisplay').textContent = 
+                        new Date(date).toLocaleDateString('en-US', { day: '2-digit', month: 'short', year: 'numeric' });
+                } else {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="9" class="text-center py-4 text-muted">
+                                <i class="fas fa-calendar-times fs-3 d-block mb-2"></i>
+                                No attendance records found for this date
+                            </td>
+                        </tr>
+                    `;
+                }
+            })
+            .catch(error => {
+                console.error('Error loading class attendance:', error);
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="9" class="text-center py-4 text-danger">
+                            <i class="fas fa-exclamation-circle fs-3 d-block mb-2"></i>
+                            Error loading attendance data
+                        </td>
+                    </tr>
+                `;
+            });
+    }
+
+    // ========================================
+    // RENDER CLASS ATTENDANCE TABLE
+    // ========================================
+    function renderClassAttendanceTable(data) {
+        const tbody = document.getElementById('classAttendanceBody');
+        let html = '';
+
+        data.classes.forEach((classData, index) => {
+            const rate = classData.rate || 0;
+            let statusBadge = '';
+            let statusColor = '';
+
+            if (rate >= 80) {
+                statusBadge = 'Excellent';
+                statusColor = 'success';
+            } else if (rate >= 60) {
+                statusBadge = 'Good';
+                statusColor = 'info';
+            } else if (rate >= 40) {
+                statusBadge = 'Average';
+                statusColor = 'warning';
+            } else {
+                statusBadge = 'Poor';
+                statusColor = 'danger';
+            }
+
+            html += `
+                <tr>
+                    <td>${index + 1}</td>
+                    <td class="fw-semibold">
+                       
+                        ${classData.class_name}
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-light text-dark">${classData.total_students}</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-light text-dark">${classData.present}</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-light text-dark">${classData.absent}</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-light text-dark">${classData.late}</span>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-light text-dark">${classData.excused}</span>
+                    </td>
+                    <td class="text-center">
+                        <div class="d-flex align-items-center justify-content-center">
+                            <div class="progress" style="width: 70px; height: 8px;">
+                                <div class="progress-bar bg-${statusColor}" role="progressbar" 
+                                     style="width: ${rate}%;" 
+                                     aria-valuenow="${rate}" 
+                                     aria-valuemin="0" 
+                                     aria-valuemax="100"></div>
+                            </div>
+                            <span class="ms-2 fw-bold">${rate}%</span>
+                        </div>
+                    </td>
+                    <td class="text-center">
+                        <span class="badge bg-${statusColor} attendance-badge">
+                            <i class="fas fa-${rate >= 80 ? 'check-circle' : rate >= 60 ? 'info-circle' : rate >= 40 ? 'exclamation-triangle' : 'times-circle'} me-1"></i>
+                            ${statusBadge}
+                        </span>
+                    </td>
+                </tr>
+            `;
+        });
+
+        tbody.innerHTML = html;
+
+        // Update summary
+        document.getElementById('totalClassesCount').textContent = data.classes.length;
+        document.getElementById('lastUpdatedTime').textContent = new Date().toLocaleTimeString();
+    }
+
+    // ========================================
+    // EXPORT CLASS ATTENDANCE TO EXCEL
+    // ========================================
+    function exportClassAttendance() {
+        const table = document.getElementById('classAttendanceTable');
+        if (!table) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'No Data',
+                text: 'Please load attendance records first'
+            });
+            return;
+        }
+
+        try {
+            const wb = XLSX.utils.book_new();
+            const ws = XLSX.utils.table_to_sheet(table);
+            ws['!cols'] = [
+                { wch: 5 }, { wch: 25 }, { wch: 15 }, { wch: 15 }, 
+                { wch: 15 }, { wch: 15 }, { wch: 15 }, { wch: 20 }, { wch: 15 }
+            ];
+            XLSX.utils.book_append_sheet(wb, ws, 'Class Attendance');
+            XLSX.writeFile(wb, `Class_Attendance_${new Date().toISOString().slice(0,10)}.xlsx`);
+            
+            Swal.fire({
+                icon: 'success',
+                title: 'Exported!',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        } catch(error) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Export Failed',
+                text: error.message
+            });
+        }
+    }
+
+    // ========================================
+    // INITIALIZATION
+    // ========================================
+    document.addEventListener('DOMContentLoaded', function () {
+        // Chart initialization
+        updateLegendDot(currentColor);
+        loadAttendanceData(30);
 
         const chartTypeSelect = document.getElementById('chartTypeSelect');
         const lineColorPicker = document.getElementById('lineColorPicker');
         const periodSelect = document.getElementById('periodSelect');
 
-        if(chartTypeSelect) {
-            chartTypeSelect.addEventListener('change', (e) => {
+        if (chartTypeSelect) {
+            chartTypeSelect.addEventListener('change', function (e) {
                 currentChartType = e.target.value;
                 renderAttendanceChart(currentChartType, currentColor);
             });
         }
 
-        if(lineColorPicker) {
-            lineColorPicker.addEventListener('input', (e) => {
+        if (lineColorPicker) {
+            lineColorPicker.addEventListener('input', function (e) {
                 currentColor = e.target.value;
                 updateLegendDot(currentColor);
                 renderAttendanceChart(currentChartType, currentColor);
             });
         }
 
-        if(periodSelect) {
-            periodSelect.addEventListener('change', (e) => filterChartByPeriod(e.target.value));
+        if (periodSelect) {
+            periodSelect.addEventListener('change', function (e) {
+                loadAttendanceData(e.target.value);
+            });
         }
-    });
 
-    function filterChartByPeriod(period) {
-        let filteredLabels = [...labels];
-        let filteredAttendance = [...attendanceData];
-        let filteredBenchmark = [...benchmarkData];
-        if(period === '30') { 
-            filteredLabels = labels.slice(-5); 
-            filteredAttendance = attendanceData.slice(-5); 
-            filteredBenchmark = benchmarkData.slice(-5); 
-        } else if(period === '7') { 
-            filteredLabels = labels.slice(-2); 
-            filteredAttendance = attendanceData.slice(-2); 
-            filteredBenchmark = benchmarkData.slice(-2); 
+        // Class attendance table initialization
+        const loadBtn = document.getElementById('loadClassAttendanceBtn');
+        if (loadBtn) {
+            loadBtn.addEventListener('click', function () {
+                const date = document.getElementById('attendanceDateFilter').value;
+                loadClassAttendance(date);
+            });
         }
-        
-        if(currentChart) currentChart.destroy();
-        const ctx = document.getElementById('attendanceChartCanvas').getContext('2d');
-        const isBar = currentChartType === 'bar';
-        const fillArea = shouldFill(currentChartType);
-        const tension = getChartTension(currentChartType);
-        const baseType = getBaseChartType(currentChartType);
-        
-        currentChart = new Chart(ctx, {
-            type: baseType,
-            data: {
-                labels: filteredLabels,
-                datasets: [
-                    { 
-                        label: 'Daily Attendance (students present)', 
-                        data: filteredAttendance, 
-                        borderColor: currentColor, 
-                        backgroundColor: fillArea ? `${currentColor}30` : (isBar ? currentColor : `${currentColor}08`),
-                        pointBackgroundColor: currentColor, 
-                        pointBorderColor: '#fff', 
-                        pointRadius: isBar ? 0 : 4,
-                        borderWidth: isBar ? 0 : 2.8, 
-                        fill: fillArea, 
-                        tension: tension,
-                        barPercentage: isBar ? 0.7 : 0.65,
-                        animation: { duration: 500 } 
-                    },
-                    { 
-                        label: 'Current term benchmark (avg)', 
-                        data: filteredBenchmark, 
-                        borderColor: '#3b82f6', 
-                        backgroundColor: 'transparent', 
-                        borderWidth: 2, 
-                        borderDash: [8,5], 
-                        pointRadius: 3, 
-                        pointBackgroundColor: '#3b82f6', 
-                        fill: false, 
-                        type: 'line' 
-                    }
-                ]
-            },
-            options: { 
-                responsive: true, 
-                maintainAspectRatio: false, 
-                plugins: { tooltip: { backgroundColor: '#1e293b' }, legend: { display: false } }, 
-                scales: { 
-                    y: { min: 700, max: 1250, ticks: { stepSize: 100, callback: val => val.toLocaleString() + ' students' } }, 
-                    x: { ticks: { maxRotation: 35 } } 
-                } 
-            }
-        });
-    }
-    
-    updateLegendDot('#e11d48');
+
+        // Auto-load class attendance on page load
+        loadClassAttendance(document.getElementById('attendanceDateFilter').value);
+
+        // Auto-refresh class attendance every 60 seconds
+        setInterval(() => {
+            const date = document.getElementById('attendanceDateFilter').value;
+            loadClassAttendance(date);
+        }, 60000);
+    });
 </script>
 @endpush

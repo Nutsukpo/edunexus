@@ -11,7 +11,7 @@
 
         <div>
             <h3 class="fw-bold mb-1">
-                <i class="fas fa-user-check me-2"></i>
+                <i class="fas fa-user-check me-2 text-primary"></i>
                 Take Attendance
             </h3>
 
@@ -38,7 +38,7 @@
 
     {{-- ERROR MESSAGE --}}
     @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show">
+        <div class="alert alert-primary alert-dismissible fade show">
 
             {{ session('error') }}
 
@@ -53,7 +53,7 @@
     {{-- VALIDATION ERRORS --}}
     @if ($errors->any())
 
-        <div class="alert alert-danger">
+        <div class="alert alert-primary">
 
             <ul class="mb-0">
 
@@ -184,7 +184,7 @@
             <div class="card-footer bg-white text-end">
 
                 <button type="submit"
-                        class="btn btn-white text-dark">
+                        class="btn btn-primary text-white">
 
                     <i class="fas fa-save me-1"></i>
 
@@ -364,7 +364,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 tableBody.innerHTML = `
                     <tr>
                         <td colspan="4"
-                            class="text-center text-danger py-5">
+                            class="text-center text-primary py-5">
 
                             Failed to load students
 

@@ -90,11 +90,11 @@
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
                     <h4 class="fw-semibold text-dark mb-0">
-                        <i class="fas fa-users me-2 text-danger"></i>Staff Management
+                        <i class="fas fa-users me-2 text-primary"></i>Staff Management
                     </h4>
                 </div>
 
-                <a href="{{ route('staff.create') }}" class="btn btn-white text-dark rounded-3">
+                <a href="{{ route('staff.create') }}" class="btn btn-primary text-white rounded-3">
                     <i class="fas fa-user-plus me-1"></i>
                     Add Staff
                 </a>

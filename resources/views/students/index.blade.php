@@ -9,12 +9,12 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4 mt-3">
         <div>
             <h5 class="mb-0 fw-bold mt-3">
-                <i class="fas fa-users me-2 text-danger"></i>
+                <i class="fas fa-users me-2 text-primary"></i>
                 Students List
             </h5>
         </div>
 
-        <a href="{{ route('students.create') }}" class="btn btn-white text-dark shadow-sm">
+        <a href="{{ route('students.create') }}" class="btn btn-primary text-white shadow-sm">
             <i class="fas fa-plus me-1"></i>
             Add Student
         </a>
@@ -103,7 +103,7 @@
         <div class="card-header bg-white py-3">
             <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <h5 class="mb-0">
-                    <i class="fas fa-list me-2 text-danger"></i>
+                    <i class="fas fa-list me-2 text-primary"></i>
                     Student Records
                     <span id="visibleCount" class="badge bg-dark ms-2">{{ $students->count() }}</span>
                 </h5>
@@ -163,9 +163,9 @@
                                 <td>{{ ($student->admission_date? \Carbon\Carbon::parse($student->admission_date)->format('M d, Y') : '-') }}</td>
                                 <td>
                                     @if($student->has_disability)
-                                        <span class="badge bg-warning text-dark">Yes</span>
+                                        <span class="badge bg-white text-dark">Yes</span>
                                     @else
-                                        <span class="badge bg-secondary">No</span>
+                                        <span class="badge bg-white text-dark">No</span>
                                     @endif
                                 </td>
                                 <td>{{ $student->disability_type ?? 'None' }}</td>

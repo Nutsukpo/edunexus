@@ -9,17 +9,17 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
         <div>
             <h5 class="mb-0 mt-3 fw-bold">
-                <i class="fas fa-users me-2 text-danger"></i>
+                <i class="fas fa-users me-2 text-primary"></i>
                 Staff Attendance Management
             </h5>
         </div>
 
-        <a href="{{ route('staff-attendance.create') }}" class="btn btn-white text-dark mt-3">
+        <a href="{{ route('staff-attendance.create') }}" class="btn btn-primary mt-3">
             <i class="fas fa-fingerprint me-1"></i>
             Take Attendance
         </a>
     </div>
-
+            
     {{-- FILTERS AND SEARCH SECTION --}}
     <div class="card shadow-sm mb-1">
         <div class="card-body">
@@ -129,7 +129,7 @@
                                         $color = match($attendance->status) {
                                             'present' => 'success',
                                             'late' => 'warning',
-                                            'absent' => 'danger',
+                                            'absent' => 'primary',
                                             default => 'secondary'
                                         };
                                         $icon = match($attendance->status) {
@@ -192,7 +192,7 @@
 <div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
+            <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title"><i class="fas fa-trash me-2"></i>Confirm Delete</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
@@ -205,7 +205,7 @@
                 <form id="deleteForm" method="POST" style="display: inline;">
                     @csrf
                     @method('DELETE')
-                    <button type="submit" class="btn btn-danger">Delete Record</button>
+                    <button type="submit" class="btn btn-primary">Delete Record</button>
                 </form>
             </div>
         </div>
@@ -407,7 +407,7 @@ function printTable() {
 
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
-    toast.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+    toast.className = `alert alert-${type === 'error' ? 'primary' : type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
     toast.style.zIndex = '9999';
     toast.style.minWidth = '280px';
     toast.style.zIndex = '10000';

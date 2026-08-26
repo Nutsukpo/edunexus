@@ -8,8 +8,8 @@
 
     <div class="card shadow-sm">
 
-        <div class="card-header">
-            <h4>Add New Student</h4>
+        <div class="card-header mt-3">
+            <h5>Add New Student</h5>
         </div>
 
         <div class="card-body">
@@ -23,7 +23,7 @@
 
                 <hr>
 
-                <button class="btn btn-light text-dark">
+                <button class="btn btn-primary">
                     Save Student
                 </button>
 

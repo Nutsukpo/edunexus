@@ -1,133 +1,151 @@
 <?php
+// app/Http/Controllers/StudentFeeController.php
 
 namespace App\Http\Controllers;
 
-use App\Models\AcademicYear;
-use App\Models\FeeCategory;
-use App\Models\SchoolFeeStructure;
-use App\Models\StudentClass;
-use App\Models\Term;
+use App\Models\StudentFeeAllocation;
+use App\Models\Payment;
+use App\Models\PaymentItem;
+use App\Models\Student;
+use App\Models\FeeItem;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\DB;
+use Barryvdh\DomPDF\Facade\Pdf;
 
-class SchoolFeeStructureController extends Controller
+class StudentFeeController extends Controller
 {
     public function index()
     {
-        $structures = SchoolFeeStructure::with([
-            'academicYear',
-            'term',
-            'studentClass',
-            'feeCategory'
-        ])->latest()->paginate(20);
-
-        return view(
-            'school-fee-structures.index',
-            compact('structures')
-        );
+        
+        
+        $feeAllocations = StudentFeeAllocation::with(['feeStructure', 'academicYear', 'term'])
+            ->where('student_id', $student->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
+        
+        $totalBalance = $feeAllocations->sum('balance');
+        $totalPaid = $feeAllocations->sum('paid_amount');
+        $totalAmount = $feeAllocations->sum('total_amount');
+        
+        return view('admin.payments.index', compact(
+            'feeAllocations', 'totalBalance', 'totalPaid', 'totalAmount'
+        ));
     }
 
-    public function create()
+    public function show($id)
     {
-        $academicYears = AcademicYear::all();
-        $terms = Term::all();
-        $classes = StudentClass::all();
-        $categories = FeeCategory::all();
-
-        return view(
-            'school-fee-structures.create',
-            compact(
-                'academicYears',
-                'terms',
-                'classes',
-                'categories'
-            )
-        );
+        
+        
+        $allocation = StudentFeeAllocation::with(['feeStructure.feeItems', 'payments' => function($query) {
+            $query->where('status', 'completed');
+        }])
+        ->where('student_id', $student->id)
+        ->findOrFail($id);
+        
+        return view('admin.payments.show', compact('allocation'));
     }
 
-    public function store(Request $request)
+    public function makePayment(Request $request, $id)
     {
-        $validated = $request->validate([
-            'academic_year_id' => 'required|exists:academic_years,id',
-            'term_id' => 'required|exists:terms,id',
-            'student_class_id' => 'required|exists:student_classes,id',
-            'fee_category_id' => 'required|exists:fee_categories,id',
-            'amount' => 'required|numeric|min:0',
-            'description' => 'nullable|string',
-            'is_active' => 'nullable'
+        $student = Auth::guard('student')->user();
+        
+        $allocation = StudentFeeAllocation::with(['feeStructure.feeItems'])
+            ->where('student_id', $student->id)
+            ->findOrFail($id);
+        
+        if ($allocation->balance <= 0) {
+            return back()->with('error', 'This fee has been fully paid.');
+        }
+        
+        $validator = Validator::make($request->all(), [
+            'amount' => 'required|numeric|min:1|max:' . $allocation->balance,
+            'payment_method' => 'required|in:cash,bank_transfer,card,online,cheque,other',
+            'reference_number' => 'nullable|string|max:255',
+            'payment_details' => 'nullable|string',
+            'notes' => 'nullable|string',
+            'pay_full' => 'boolean',
         ]);
 
-        $validated['is_active'] = $request->has('is_active');
+        if ($validator->fails()) {
+            return back()->withErrors($validator)->withInput();
+        }
 
-        SchoolFeeStructure::create($validated);
+        try {
+            DB::beginTransaction();
 
-        return redirect()
-            ->route('school-fee-structures.index')
-            ->with('success', 'Fee structure created successfully.');
+            $amount = $request->pay_full ? $allocation->balance : $request->amount;
+            
+            // Create payment
+            $payment = Payment::create([
+                'student_id' => $student->id,
+                'student_fee_allocation_id' => $allocation->id,
+                'invoice_number' => 'INV-' . date('Y') . '-' . strtoupper(uniqid()),
+                'amount' => $amount,
+                'paid_amount' => $amount,
+                'balance' => $allocation->balance - $amount,
+                'payment_method' => $request->payment_method,
+                'reference_number' => $request->reference_number,
+                'payment_details' => $request->payment_details,
+                'status' => 'completed',
+                'payment_date' => now(),
+                'received_by' => null, // Student self-payment
+                'notes' => $request->notes,
+            ]);
+
+            // Create payment items (optional - can be used for detailed breakdown)
+            // This is a simplified version
+            
+            // Update allocation
+            $allocation->paid_amount += $amount;
+            $allocation->save();
+            $allocation->updateStatus();
+
+            DB::commit();
+
+            // Generate receipt
+            $this->generateReceipt($payment);
+
+            return redirect()->route('student.fees.show', $allocation->id)
+                ->with('success', 'Payment of ₦' . number_format($amount, 2) . ' completed successfully!');
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->with('error', 'Payment failed: ' . $e->getMessage());
+        }
     }
 
-    public function show(SchoolFeeStructure $schoolFeeStructure)
+    public function paymentHistory()
     {
-        $schoolFeeStructure->load([
-            'academicYear',
-            'term',
-            'studentClass',
-            'feeCategory'
-        ]);
-
-        return view(
-            'school-fee-structures.show',
-            compact('schoolFeeStructure')
-        );
+        
+        
+        $payments = Payment::with(['studentFeeAllocation.feeStructure'])
+            ->where('student_id', $student->id)
+            ->where('status', 'completed')
+            ->orderBy('payment_date', 'desc')
+            ->paginate(15);
+        
+        return view('admin.payments.payments', compact('payments'));
     }
 
-    public function edit(SchoolFeeStructure $schoolFeeStructure)
+    public function downloadReceipt($id)
     {
-        $academicYears = AcademicYear::all();
-        $terms = Term::all();
-        $classes = StudentClass::all();
-        $categories = FeeCategory::all();
-
-        return view(
-            'school-fee-structures.edit',
-            compact(
-                'schoolFeeStructure',
-                'academicYears',
-                'terms',
-                'classes',
-                'categories'
-            )
-        );
+        $student = Auth::guard('student')->user();
+        
+        $payment = Payment::with(['student', 'studentFeeAllocation.feeStructure'])
+            ->where('student_id', $student->id)
+            ->findOrFail($id);
+        
+        // Generate PDF receipt
+        $pdf = PDF::loadView('admin.payments.receipt', compact('payment'));
+        
+        return $pdf->download('receipt-' . $payment->invoice_number . '.pdf');
     }
 
-    public function update(
-        Request $request,
-        SchoolFeeStructure $schoolFeeStructure
-    ) {
-        $validated = $request->validate([
-            'academic_year_id' => 'required|exists:academic_years,id',
-            'term_id' => 'required|exists:terms,id',
-            'student_class_id' => 'required|exists:student_classes,id',
-            'fee_category_id' => 'required|exists:fee_categories,id',
-            'amount' => 'required|numeric|min:0',
-            'description' => 'nullable|string',
-            'is_active' => 'nullable'
-        ]);
-
-        $validated['is_active'] = $request->has('is_active');
-
-        $schoolFeeStructure->update($validated);
-
-        return redirect()
-            ->route('school-fee-structures.index')
-            ->with('success', 'Fee structure updated successfully.');
-    }
-
-    public function destroy(SchoolFeeStructure $schoolFeeStructure)
+    private function generateReceipt($payment)
     {
-        $schoolFeeStructure->delete();
-
-        return redirect()
-            ->route('school-fee-structures.index')
-            ->with('success', 'Fee structure deleted successfully.');
+        // Optional: Generate receipt file or send email
+        // This can be implemented based on requirements
     }
 }

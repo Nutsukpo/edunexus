@@ -12,7 +12,7 @@
         </div>
 
         <a href="{{ route('school-fee-structures.create') }}"
-           class="btn btn-white text-dark">
+           class="btn btn-danger text-white">
             <i class="fas fa-plus-circle me-1"></i>
             Add Structure
         </a>
@@ -85,12 +85,12 @@
                                     <div class="btn-group btn-group-sm">
 
                                         <a href="{{ route('school-fee-structures.show', $structure->id) }}"
-                                           class="btn btn-outline-info">
+                                           class="btn btn-outline-white">
                                             <i class="fas fa-eye"></i>
                                         </a>
 
                                         <a href="{{ route('school-fee-structures.edit', $structure->id) }}"
-                                           class="btn btn-outline-primary">
+                                           class="btn btn-outline-white">
                                             <i class="fas fa-edit"></i>
                                         </a>
 
@@ -101,7 +101,7 @@
                                             @csrf
                                             @method('DELETE')
 
-                                            <button class="btn btn-outline-danger">
+                                            <button class="btn btn-outline-white">
                                                 <i class="fas fa-trash"></i>
                                             </button>
 

@@ -9,7 +9,7 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
         <div>
             <h5 class="fw-bold mb-1">
-                <i class="fas fa-arrow-up me-2 text-danger"></i>
+                <i class="fas fa-arrow-up me-2 text-primary"></i>
                 Student Promotion & Graduation
             </h5>
             <p class="text-muted mb-0">Manage student promotions, repetitions, and graduations</p>
@@ -25,7 +25,7 @@
     @endif
 
     @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show shadow-sm mb-4">
+        <div class="alert alert-primary alert-dismissible fade show shadow-sm mb-4">
             <i class="fas fa-exclamation-circle me-2"></i>
             {{ session('error') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
@@ -36,7 +36,7 @@
     <div class="card border-0 shadow-sm rounded-4 mb-4">
         <div class="card-header bg-white py-3">
             <h5 class="mb-0 fw-bold">
-                <i class="fas fa-filter me-2 text-danger"></i>
+                <i class="fas fa-filter me-2 text-primary"></i>
                 Select Options
             </h5>
         </div>
@@ -44,7 +44,7 @@
             <form method="GET" action="{{ route('student-progressions.index') }}" id="filterForm">
                 <div class="row g-3">
                     <div class="col-md-5">
-                        <label class="form-label fw-semibold">Select Class <span class="text-danger">*</span></label>
+                        <label class="form-label fw-semibold">Select Class <span class="text-primary">*</span></label>
                         <select name="class_id" class="form-select" required>
                             <option value="">-- Select Class --</option>
                             @foreach($classes as $class)
@@ -55,7 +55,7 @@
                         </select>
                     </div>
                     <div class="col-md-5">
-                        <label class="form-label fw-semibold">Academic Year <span class="text-danger">*</span></label>
+                        <label class="form-label fw-semibold">Academic Year <span class="text-primary">*</span></label>
                         <select name="academic_year_id" class="form-select" required>
                             <option value="">-- Select Academic Year --</option>
                             @foreach($academicYears as $year)
@@ -67,7 +67,7 @@
                     </div>
                     <div class="col-md-2">
                         <label class="form-label d-none d-md-block">&nbsp;</label>
-                        <button type="submit" class="btn btn-danger w-100">
+                        <button type="submit" class="btn btn-primary w-100">
                             <i class="fas fa-search me-1"></i> Load Students
                         </button>
                     </div>
@@ -87,11 +87,11 @@
                     <div class="card-header bg-white py-3">
                         <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
                             <h5 class="mb-0 fw-bold">
-                                <i class="fas fa-users me-2 text-danger"></i>
+                                <i class="fas fa-users me-2 text-primary"></i>
                                 Students in {{ $selectedClass->name ?? 'Selected Class' }}
                             </h5>
                             <div class="d-flex gap-2">
-                                <button type="button" onclick="selectAll()" class="btn btn-sm btn-outline-danger">
+                                <button type="button" onclick="selectAll()" class="btn btn-sm btn-outline-primary">
                                     <i class="fas fa-check-double me-1"></i> Select All
                                 </button>
                                 <button type="submit" class="btn btn-sm btn-success">
@@ -113,7 +113,7 @@
                                         <th>Student Name</th>
                                         <th>Current Class</th>
                                         <th width="150">Action</th>
-                                        <th width="200">Promote To</th>
+                                        <th width="200">Next Class</th>
                                         <th width="200">Remarks</th>
                                     </tr>
                                 </thead>
@@ -153,17 +153,9 @@
                                             </select>
                                         </td>
                                         <td>
-                                            <select name="students[{{ $student->id }}][to_class_id]" 
-                                                    class="form-select form-select-sm target-class-select" 
-                                                    data-student-id="{{ $student->id }}"
-                                                    disabled>
-                                                <option value="">-- Select Class --</option>
-                                                @foreach($classes as $targetClass)
-                                                    <option value="{{ $targetClass->id }}">
-                                                        {{ $targetClass->name }}
-                                                    </option>
-                                                @endforeach
-                                            </select>
+                                            <span class="badge bg-info">
+                                                Auto From Progression Rules
+                                            </span>
                                         </td>
                                         <td>
                                             <input type="text" 
@@ -214,27 +206,7 @@ function selectAll() {
     });
 }
 
-// Handle action change
-document.querySelectorAll('.action-select').forEach(select => {
-    select.addEventListener('change', function() {
-        const studentId = this.dataset.studentId;
-        const targetSelect = document.querySelector(`.target-class-select[data-student-id="${studentId}"]`);
-        
-        if (this.value === 'promoted') {
-            targetSelect.disabled = false;
-            targetSelect.required = true;
-            targetSelect.style.opacity = '1';
-            targetSelect.style.cursor = 'pointer';
-        } else {
-            targetSelect.disabled = true;
-            targetSelect.required = false;
-            targetSelect.value = '';
-            targetSelect.style.opacity = '0.5';
-            targetSelect.style.cursor = 'not-allowed';
-        }
-    });
-    select.dispatchEvent(new Event('change'));
-});
+
 
 // Form validation
 document.getElementById('progressionForm')?.addEventListener('submit', function(e) {
@@ -250,13 +222,9 @@ document.getElementById('progressionForm')?.addEventListener('submit', function(
     checkedBoxes.forEach(checkbox => {
         const row = checkbox.closest('tr');
         const actionSelect = row.querySelector('.action-select');
-        const targetSelect = row.querySelector('.target-class-select');
-        
-        if (actionSelect && actionSelect.value === 'promoted') {
-            if (!targetSelect.value) {
-                alert('Please select a target class for promoted students.');
-                hasError = true;
-            }
+        if (!actionSelect.value) {
+            alert('Please select an action.');
+            hasError = true;
         }
     });
     

@@ -64,7 +64,7 @@
                     </button>
 
                     <button type="submit"
-                            class="btn btn-dark rounded-pill px-5 shadow-sm">
+                            class="btn btn-primary border text-primary rounded-pill px-4">
 
                         <i class="fas fa-save me-1"></i>
                         Save Staff

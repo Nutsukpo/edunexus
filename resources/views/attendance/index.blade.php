@@ -10,12 +10,12 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4 mt-3">
         <div>
             <h5 class="mb-0">
-                <i class="fas fa-list me-2 text-danger"></i>
+                <i class="fas fa-list me-2 text-primary"></i>
                 Attendance Records
             </h5>
         </div>
 
-        <a href="{{ route('attendance-sessions.create') }}" class="btn btn-white text-dark shadow-sm">
+        <a href="{{ route('attendance-sessions.create') }}" class="btn btn-primary shadow-sm">
             <i class="fas fa-plus me-1"></i>
             Take Attendance
         </a>
@@ -31,7 +31,7 @@
     @endif
 
     @if(session('error'))
-        <div class="alert alert-danger alert-dismissible fade show shadow-sm">
+        <div class="alert alert-primary alert-dismissible fade show shadow-sm">
             <i class="fas fa-exclamation-circle me-2"></i>
             {{ session('error') }}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
@@ -211,7 +211,7 @@
 <div class="modal fade" id="deleteModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
+            <div class="modal-header bg-primary text-white">
                 <h5 class="modal-title"><i class="fas fa-trash me-2"></i>Confirm Delete</h5>
                 <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
@@ -224,7 +224,7 @@
                 <form id="deleteForm" method="POST" style="display:inline;">
                     @csrf
                     @method('DELETE')
-                    <button type="submit" class="btn btn-danger">Delete Session</button>
+                    <button type="submit" class="btn btn-primary">Delete Session</button>
                 </form>
             </div>
         </div>
@@ -334,7 +334,7 @@ function updateActiveFilters(filters) {
 function addFilterBadge(container, text, type) {
     const badge = document.createElement('span');
     badge.className = 'badge bg-light text-dark border px-3 py-2';
-    badge.innerHTML = `${text} <i class="fas fa-times-circle ms-2 text-danger" style="cursor:pointer;" onclick="removeFilter('${type}')"></i>`;
+    badge.innerHTML = `${text} <i class="fas fa-times-circle ms-2 text-primary" style="cursor:pointer;" onclick="removeFilter('${type}')"></i>`;
     container.appendChild(badge);
 }
 
@@ -461,7 +461,7 @@ function printTable() {
 
 function showToast(message, type = 'success') {
     const toast = document.createElement('div');
-    toast.className = `alert alert-${type === 'error' ? 'danger' : type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+    toast.className = `alert alert-${type === 'error' ? 'primary' : type} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
     toast.style.zIndex = '9999';
     toast.style.minWidth = '280px';
     toast.style.zIndex = '10000';

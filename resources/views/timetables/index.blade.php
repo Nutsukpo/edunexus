@@ -6,16 +6,16 @@
 
 <div class="container-fluid">
 
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 mt-3">
 
         <h4>
-            <i class="fas fa-calendar-alt"></i>
+            <i class="fas fa-calendar-alt text-primary"></i>
             Timetable Management
         </h4>
 
         <a href="{{ route('timetables.create') }}"
-           class="btn btn-primary">
-            <i class="fas fa-plus"></i>
+           class="btn btn-primary text-white">
+           <i class="fas fa-plus-circle me-1"></i>
             Upload Timetable
         </a>
 
@@ -84,12 +84,12 @@
                                 <td>
 
                                     <a href="{{ route('timetables.show',$timetable->id) }}"
-                                       class="btn btn-sm btn-info">
+                                       class="btn btn-sm btn-white text-dark">
                                         View
                                     </a>
 
                                     <a href="{{ route('timetables.download',$timetable->id) }}"
-                                       class="btn btn-sm btn-success">
+                                       class="btn btn-sm btn-white text-dark">
                                         Download
                                     </a>
 
@@ -102,7 +102,7 @@
 
                                         <button
                                             onclick="return confirm('Delete timetable?')"
-                                            class="btn btn-sm btn-danger">
+                                            class="btn btn-sm btn-white text-dark">
 
                                             Delete
 

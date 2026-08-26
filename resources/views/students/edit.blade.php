@@ -5,7 +5,7 @@
 @section('content')
 <div class="container-fluid">
 
-    <h4 class="mb-3">Edit Student</h4>
+    <h5 class="mb-3 mt-3 bg-white">Edit Student</h5>
 
     <div class="card">
         <div class="card-body">
@@ -19,7 +19,7 @@
 
                 @include('students.form')
 
-                <button class="btn btn-light text-dark">
+                <button class="btn btn-danger text-white">
                     Update Student
                 </button>
 

@@ -12,15 +12,15 @@
             <div class="row align-items-center">
                 <div class="col-md-8">
                     <h4 class="fw-bold mb-2">
-                        <i class="fas fa-book-open me-2 text-danger"></i> Subject Management
+                        <i class="fas fa-book-open me-2 text-primary"></i> Subject Management
                     </h4>
                     <p class="text-muted mb-0">
                         Manage all subjects, assign teachers, and organize curriculum
                     </p>
                 </div>
                 <div class="col-md-4 text-md-end mt-3 mt-md-0">
-                    <a href="{{ route('subjects.create') }}" class="btn btn-white text-dark">
-                        <i class="fas fa-plus me-1"></i> Add New Subject
+                    <a href="{{ route('subjects.create') }}" class="btn btn-primary text-white">
+                    <i class="fas fa-plus-circle me-1"></i> New Subject
                     </a>
                 </div>
             </div>
@@ -33,7 +33,7 @@
             <div class="row align-items-center">
                 <div class="col-md-4">
                     <h5 class="fw-bold mb-0">
-                        <i class="fas fa-list me-2 text-danger"></i> Subjects List
+                        <i class="fas fa-list me-2 text-primary"></i> Subjects List
                         <span class="badge bg-white text-dark ms-2">{{ $subjects->count() }} Total</span>
                     </h5>
                 </div>

@@ -209,7 +209,7 @@
                     </button>
 
                     <button type="button"
-                            class="btn btn-danger"
+                            class="btn btn-primary"
                             onclick="markAll('absent')">
 
                         <i class="fas fa-user-times me-1"></i>
@@ -359,7 +359,7 @@
                                                        id="absent_{{ $assignment->id }}"
                                                        autocomplete="off">
 
-                                                <label class="btn btn-outline-danger"
+                                                <label class="btn btn-outline-primary"
                                                        for="absent_{{ $assignment->id }}">
 
                                                     <i class="fas fa-times-circle me-1"></i>
@@ -456,7 +456,7 @@
         color:#000;
     }
 
-    .btn-check:checked + .btn-outline-danger{
+    .btn-check:checked + .btn-outline-primary{
         background:#dc3545;
         color:#fff;
     }

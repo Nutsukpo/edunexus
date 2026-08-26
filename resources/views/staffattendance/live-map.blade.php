@@ -9,7 +9,7 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
         <div>
             <h3 class="mb-0">
-                <i class="fas fa-map-marker-alt text-danger me-2"></i>
+                <i class="fas fa-map-marker-alt text-primary me-2"></i>
                 Live Staff Location Map
             </h3>
             <p class="text-muted mt-2 mb-0">
@@ -24,7 +24,7 @@
             <button type="button" class="btn btn-outline-secondary btn-sm" onclick="zoomToFit()">
                 <i class="fas fa-expand-alt me-1"></i> Fit All
             </button> -->
-            <button type="button" class="btn btn-outline-danger btn-sm" onclick="toggleMarkers()">
+            <button type="button" class="btn btn-outline-primary btn-sm" onclick="toggleMarkers()">
                 <i class="fas fa-eye me-1"></i> Toggle Markers
             </button>
             <button type="button" class="btn btn-outline-success btn-sm" onclick="exportClockInData()">
@@ -37,7 +37,7 @@
     <div class="card shadow-sm border-0 mb-4">
         <div class="card-header bg-white py-3">
             <h5 class="mb-0">
-                <i class="fas fa-clock text-danger me-2"></i>
+                <i class="fas fa-clock text-primary me-2"></i>
                 Staff Clock-In Records - Today
                 <span class="badge bg-dark ms-2">{{ count($attendances ?? []) }}</span>
             </h5>
@@ -124,7 +124,7 @@
                                 <td><span class="badge bg-white text-dark">{{ $status }}</span></td>
                                 <td>
                                     @if($attendance->clock_in_latitude && $attendance->clock_in_longitude)
-                                        <button class="btn btn-sm btn-outline-danger" onclick="locateOnMap({{ $attendance->clock_in_latitude }}, {{ $attendance->clock_in_longitude }})">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="locateOnMap({{ $attendance->clock_in_latitude }}, {{ $attendance->clock_in_longitude }})">
                                             <i class="fas fa-map-marker-alt"></i> Locate
                                         </button>
                                     @else
@@ -151,7 +151,7 @@
                             <h6 class="mb-0 opacity-75">Active Staff</h6>
                             <h2 class="mb-0 mt-1">{{ $attendances->count() ?? 0 }}</h2>
                         </div>
-                        <i class="fas fa-users fa-2x opacity-50 text-danger" ></i>
+                        <i class="fas fa-users fa-2x opacity-50 text-primary" ></i>
                     </div>
                 </div>
             </div>
@@ -164,7 +164,7 @@
                             <h6 class="mb-0 opacity-75">Clocked In</h6>
                             <h2 class="mb-0 mt-1">{{ $attendances->filter(function($l) { return $l->clock_in_time; })->count() ?? 0 }}</h2>
                         </div>
-                        <i class="fas fa-sign-in-alt fa-2x opacity-50 text-danger"></i>
+                        <i class="fas fa-sign-in-alt fa-2x opacity-50 text-primary"></i>
                     </div>
                 </div>
             </div>
@@ -177,7 +177,7 @@
                             <h6 class="mb-0 opacity-75">Working Now</h6>
                             <h2 class="mb-0 mt-1">{{ $attendances->filter(function($l) { return $l->clock_in_time && !$l->clock_out_time; })->count() ?? 0 }}</h2>
                         </div>
-                        <i class="fas fa-clock fa-2x opacity-50 text-danger"></i>
+                        <i class="fas fa-clock fa-2x opacity-50 text-primary"></i>
                     </div>
                 </div>
             </div>
@@ -190,7 +190,7 @@
                             <h6 class="mb-0 opacity-75">Completed</h6>
                             <h2 class="mb-0 mt-1">{{ $attendances->filter(function($l) { return $l->clock_out_time; })->count() ?? 0 }}</h2>
                         </div>
-                        <i class="fas fa-check-circle fa-2x opacity-50 text-danger"></i>
+                        <i class="fas fa-check-circle fa-2x opacity-50 text-primary"></i>
                     </div>
                 </div>
             </div>
@@ -204,11 +204,11 @@
                 <div class="card-header bg-white py-3">
                     <div class="d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">
-                            <i class="fas fa-map-marked-alt text-danger me-2"></i>
+                            <i class="fas fa-map-marked-alt text-primary me-2"></i>
                             Staff Location Map
                         </h5>
                         <span class="badge bg-light text-dark">
-                            <i class="fas fa-map-marker-alt text-danger"></i> 
+                            <i class="fas fa-map-marker-alt text-primary"></i> 
                             <span id="markerCount">0</span> Staff Located
                         </span>
                     </div>
@@ -231,7 +231,7 @@
                 <div class="card-header bg-white py-3">
                     <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
                         <h5 class="mb-0">
-                            <i class="fas fa-users text-danger me-2"></i>
+                            <i class="fas fa-users text-primary me-2"></i>
                             Staff on Map
                         </h5>
                         <input type="text" id="staffSearchInput" class="form-control form-control-sm" style="width: 150px;" placeholder="Search...">
@@ -483,7 +483,7 @@
                     </div>
                     <div style="font-size: 13px; line-height: 1.8;">
                         <div><i class="fas fa-clock text-primary"></i> <strong>Clock In:</strong> ${clockInDisplay} (${timeAgo})</div>
-                        <div><i class="fas fa-sign-out-alt text-danger"></i> <strong>Clock Out:</strong> ${clockOutDisplay}</div>
+                        <div><i class="fas fa-sign-out-alt text-primary"></i> <strong>Clock Out:</strong> ${clockOutDisplay}</div>
                         <div><i class="fas fa-hourglass-half text-warning"></i> <strong>Duration:</strong> ${duration}</div>
                         <div><i class="fas fa-tag"></i> <strong>Status:</strong> <span style="color: ${color};">${hasClockedOut ? 'Clocked Out' : 'Working'}</span></div>
                         <div><i class="fas fa-map-marker-alt"></i> <strong>Location:</strong><br>

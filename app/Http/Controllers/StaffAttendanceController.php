@@ -583,4 +583,195 @@ class StaffAttendanceController extends Controller
 
         return $angle * $earthRadius;
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | MONTHLY ATTENDANCE REPORT
+    |--------------------------------------------------------------------------
+    */
+    public function monthlyReport(Request $request)
+    {
+        // Handle the month selection
+        if ($request->has('month_year')) {
+            $monthYear = $request->month_year;
+            // Parse the YYYY-MM format
+            $year = substr($monthYear, 0, 4);
+            $month = substr($monthYear, 5, 2);
+        } else {
+            // Default to current month
+            $year = now()->year;
+            $month = now()->month;
+        }
+
+        // Convert to integers
+        $year = (int) $year;
+        $month = (int) $month;
+
+        // Get all staff members
+        $staffMembers = Staff::orderBy('first_name')->orderBy('last_name')->get();
+        
+        // Get attendance records for the selected month
+        $startDate = Carbon::create($year, $month, 1)->startOfDay();
+        $endDate = Carbon::create($year, $month, 1)->endOfMonth()->endOfDay();
+        
+        $attendances = StaffAttendance::whereBetween('date', [$startDate, $endDate])
+            ->get()
+            ->groupBy('staff_id');
+        
+        // Get days in month
+        $daysInMonth = Carbon::create($year, $month, 1)->daysInMonth;
+        $days = [];
+        for ($i = 1; $i <= $daysInMonth; $i++) {
+            $days[] = Carbon::create($year, $month, $i);
+        }
+        
+        // Prepare monthly data
+        $monthlyData = [];
+        foreach ($staffMembers as $staff) {
+            $staffAttendance = $attendances->get($staff->id, collect());
+            $attendanceData = [];
+            
+            foreach ($days as $day) {
+                $dateString = $day->toDateString();
+                $record = $staffAttendance->firstWhere('date', $dateString);
+                
+                $attendanceData[$dateString] = [
+                    'status' => $record ? $record->status : 'absent',
+                    'clock_in' => $record ? $record->clock_in_time : null,
+                    'clock_out' => $record ? $record->clock_out_time : null,
+                    'record_id' => $record ? $record->id : null,
+                ];
+            }
+            
+            // Calculate monthly statistics
+            $present = collect($attendanceData)->filter(fn($data) => $data['status'] === 'present')->count();
+            $late = collect($attendanceData)->filter(fn($data) => $data['status'] === 'late')->count();
+            $absent = collect($attendanceData)->filter(fn($data) => $data['status'] === 'absent')->count();
+            $totalWorkingDays = $daysInMonth;
+            
+            $monthlyData[] = [
+                'staff' => $staff,
+                'attendance' => $attendanceData,
+                'present' => $present,
+                'late' => $late,
+                'absent' => $absent,
+                'total' => $totalWorkingDays,
+                'attendance_rate' => $totalWorkingDays > 0 ? round(($present + $late) / $totalWorkingDays * 100, 2) : 0,
+            ];
+        }
+        
+        // Get summary statistics
+        $summary = [
+            'total_staff' => $staffMembers->count(),
+            'total_present' => collect($monthlyData)->sum('present'),
+            'total_late' => collect($monthlyData)->sum('late'),
+            'total_absent' => collect($monthlyData)->sum('absent'),
+            'month_name' => Carbon::create($year, $month, 1)->format('F Y'),
+        ];
+        
+        return view('staffattendance.monthly-report', compact(
+            'monthlyData', 
+            'days', 
+            'month', 
+            'year', 
+            'summary',
+            'staffMembers'
+        ));
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | EXPORT MONTHLY REPORT TO EXCEL
+    |--------------------------------------------------------------------------
+    */
+    public function exportMonthlyReport(Request $request)
+    {
+        // Handle the month selection
+        if ($request->has('month_year')) {
+            $monthYear = $request->month_year;
+            $year = (int) substr($monthYear, 0, 4);
+            $month = (int) substr($monthYear, 5, 2);
+        } else {
+            $year = now()->year;
+            $month = now()->month;
+        }
+        
+        $staffMembers = Staff::orderBy('first_name')->orderBy('last_name')->get();
+        
+        $startDate = Carbon::create($year, $month, 1)->startOfDay();
+        $endDate = Carbon::create($year, $month, 1)->endOfMonth()->endOfDay();
+        
+        $attendances = StaffAttendance::whereBetween('date', [$startDate, $endDate])
+            ->get()
+            ->groupBy('staff_id');
+        
+        $daysInMonth = Carbon::create($year, $month, 1)->daysInMonth;
+        $days = [];
+        for ($i = 1; $i <= $daysInMonth; $i++) {
+            $days[] = Carbon::create($year, $month, $i);
+        }
+        
+        // Create CSV data
+        $csvData = [];
+        
+        // Header row
+        $header = ['Staff Name'];
+        foreach ($days as $day) {
+            $header[] = $day->format('d');
+        }
+        $header[] = 'Present';
+        $header[] = 'Late';
+        $header[] = 'Absent';
+        $header[] = 'Total';
+        $header[] = 'Rate %';
+        $csvData[] = $header;
+        
+        // Data rows
+        foreach ($staffMembers as $staff) {
+            $staffAttendance = $attendances->get($staff->id, collect());
+            $row = [$staff->first_name . ' ' . $staff->last_name];
+            
+            $present = 0;
+            $late = 0;
+            $absent = 0;
+            
+            foreach ($days as $day) {
+                $dateString = $day->toDateString();
+                $record = $staffAttendance->firstWhere('date', $dateString);
+                
+                if ($record) {
+                    $status = $record->status;
+                    $row[] = ucfirst($status);
+                    
+                    if ($status === 'present') $present++;
+                    elseif ($status === 'late') $late++;
+                    else $absent++;
+                } else {
+                    $row[] = 'Absent';
+                    $absent++;
+                }
+            }
+            
+            $total = $daysInMonth;
+            $row[] = $present;
+            $row[] = $late;
+            $row[] = $absent;
+            $row[] = $total;
+            $row[] = $total > 0 ? round(($present + $late) / $total * 100, 2) : 0;
+            
+            $csvData[] = $row;
+        }
+        
+        // Create CSV
+        $filename = "monthly_attendance_{$year}_{$month}.csv";
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        
+        $output = fopen('php://output', 'w');
+        foreach ($csvData as $row) {
+            fputcsv($output, $row);
+        }
+        fclose($output);
+        exit;
+    }
 }

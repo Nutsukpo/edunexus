@@ -10,8 +10,8 @@
         <h5 class="fw-bold">Academic Years</h5>
 
         <a href="{{ route('academic-years.create') }}"
-           class="btn btn-light text-dark">
-            <i class="fa fa-plus"></i> Add Academic Year
+           class="btn btn-primary text-white">
+           <i class="fas fa-plus-circle me-1"></i> Academic Year
         </a>
     </div>
 

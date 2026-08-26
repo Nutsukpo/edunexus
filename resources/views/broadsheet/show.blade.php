@@ -39,7 +39,7 @@
                 <!-- School Logo -->
                 <div class="col-md-2 text-center">
 
-                    <img src="{{ asset('img/images.jpeg') }}"
+                    <img src="{{ asset('img/Talha.jpeg') }}"
                          alt="School Logo"
                          style="max-height:100px;"
                          class="img-fluid">
@@ -49,9 +49,9 @@
                 <!-- School Info -->
                 <div class="col-md-8 text-center">
 
-                    <h2 class="fw-bold text-danger mb-1">
+                    <h2 class="fw-bold text-primary mb-1">
                         <!-- {{ config('app.name', 'EDUNEXUS SCHOOL') }} -->
-                        KABORE SCHOOL COMPLEX
+                        TALHA PREMIER INTERNATIONAL ACADEMY
                     </h2>
 
                     <h5 class="mb-1">

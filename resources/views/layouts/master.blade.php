@@ -7,6 +7,7 @@
     <title>@yield('title', 'Kabore USMS')</title>
 
     <!-- Bootstrap 5 + Icons + Fonts -->
+    <!-- IMPORTANT: Bootstrap 5.3.3 is loaded ONCE. Do not load Bootstrap 4/5 again in child views. -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
     
@@ -16,10 +17,9 @@
     <!-- Toastr CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
     
-    <link rel="icon" type="image/png" href="{{ asset('img/images.jpeg') }}">
+    <link rel="icon" type="image/png" href="{{ asset('img/Talha.jpeg') }}">
     @yield('styles')
-    @stack('modals')
-    @stack('scripts')
+    
     
     <style>
         /* ---------- PRELOADER ---------- */
@@ -29,7 +29,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+            background: linear-gradient(135deg, #f0f7ff 0%, #ffffff 100%);
             z-index: 999999;
             display: flex;
             justify-content: center;
@@ -60,13 +60,13 @@
         .loader {
             width: 64px;
             height: 64px;
-            border: 5px solid rgba(139, 0, 0, 0.15);
-            border-top: 5px solid #b91c1c;
-            border-right: 5px solid #dc2626;
-            border-bottom: 5px solid #b91c1c;
+            border: 5px solid rgba(26, 75, 140, 0.15);
+            border-top: 5px solid #1a4b8c;
+            border-right: 5px solid #2b6bb0;
+            border-bottom: 5px solid #1a4b8c;
             border-radius: 50%;
             animation: rotation 0.8s linear infinite;
-            box-shadow: 0 4px 15px rgba(185, 28, 28, 0.2);
+            box-shadow: 0 4px 15px rgba(26, 75, 140, 0.2);
         }
         
         @keyframes rotation {
@@ -84,7 +84,7 @@
         .dot {
             width: 8px;
             height: 8px;
-            background: #b91c1c;
+            background: #1a4b8c;
             border-radius: 50%;
             animation: pulse 1.4s ease-in-out infinite;
         }
@@ -99,12 +99,12 @@
         }
         
         .loader-text {
-            color: #b91c1c;
+            color: #1a4b8c;
             font-weight: 600;
             text-align: center;
             font-size: 1.1rem;
             letter-spacing: 1px;
-            background: rgba(185, 28, 28, 0.08);
+            background: rgba(26, 75, 140, 0.08);
             padding: 8px 24px;
             border-radius: 40px;
         }
@@ -142,16 +142,14 @@
             to { opacity: 1; transform: translateY(0); }
         }
         
-        /* ---------- GLOBAL RESETS ---------- */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
+        /* ---------- SAFE GLOBAL RESETS ---------- */
+        html {
+            min-height: 100%;
         }
 
         body {
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #f0f2f5;
+            background: #f0f7ff;
             min-height: 100vh;
             display: flex;
             flex-direction: column;
@@ -173,11 +171,11 @@
             50% { opacity: 0.85; transform: scale(1.02); }
         }
 
-        /* ========== FIXED SIDEBAR WITH SCROLLING - BLACK BACKGROUND ========== */
+        /* ========== EDUNEXUS SIDEBAR - BLUE GRADIENT ========== */
         .offcanvas {
-            background: #000000 !important;
+            background: linear-gradient(180deg, #0a2f66 0%, #1a4b8c 40%, #2b6bb0 70%, #1a4b8c 100%) !important;
             border-right: none !important;
-            box-shadow: 4px 0 25px rgba(0, 0, 0, 0.5);
+            box-shadow: 4px 0 30px rgba(26, 75, 140, 0.4);
             display: flex !important;
             flex-direction: column !important;
         }
@@ -186,6 +184,25 @@
             width: 280px !important;
         }
         
+        /* Sidebar scrollbar - subtle blue */
+        .offcanvas-body::-webkit-scrollbar {
+            width: 4px;
+        }
+        
+        .offcanvas-body::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 10px;
+        }
+        
+        .offcanvas-body::-webkit-scrollbar-thumb {
+            background: rgba(43, 107, 176, 0.4);
+            border-radius: 10px;
+        }
+        
+        .offcanvas-body::-webkit-scrollbar-thumb:hover {
+            background: rgba(43, 107, 176, 0.6);
+        }
+
         /* MAKE SIDEBAR CONTENT SCROLLABLE */
         .offcanvas-body {
             flex: 1 !important;
@@ -195,30 +212,25 @@
             flex-direction: column !important;
         }
         
-        /* Custom scrollbar for sidebar - light gray on black */
-        .offcanvas-body::-webkit-scrollbar {
-            width: 4px;
-        }
-        
-        .offcanvas-body::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 10px;
-        }
-        
-        .offcanvas-body::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 10px;
-        }
-        
-        .offcanvas-body::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.5);
-        }
-
+        /* Sidebar Header - with subtle blue glow */
         .sidebar-header {
             padding: 1.5rem 1.25rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
             margin-bottom: 0;
             flex-shrink: 0;
+            background: rgba(0, 0, 0, 0.15);
+            position: relative;
+        }
+        
+        .sidebar-header::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 20%;
+            right: 20%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #3f87d0, transparent);
+            opacity: 0.3;
         }
 
         .sidebar-logo {
@@ -230,19 +242,20 @@
         .sidebar-logo-icon {
             width: 42px;
             height: 42px;
-            background: linear-gradient(135deg, #4f46e5, #6366f1);
+            background: linear-gradient(135deg, #2b6bb0, #1a4b8c);
             border-radius: 14px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 1.3rem;
             color: white;
-            box-shadow: 0 6px 12px rgba(79, 70, 229, 0.3);
-            transition: transform 0.2s;
+            box-shadow: 0 6px 16px rgba(43, 107, 176, 0.35);
+            transition: transform 0.2s, box-shadow 0.2s;
         }
         
         .sidebar-logo-icon:hover {
-            transform: scale(1.02);
+            transform: scale(1.05) rotate(-5deg);
+            box-shadow: 0 8px 24px rgba(43, 107, 176, 0.5);
         }
         
         .sidebar-logo-text a {
@@ -253,14 +266,20 @@
             font-size: 1.1rem;
             font-weight: 700;
             margin: 0;
-            color: white;
+            color: #ffffff;
             letter-spacing: -0.3px;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+        }
+        
+        .sidebar-logo-text h4 span {
+            color: #6ba3e0;
         }
 
         .sidebar-logo-text p {
             font-size: 0.65rem;
-            color: #a0a0a0;
+            color: rgba(255, 255, 255, 0.6);
             margin: 0;
+            letter-spacing: 0.5px;
         }
 
         /* Sidebar Navigation Container - Scrollable */
@@ -275,12 +294,12 @@
         }
         
         .sidebar-nav-container::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
+            background: rgba(255, 255, 255, 0.03);
             border-radius: 10px;
         }
         
         .sidebar-nav-container::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(43, 107, 176, 0.3);
             border-radius: 10px;
         }
 
@@ -288,100 +307,131 @@
             padding: 0;
         }
 
+        /* Section Title - subtle and elegant */
         .nav-section {
             margin-bottom: 1.5rem;
         }
 
         .nav-section-title {
-            font-size: 0.65rem;
-            font-weight: 600;
+            font-size: 0.6rem;
+            font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: #a0a0a0;
+            letter-spacing: 0.12em;
+            color: rgba(255, 255, 255, 0.35);
             padding: 0.5rem 0.75rem;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.25rem;
         }
 
+        /* Nav Items - Clean white text with hover effects */
         .nav-item-custom {
             display: flex;
             align-items: center;
             gap: 12px;
             padding: 0.7rem 1rem;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
             border-radius: 12px;
-            color: #ffffff !important;
+            color: rgba(255, 255, 255, 0.8) !important;
             text-decoration: none;
             transition: all 0.25s ease;
             font-weight: 500;
             font-size: 0.85rem;
             position: relative;
             cursor: pointer;
+            border: 1px solid transparent;
         }
 
         .nav-item-custom i {
             width: 22px;
-            font-size: 1.1rem;
+            font-size: 1rem;
             text-align: center;
             transition: all 0.2s;
-            color: #ffffff;
+            color: rgba(255, 255, 255, 0.6);
         }
 
         .nav-item-custom:hover {
-            background: rgba(255, 255, 255, 0.1);
-            color: white;
+            background: rgba(255, 255, 255, 0.08);
+            color: #ffffff !important;
             transform: translateX(4px);
+            border-color: rgba(255, 255, 255, 0.05);
+        }
+
+        .nav-item-custom:hover i {
+            color: #ffffff;
         }
 
         .nav-item-custom.active {
-            background: linear-gradient(95deg, #4f46e5, #6366f1);
-            color: white;
-            box-shadow: 0 6px 14px rgba(79, 70, 229, 0.3);
+            background: linear-gradient(95deg, rgba(43, 107, 176, 0.4), rgba(26, 75, 140, 0.6));
+            color: #ffffff !important;
+            border-left: 3px solid #3f87d0;
+            box-shadow: 0 4px 15px rgba(43, 107, 176, 0.15);
         }
         
         .nav-item-custom.active i {
-            color: white;
+            color: #6ba3e0;
+        }
+        
+        .nav-item-custom.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 20%;
+            bottom: 20%;
+            width: 3px;
+            background: linear-gradient(180deg, #3f87d0, #6ba3e0);
+            border-radius: 0 4px 4px 0;
         }
 
         .nav-badge {
             margin-left: auto;
-            background: rgba(239, 68, 68, 0.2);
-            color: #f87171;
-            font-size: 0.65rem;
-            padding: 2px 8px;
+            background: rgba(43, 107, 176, 0.25);
+            color: #6ba3e0;
+            font-size: 0.6rem;
+            padding: 2px 10px;
             border-radius: 20px;
             font-weight: 600;
         }
         
-        /* Collapse submenu styles */
+        /* Collapse submenu styles - with indentation */
         .collapse.nav-collapse {
             padding-left: 1.75rem;
         }
         
         .collapse.nav-collapse .nav-item-custom {
-            padding: 0.6rem 1rem;
+            padding: 0.55rem 1rem;
             font-size: 0.8rem;
-            color: #e0e0e0 !important;
+            color: rgba(255, 255, 255, 0.65) !important;
+            border-left: 1px solid rgba(255, 255, 255, 0.06);
+            border-radius: 0 12px 12px 0;
         }
         
         .collapse.nav-collapse .nav-item-custom i {
-            color: #e0e0e0;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 0.9rem;
         }
         
         .collapse.nav-collapse .nav-item-custom:hover {
-            color: white !important;
+            color: #ffffff !important;
+            background: rgba(255, 255, 255, 0.05);
         }
         
         .collapse.nav-collapse .nav-item-custom:hover i {
-            color: white;
+            color: #ffffff;
         }
         
-        /* Sidebar footer - fixed at bottom */
+        .collapse.nav-collapse .nav-item-custom.active {
+            background: rgba(43, 107, 176, 0.2);
+            border-left: 2px solid #3f87d0;
+            color: #ffffff !important;
+        }
+        
+        /* Sidebar footer - subtle blue gradient */
         .sidebar-footer {
             flex-shrink: 0;
             padding: 1rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
             margin-top: auto;
-            background: #000000;
+            background: rgba(0, 0, 0, 0.25);
+            backdrop-filter: blur(10px);
         }
         
         .sidebar-user {
@@ -400,7 +450,7 @@
         .sidebar-user-avatar {
             width: 38px;
             height: 38px;
-            background: linear-gradient(135deg, #4f46e5, #6366f1);
+            background: linear-gradient(135deg, #2b6bb0, #1a4b8c);
             border-radius: 12px;
             display: flex;
             align-items: center;
@@ -408,28 +458,29 @@
             font-weight: 700;
             font-size: 0.9rem;
             color: white;
+            box-shadow: 0 4px 12px rgba(43, 107, 176, 0.3);
         }
         
         .sidebar-user-info .name {
             font-size: 0.8rem;
             font-weight: 600;
-            color: white;
+            color: #ffffff;
             margin: 0;
         }
         
         .sidebar-user-info .role {
             font-size: 0.6rem;
-            color: #a0a0a0;
+            color: rgba(255, 255, 255, 0.5);
             margin: 0;
         }
         
-        /* Dark mode specific overrides - keep sidebar black even in dark mode */
+        /* Dark mode - sidebar stays blue gradient */
         body.dark-mode .offcanvas {
-            background: #000000 !important;
+            background: linear-gradient(180deg, #0a2f66 0%, #1a4b8c 40%, #2b6bb0 70%, #1a4b8c 100%) !important;
         }
         
         body.dark-mode .sidebar-footer {
-            background: #000000;
+            background: rgba(0, 0, 0, 0.25);
         }
         
         body.dark-mode {
@@ -481,6 +532,34 @@
             color: #cbd5e1;
         }
 
+        /* ---------- BOOTSTRAP 5 SAFE APPLICATION LAYER ---------- */
+        /*
+         * Bootstrap 5.3.3 is loaded once in this layout.
+         * Page-specific styles should be placed in @push('styles').
+         * Do not redefine Bootstrap modal, dropdown, button, form, table,
+         * navbar or collapse rules globally.
+         */
+        .app-content {
+            width: 100%;
+            min-width: 0;
+        }
+
+        .navbar .dropdown-menu {
+            z-index: 1080;
+        }
+
+        .modal {
+            z-index: 1055;
+        }
+
+        .modal-backdrop {
+            z-index: 1050;
+        }
+
+        #preloader.preloader-hidden {
+            pointer-events: none !important;
+        }
+
         /* Navbar & misc */
         .navbar {
             background: rgba(255, 255, 255, 0.96);
@@ -494,7 +573,7 @@
         .user-avatar {
             width: 42px;
             height: 42px;
-            background: linear-gradient(135deg, #4f46e5, #6366f1);
+            background: linear-gradient(135deg, #2b6bb0, #1a4b8c);
             border-radius: 50%;
             display: flex;
             align-items: center;
@@ -504,11 +583,12 @@
             color: white;
             cursor: pointer;
             transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(43, 107, 176, 0.2);
         }
 
         .user-avatar:hover {
             transform: scale(1.08);
-            box-shadow: 0 8px 20px rgba(79, 70, 229, 0.4);
+            box-shadow: 0 8px 20px rgba(43, 107, 176, 0.4);
         }
 
         .dropdown-menu {
@@ -628,6 +708,14 @@
         
         .menu-btn {
             transition: all 0.2s;
+            background: linear-gradient(135deg, #1a4b8c, #2b6bb0) !important;
+            border: none !important;
+        }
+        
+        .menu-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 15px rgba(43, 107, 176, 0.4) !important;
+            background: linear-gradient(135deg, #0a2f66, #1a4b8c) !important;
         }
         
         .logout-overlay {
@@ -650,8 +738,8 @@
             width: 55px;
             height: 55px;
             border: 4px solid rgba(255,255,255,0.2);
-            border-top: 4px solid #4f46e5;
-            border-right: 4px solid #dc2626;
+            border-top: 4px solid #2b6bb0;
+            border-right: 4px solid #1a4b8c;
             border-radius: 50%;
             animation: rotation 0.7s linear infinite;
         }
@@ -674,7 +762,7 @@
         .nav-item-custom[data-bs-toggle="collapse"] i.fa-chevron-down,
         .nav-item-custom[data-bs-toggle="collapse"] i.fa-chevron-right {
             margin-left: auto;
-            transition: transform 0.2s;
+            transition: transform 0.3s ease;
         }
         
         .nav-item-custom[data-bs-toggle="collapse"]:not(.collapsed) i.fa-chevron-down {
@@ -693,21 +781,21 @@
                 <span class="dot"></span>
                 <span class="dot"></span>
             </div>
-            <div class="loader-text">Kabore USMS</div>
+            <div class="loader-text">Talha Prem USMS</div>
             <div class="loader-subtext">Loading at {{ now()->format('h:i:s A') }} ...</div>
         </div>
     </div>
 
-    <!-- SIDEBAR (Offcanvas) - BLACK BACKGROUND WITH WHITE TEXT -->
+    <!-- SIDEBAR (Offcanvas) - EDUNEXUS BLUE GRADIENT -->
     <div class="offcanvas offcanvas-start" tabindex="-1" id="sidebar">
         <div class="sidebar-header">
             <div class="sidebar-logo">
                 <div class="sidebar-logo-icon">
-                    <i class="fas fa-school"></i>
+                    <i class="fas fa-graduation-cap"></i>
                 </div>
                 <div class="sidebar-logo-text">
-                    <h4>Kabore USMS</h4>
-                    <p>Universal School System</p>
+                    <h4>Talha<span>Premier</span></h4>
+                    <p>Universal School Management System</p>
                 </div>
             </div>
         </div>
@@ -728,7 +816,6 @@
 
                     <!-- STUDENT MANAGEMENT -->
                     <div class="nav-section">
-                        <div class="nav-section-title">STUDENT MANAGEMENT</div>
                         <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#studentMenu" aria-expanded="false">
                             <i class="fas fa-user-graduate"></i>
                             <span>Students</span>
@@ -739,62 +826,24 @@
                                 <i class="fas fa-list"></i>
                                 <span>Admissions</span>
                             </a>
-                            <a href="/student-classes" class="nav-item-custom">
-                                <i class="fas fa-user-plus"></i>
-                                <span>Class/Form</span>
-                            </a>
-
+                            
                             <a href="/student-class-assignments" class="nav-item-custom">
-                                <i class="fas fa-graduation-cap"></i>
+                                <i class="fas fa-building"></i>
                                 <span>Students Class Enrolled</span>
                             </a>
                             <a href="/student-progressions" class="nav-item-custom">
                                 <i class="fas fa-level-up-alt"></i>
                                 <span>Promotions</span>
                             </a>
-                            <a href="/students/graduated" class="nav-item-custom">
+                            <a href="/graduated-students" class="nav-item-custom">
                                 <i class="fas fa-graduation-cap"></i>
                                 <span>Graduated Students</span>
                             </a>
                         </div>
                     </div>
 
-                    <!-- ENROLLMENT -->
-                    <!-- <div class="nav-section">
-                        <div class="nav-section-title">Enrollment</div>
-                        <a href="/enrollments" class="nav-item-custom">
-                            <i class="fas fa-book-reader"></i>
-                            <span>Enrollment</span>
-                        </a>
-                    </div> -->
-
-                    <!-- TEACHERS -->
-                    <!-- <div class="nav-section">
-                        <div class="nav-section-title">TEACHER MANAGEMENT</div>
-                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#teacherMenu">
-                            <i class="fas fa-chalkboard-teacher"></i>
-                            <span>Teachers</span>
-                            <i class="fas fa-chevron-down ms-auto"></i>
-                        </a>
-                        <div class="collapse nav-collapse" id="teacherMenu">
-                            <a href="/teachers" class="nav-item-custom">
-                                <i class="fas fa-list"></i>
-                                <span>Teacher Lists</span>
-                            </a>
-                            <a href="/teachers/create" class="nav-item-custom">
-                                <i class="fas fa-user-plus"></i>
-                                <span>Add Teacher</span>
-                            </a>
-                            <a href="/departments" class="nav-item-custom">
-                                <i class="fas fa-building"></i>
-                                <span>Departments</span>
-                            </a>
-                        </div>
-                    </div> -->
-
                     <!-- ACADEMICS -->
                     <div class="nav-section">
-                        <div class="nav-section-title">ACADEMICS</div>
                         <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#academicMenu">
                             <i class="fas fa-book-open"></i>
                             <span>Academics</span>
@@ -802,8 +851,20 @@
                         </a>
                         <div class="collapse nav-collapse" id="academicMenu">
                             <a href="/student-classes" class="nav-item-custom">
-                                <i class="fas fa-school"></i>
-                                <span>Classes</span>
+                                    <i class="fas fa-building"></i>
+                                    <span>Class/Form</span>
+                                </a>    
+                            <a href="/lesson-notes" class="nav-item-custom">
+                                <i class="fas fa-sticky-note"></i>
+                                <span>Lesson Notes</span>
+                            </a>
+                            <a href="/academic-years" class="nav-item-custom">
+                                <i class="fas fa-user-shield"></i>
+                                <span>Academic Years</span>
+                            </a>
+                            <a href="/terms" class="nav-item-custom">
+                                <i class="fas fa-calendar-alt"></i>
+                                <span>Terms</span>
                             </a>
                             <a href="/subjects" class="nav-item-custom">
                                 <i class="fas fa-book"></i>
@@ -813,34 +874,41 @@
                                 <i class="fas fa-clock"></i>
                                 <span>Timetable</span>
                             </a>
-                            <a href="/assignments" class="nav-item-custom">
-                                <i class="fas fa-tasks"></i>
-                                <span>Assignments</span>
-                            </a>
+                            
                         </div>
                     </div>
 
-                    <!-- Results -->
+                    <!-- ASSESSMENT -->
                     <div class="nav-section">
-                        <div class="nav-section-title">Examination</div>
                         <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#examMenu">
                             <i class="fas fa-clipboard-list"></i>
-                            <span>Results</span>
-                            
+                            <span>Assessment</span>
                             <i class="fas fa-chevron-down ms-auto"></i>
                         </a>
                         <div class="collapse nav-collapse" id="examMenu">
-                            <a href="/exams" class="nav-item-custom">
-                                <i class="fas fa-file-alt"></i>
-                                <span>Exam Lists</span>
-                            </a>
-                            <a href="/broadsheet" class="nav-item-custom">
-                                <i class="fas fa-chart-line"></i>
-                                <span>Class Results</span>
-                            </a>
                             <a href="/scores" class="nav-item-custom">
                                 <i class="fas fa-chart-line"></i>
                                 <span>Subject Scores</span>
+                            </a>
+                            <a href="/assessment-forms" class="nav-item-custom">
+                                <i class="fas fa-upload"></i>
+                                <span>Assessment Form</span>
+                            </a>
+                          
+                        </div>
+                    </div>
+
+                      <!-- RESULTS -->
+                      <div class="nav-section">
+                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#resultMenu">
+                            <i class="fas fa-clipboard-list"></i>
+                            <span>Results</span>
+                            <i class="fas fa-chevron-down ms-auto"></i>
+                        </a>
+                        <div class="collapse nav-collapse" id="resultMenu">
+                            <a href="/broadsheet" class="nav-item-custom">
+                                <i class="fas fa-registered"></i>
+                                <span>Class Results</span>
                             </a>
                             <a href="/subject-results" class="nav-item-custom">
                                 <i class="fas fa-chart-line"></i>
@@ -855,7 +923,6 @@
 
                     <!-- ATTENDANCE -->
                     <div class="nav-section">
-                        <div class="nav-section-title">ATTENDANCE</div>
                         <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#attendanceMenu">
                             <i class="fas fa-calendar-check"></i>
                             <span>Attendance</span>
@@ -871,50 +938,106 @@
                                 <span>Staff Attendance</span>
                             </a>
                             <a href="/staffattendance-live-map" class="nav-item-custom">
-                                <i class="fas fa-users"></i>
-                                <span>Attendance Map </span>
+                                <i class="fas fa-map-marker-alt"></i>
+                                <span>Attendance Map</span>
                             </a>
                         </div>
                     </div>
 
-                    <!-- FEES & FINANCE -->
+                     <!-- APPROVALS -->
+                     <div class="nav-section">
+                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#approvalMenu">
+                            <i class="fas fa-calendar-check"></i>
+                            <span>Approvals</span>
+                            <i class="fas fa-chevron-down ms-auto"></i>
+                        </a>
+                        <div class="collapse nav-collapse" id="approvalMenu">
+                            <a href="/payroll-period-approvals" class="nav-item-custom">
+                                <i class="fas fa-paypal"></i>
+                                <span>Payroll</span>
+                            </a>
+                            <a href="/leave-approvals" class="nav-item-custom">
+                                <i class="fas fa-clock"></i>
+                                <span>Leaves</span>
+                            </a>
+                            <a href="/approvals" class="nav-item-custom">
+                                <i class="fas fa-sticky-note"></i>
+                                <span>Lesson Note</span>
+                            </a>
+                            <a href="/bill-sheet-approvals" class="nav-item-custom">
+                                <i class="fas fa-sticky-note"></i>
+                                <span>Bill Sheets</span>
+                            </a>
+                        </div>
+                    </div>
+
+                    <!-- FINANCE -->
                     <div class="nav-section">
-                        <div class="nav-section-title">FINANCE</div>
                         <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#financeMenu">
                             <i class="fas fa-wallet"></i>
                             <span>Fees & Payments</span>
                             <i class="fas fa-chevron-down ms-auto"></i>
                         </a>
                         <div class="collapse nav-collapse" id="financeMenu">
-                            <a href="/fee-categories" class="nav-item-custom">
+                            <!-- <a href="/fee-categories" class="nav-item-custom">
                                 <i class="fas fa-credit-card"></i>
-                                <span>Fee-Categories</span>
-                            </a>
-                            <a href="/school-fee-structures" class="nav-item-custom">
-                                <i class="fas fa-money-bill"></i>
+                                <span>Fee Categories</span>
+                            </a> -->
+                            <!-- <a href="/class-fee-structures" class="nav-item-custom">
+                                <i class="fas fa-refresh"></i>
                                 <span>Fee Structure</span>
+                            </a> -->
+                            <a href="/bill-sheets" class="nav-item-custom">
+                                <i class="fas fa-file-invoice"></i>
+                                <span>BillSheet</span>
                             </a>  
-                            <a href="/billing" class="nav-item-custom">
-                                <i class="fas fa-money-bill"></i>
-                                <span>Billing</span>
-                            </a>  
-                            <a href="/payments" class="nav-item-custom">
-                                <i class="fas fa-money-bill"></i>
+                            <a href="/fee-payments" class="nav-item-custom">
+                                <i class="fas fa-money-bill-wave"></i>
                                 <span>Payments</span>
-                            </a>                      
+                            </a> 
+                            <a href="/payroll-periods" class="nav-item-custom">
+                                <i class="fas fa-paypal"></i>
+                                <span>Payroll</span>
+                            </a>
+                            <a href="/payslips" class="nav-item-custom">
+                                <i class="fas fa-paypal"></i>
+                                <span>PaySlip</span>
+                            </a> 
+                            <a href="/salary-structures" class="nav-item-custom">
+                                <i class="fas fa-paypal"></i>
+                                <span>salary-structures</span>
+                            </a>                    
+                        </div>
+                    </div>
+                            <!-- ASSET MANAGEMENT -->
+                    <div class="nav-section">
+                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#assetMenu">
+                            <i class="fas fa-hand"></i>
+                            <span>Asset Manager</span>
+                            <i class="fas fa-chevron-down ms-auto"></i>
+                        </a>
+                        <div class="collapse nav-collapse" id="assetMenu">
+                            <a href="assets" class="nav-item-custom">
+                                <i class="fas fa-archive"></i>
+                                <span>Store Records</span>
+                            </a>
+                            <a href="#" class="nav-item-custom">
+                                <i class="fas fa-upload"></i>
+                                <span>Upload Docs</span>
+                            </a>
+                          
                         </div>
                     </div>
 
                     <!-- COMMUNICATION -->
-                    <!-- <div class="nav-section">
-                        <div class="nav-section-title">COMMUNICATION</div>
+                    <div class="nav-section">
                         <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#communicationMenu">
                             <i class="fas fa-comments"></i>
                             <span>Communication</span>
                             <i class="fas fa-chevron-down ms-auto"></i>
                         </a>
                         <div class="collapse nav-collapse" id="communicationMenu">
-                            <a href="/messages" class="nav-item-custom">
+                            <a href="/discussions" class="nav-item-custom">
                                 <i class="fas fa-envelope"></i>
                                 <span>Messages</span>
                             </a>
@@ -922,18 +1045,21 @@
                                 <i class="fas fa-bullhorn"></i>
                                 <span>Announcements</span>
                             </a>
-                            <a href="/events" class="nav-item-custom">
+                            <a href="/grievance" class="nav-item-custom">
                                 <i class="fas fa-calendar"></i>
-                                <span>Events</span>
+                                <span>Staff Gravience</span>
                             </a>
+                            <!-- <a href="/student-grievance" class="nav-item-custom">
+                                <i class="fas fa-calendar"></i>
+                                <span>Student Gravience</span>
+                            </a> -->
                         </div>
-                    </div> -->
+                    </div>
 
                     <!-- ADMINISTRATION -->
                     <div class="nav-section">
-                        <div class="nav-section-title">ADMINISTRATION</div>
                         <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#administrationMenu">
-                            <i class="fas fa-users"></i>
+                            <i class="fas fa-users-cog"></i>
                             <span>Administration</span>
                             <i class="fas fa-chevron-down ms-auto"></i>
                         </a>
@@ -943,36 +1069,46 @@
                                 <span>Staff</span>
                             </a>
                             <a href="/departments" class="nav-item-custom">
-                                <i class="fas fa-user-shield"></i>
+                                <i class="fas fa-building"></i>
                                 <span>Departments</span>
                             </a>
-                            <a href="/academic-years" class="nav-item-custom">
-                                <i class="fas fa-user-shield"></i>
-                                <span>Academic Years</span>
-                            </a>
-                            <a href="/terms" class="nav-item-custom">
-                                <i class="fas fa-user-shield"></i>
-                                <span>Terms</span>
-                            </a>
-                            <a href="/leave" class="nav-item-custom">
-                                <i class="fas fa-database"></i>
+                            <a href="/leaves" class="nav-item-custom">
+                                <i class="fas fa-clock"></i>
                                 <span>Leave</span>
+                            </a>
+                            <a href="/staff-appraisals" class="nav-item-custom">
+                                <i class="fas fa-list-check"></i>
+                                <span>Appraisals</span>
                             </a>
                         </div>
                     </div>
-                    
-                    <!-- TRANSPORT -->
-                    <!-- <div class="nav-section">
-                        <div class="nav-section-title">TRANSPORT</div>
-                        <a href="/transport" class="nav-item-custom">
-                            <i class="fas fa-bus"></i>
-                            <span>Transport Manager</span>
-                        </a>
-                    </div> -->
 
-                    <!-- SETTINGS -->
+                     <!-- REPORTS -->
+                     <div class="nav-section">
+                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#reportMenu">
+                            <i class="fas fa-hand-lizard"></i>
+                            <span>Reports</span>
+                            <i class="fas fa-chevron-down ms-auto"></i>
+                        </a>
+                        <div class="collapse nav-collapse" id="reportMenu">
+                            <a href="/staffattendance/monthly-report" class="nav-item-custom">
+                                <i class="fas fa-archive"></i>
+                                <span>Staff-Attendance</span>
+                            </a>
+                            <a href="/attendance/monthly-report" class="nav-item-custom">
+                                <i class="fas fa-upload"></i>
+                                <span>Student-Attendance</span>
+                            </a>
+                            <a href="/fee-payment-reports" class="nav-item-custom">
+                                <i class="fas fa-upload"></i>
+                                <span>Student-Fee Payment</span>
+                            </a>
+                          
+                        </div>
+                    </div>
+
+                    <!-- SYSTEM -->
                     <div class="nav-section">
-                        <div class="nav-section-title">SYSTEM</div>
                         <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#settingsMenu">
                             <i class="fas fa-cogs"></i>
                             <span>Settings</span>
@@ -983,13 +1119,14 @@
                                 <i class="fas fa-users-cog"></i>
                                 <span>User Management</span>
                             </a>
-                            <a href="/roles" class="nav-item-custom">
+                          
+                            <a href="/roles-permissions" class="nav-item-custom">
                                 <i class="fas fa-user-shield"></i>
                                 <span>Roles & Permissions</span>
                             </a>
                             <a href="/attendance-settings" class="nav-item-custom">
                                 <i class="fas fa-database"></i>
-                                <span>attendance-settings</span>
+                                <span>Attendance Settings</span>
                             </a>
                             <a href="/settings" class="nav-item-custom">
                                 <i class="fas fa-tools"></i>
@@ -1016,7 +1153,7 @@
     <!-- NAVBAR -->
     <nav class="navbar navbar-expand-lg sticky-top">
         <div class="container-fluid">
-            <button class="btn btn-danger menu-btn rounded-3 px-3 py-2 me-3" data-bs-toggle="offcanvas" data-bs-target="#sidebar">
+            <button class="btn btn-primary menu-btn rounded-3 px-3 py-2 me-3" data-bs-toggle="offcanvas" data-bs-target="#sidebar">
                 <i class="fas fa-bars fa-lg"></i>
             </button>
             <a class="navbar-brand text-dark fw-bold" href="{{ url('/dashboard') }}">Dashboard</a>
@@ -1073,19 +1210,22 @@
         </div>
     </nav>
 
-    <main class="main-content">
+    <main class="main-content app-content">
         @yield('content')
     </main>
 
     <footer class="footer">
         <div class="footer-content">
-            <div class="copyright">&copy; {{ date('Y') }} Kabore USMS. All rights reserved.</div>
+            <div class="copyright">&copy; {{ date('Y') }} EduNexus USMS. All rights reserved.</div>
             <div><span id="footerGreeting" class="text-muted small"></span></div>
         </div>
     </footer>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    {{-- Bootstrap 5 modals supplied by individual pages --}}
+    @stack('modals')
 
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    {{-- Bootstrap 5.3.3 JavaScript: load exactly once in the master layout --}}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
@@ -1260,6 +1400,17 @@
             updateGreetings();
             initDarkMode();
             setInterval(updateGreetings, 60000);
+
+            /*
+             * Bootstrap integrity guard.
+             * Bootstrap's bundle is loaded once by this master layout.
+             * Page blades must NOT load another Bootstrap CSS/JS version.
+             */
+            window.USMSBootstrap = window.bootstrap || null;
+
+            // Bootstrap 5 manages modal/backdrop lifecycle itself.
+            // Do not manually remove .modal-backdrop or modal-open here;
+            // doing so can break modal transitions and focus handling.
         })();
     </script>
     @stack('scripts')

@@ -160,7 +160,7 @@
 
                 <table class="table table-bordered table-striped" id="dataTable">
 
-                    <thead class="table-dark">
+                    <thead class="table-white text-dark">
 
                         <tr>
 

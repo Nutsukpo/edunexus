@@ -41,7 +41,7 @@
                 @include('subjects.form')
 
                 <button type="submit"
-                        class="btn btn-light text-dark">
+                        class="btn btn-primary text-light">
 
                     Save Subject
 

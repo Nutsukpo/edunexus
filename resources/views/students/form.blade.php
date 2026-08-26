@@ -6,7 +6,8 @@
 
         <input type="file"
                name="photo"
-               class="form-control @error('photo') is-invalid @enderror">
+               class="form-control @error('photo') is-invalid @enderror"
+               accept="image/*">
 
         @error('photo')
             <div class="invalid-feedback">{{ $message }}</div>
@@ -21,12 +22,13 @@
 
     {{-- ================= FIRST NAME ================= --}}
     <div class="col-md-6 mb-3">
-        <label>First Name</label>
+        <label>First Name <span class="text-danger">*</span></label>
 
         <input type="text"
                name="first_name"
                class="form-control @error('first_name') is-invalid @enderror"
-               value="{{ old('first_name', $student->first_name ?? '') }}">
+               value="{{ old('first_name', $student->first_name ?? '') }}"
+               required>
 
         @error('first_name')
             <div class="invalid-feedback">{{ $message }}</div>
@@ -49,12 +51,13 @@
 
     {{-- ================= LAST NAME ================= --}}
     <div class="col-md-6 mb-3">
-        <label>Last Name</label>
+        <label>Last Name <span class="text-danger">*</span></label>
 
         <input type="text"
                name="last_name"
                class="form-control @error('last_name') is-invalid @enderror"
-               value="{{ old('last_name', $student->last_name ?? '') }}">
+               value="{{ old('last_name', $student->last_name ?? '') }}"
+               required>
 
         @error('last_name')
             <div class="invalid-feedback">{{ $message }}</div>
@@ -63,10 +66,11 @@
 
     {{-- ================= GENDER ================= --}}
     <div class="col-md-6 mb-3">
-        <label>Gender</label>
+        <label>Gender <span class="text-danger">*</span></label>
 
         <select name="gender"
-                class="form-control @error('gender') is-invalid @enderror">
+                class="form-control @error('gender') is-invalid @enderror"
+                required>
 
             <option value="">Select</option>
             <option value="Male" {{ old('gender', $student->gender ?? '') == 'Male' ? 'selected' : '' }}>Male</option>
@@ -85,7 +89,7 @@
         <input type="date"
                name="date_of_birth"
                class="form-control @error('date_of_birth') is-invalid @enderror"
-               value="{{ old('date_of_birth', $student->date_of_birth ?? '') }}">
+               value="{{ old('date_of_birth', isset($student->date_of_birth) ? \Carbon\Carbon::parse($student->date_of_birth)->format('Y-m-d') : '') }}">
 
         @error('date_of_birth')
             <div class="invalid-feedback">{{ $message }}</div>
@@ -156,11 +160,11 @@
                 class="form-control @error('disability_type') is-invalid @enderror">
 
             <option value="">None</option>
-            <option value="Visual Impairment">Visual Impairment</option>
-            <option value="Hearing Impairment">Hearing Impairment</option>
-            <option value="Physical Disability">Physical Disability</option>
-            <option value="Intellectual Disability">Intellectual Disability</option>
-            <option value="Other">Other</option>
+            <option value="Visual Impairment" {{ old('disability_type', $student->disability_type ?? '') == 'Visual Impairment' ? 'selected' : '' }}>Visual Impairment</option>
+            <option value="Hearing Impairment" {{ old('disability_type', $student->disability_type ?? '') == 'Hearing Impairment' ? 'selected' : '' }}>Hearing Impairment</option>
+            <option value="Physical Disability" {{ old('disability_type', $student->disability_type ?? '') == 'Physical Disability' ? 'selected' : '' }}>Physical Disability</option>
+            <option value="Intellectual Disability" {{ old('disability_type', $student->disability_type ?? '') == 'Intellectual Disability' ? 'selected' : '' }}>Intellectual Disability</option>
+            <option value="Other" {{ old('disability_type', $student->disability_type ?? '') == 'Other' ? 'selected' : '' }}>Other</option>
         </select>
 
         @error('disability_type')
@@ -314,14 +318,15 @@
         @enderror
     </div>
 
-    {{-- ================= ADMISSION ================= --}}
+    {{-- ================= ADMISSION DATE ================= --}}
     <div class="col-md-6 mb-3">
-        <label>Admission Date</label>
+        <label>Admission Date <span class="text-danger">*</span></label>
 
         <input type="date"
                name="admission_date"
                class="form-control @error('admission_date') is-invalid @enderror"
-               value="{{ old('admission_date', $student->admission_date ?? '') }}">
+               value="{{ old('admission_date', isset($student->admission_date) ? \Carbon\Carbon::parse($student->admission_date)->format('Y-m-d') : now()->format('Y-m-d')) }}"
+               required>
 
         @error('admission_date')
             <div class="invalid-feedback">{{ $message }}</div>

@@ -4,9 +4,9 @@
 
 @section('content')
 
-<div class="container-fluid">
+<div class="container-fluid mt-3">
 
-    <h4>Edit Class</h4>
+    <h5 class="mb-4 mt-3">Edit Class</h5>
 
     <form method="POST" action="{{ route('student-classes.update', $studentClass->id) }}">
         @csrf
@@ -14,7 +14,7 @@
 
         @include('student_classes.form')
 
-        <button class="btn btn-light">Update</button>
+        <button class="btn btn-danger">Update</button>
     </form>
 
 </div>

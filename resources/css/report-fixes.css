@@ -1,0 +1,170 @@
+/* public/css/report-fixes.css */
+
+/* ==========================================
+   EMERGENCY DROPDOWN FIX - OVERRIDES EVERYTHING
+   ========================================== */
+
+/* Force ALL select elements to have dark text */
+select,
+select *,
+.form-select,
+.form-select *,
+select.form-control,
+select.form-control *,
+.custom-select,
+.custom-select *,
+[class*="select"] {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+}
+
+/* Force ALL option elements */
+select option,
+select optgroup,
+.form-select option,
+.form-select optgroup,
+select.form-control option,
+select.form-control optgroup,
+option,
+optgroup {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+    -webkit-text-fill-color: #000000 !important;
+}
+
+/* Selected/highlighted options */
+select option:checked,
+select option:selected,
+.form-select option:checked,
+.form-select option:selected,
+select option:hover,
+select option:focus,
+select option:active {
+    color: #000000 !important;
+    background-color: #e9ecef !important;
+    -webkit-text-fill-color: #000000 !important;
+}
+
+/* Focus state for selects */
+select:focus,
+select:active,
+.form-select:focus,
+.form-select:active,
+select.form-control:focus,
+select.form-control:active {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+    border-color: #86b7fe !important;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25) !important;
+    -webkit-text-fill-color: #000000 !important;
+}
+
+/* Remove any white text */
+.text-white,
+.text-light,
+[style*="color: white"],
+[style*="color: #fff"],
+[style*="color: #ffffff"] {
+    color: #000000 !important;
+}
+
+/* Fix for Bootstrap dropdowns */
+.dropdown-menu,
+.dropdown-menu *,
+.dropdown-item,
+.dropdown-item * {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+}
+
+.dropdown-item:hover,
+.dropdown-item:focus,
+.dropdown-item:active {
+    color: #000000 !important;
+    background-color: #f8f9fa !important;
+}
+
+/* Fix for any dark mode or theme */
+[data-bs-theme="dark"] select,
+[data-bs-theme="dark"] .form-select,
+[data-bs-theme="dark"] select option,
+[data-bs-theme="dark"] .form-select option,
+[data-theme="dark"] select,
+[data-theme="dark"] .form-select,
+[data-theme="dark"] select option,
+[data-theme="dark"] .form-select option {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+    -webkit-text-fill-color: #000000 !important;
+}
+
+/* Fix for select arrow */
+select.form-select {
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23333' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M2 5l6 6 6-6'/%3e%3c/svg%3e") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 0.75rem center !important;
+    background-size: 16px 12px !important;
+}
+
+/* Firefox specific fixes */
+select:-moz-focusring {
+    color: #000000 !important;
+    text-shadow: 0 0 0 #000000 !important;
+}
+
+select option:-moz-focusring {
+    color: #000000 !important;
+}
+
+/* Edge/IE fixes */
+select::-ms-expand {
+    display: none !important;
+}
+
+select::-ms-value {
+    color: #000000 !important;
+    background: #ffffff !important;
+}
+
+/* Safari specific fix */
+select {
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    appearance: none !important;
+}
+
+/* Force dark text on all inputs in the report section */
+.report-section,
+.report-section *,
+#filterForm,
+#filterForm * {
+    color: #000000 !important;
+}
+
+/* Fix label colors */
+.form-label,
+label {
+    color: #000000 !important;
+}
+
+/* Ensure select dropdown opens with dark text */
+select:not(:-internal-list-box) option {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+}
+
+/* Fix for disabled selects */
+select:disabled,
+select[disabled],
+.form-select:disabled,
+.form-select[disabled] {
+    color: #000000 !important;
+    background-color: #e9ecef !important;
+    opacity: 1 !important;
+}
+
+select:disabled option,
+select[disabled] option {
+    color: #000000 !important;
+    background-color: #ffffff !important;
+}

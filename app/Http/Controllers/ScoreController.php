@@ -9,16 +9,23 @@ use App\Models\StudentClass;
 use App\Models\StudentResult;
 use App\Models\Subject;
 use App\Models\Term;
+use App\Services\EdunexusAuthorizationService;
 
 class ScoreController extends Controller
 {
+    public function __construct(private EdunexusAuthorizationService $authorization)
+    {
+    }
+
     /**
      * Show score entry form
      */
     public function index()
     {
+        abort_unless(auth()->user()->can('results.view'), 403);
+
         return view('scores.index', [
-            'classes' => StudentClass::all(),
+            'classes' => $this->authorization->accessibleClasses(auth()->user())->get(),
             'subjects' => Subject::all(),
             'academicYears' => AcademicYear::all(),
             'terms' => Term::all(),
@@ -36,6 +43,17 @@ class ScoreController extends Controller
             'student_class_id' => 'required',
             'subject_id' => 'required',
         ]);
+
+        abort_unless(auth()->user()->can('results.view'), 403);
+        abort_unless(
+            $this->authorization->canAccessClassSubject(
+                auth()->user(),
+                (int) $request->student_class_id,
+                (int) $request->subject_id,
+                (int) $request->academic_year_id
+            ),
+            403
+        );
 
         $students = Student::whereHas('classAssignments', function ($query) use ($request) {
             $query->where('student_class_id', $request->student_class_id);
@@ -55,6 +73,26 @@ class ScoreController extends Controller
      */
     public function save(Request $request)
     {
+        abort_unless(auth()->user()->can('results.create') || auth()->user()->can('results.edit'), 403);
+
+        $request->validate([
+            'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'required|exists:terms,id',
+            'student_class_id' => 'required|exists:student_classes,id',
+            'subject_id' => 'required|exists:subjects,id',
+            'results' => 'required|array',
+        ]);
+
+        abort_unless(
+            $this->authorization->canAccessClassSubject(
+                auth()->user(),
+                (int) $request->student_class_id,
+                (int) $request->subject_id,
+                (int) $request->academic_year_id
+            ),
+            403
+        );
+
         foreach ($request->results as $result) {
 
             $classScore = $result['class_score'] ?? 0;

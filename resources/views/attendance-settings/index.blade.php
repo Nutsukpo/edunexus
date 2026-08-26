@@ -11,7 +11,7 @@
 
         <div>
             <h2 class="fw-bold mb-1 mt-3">
-                <i class="fas fa-cogs text-danger me-2"></i>
+                <i class="fas fa-cogs text-primary me-2"></i>
                 Attendance Settings
             </h2>
 
@@ -137,7 +137,7 @@
                         <div class="border rounded-3 p-3 h-100 bg-light-subtle">
 
                             <small class="text-muted d-block mb-2">
-                                <i class="fas fa-map-marker-alt text-danger me-1"></i>
+                                <i class="fas fa-map-marker-alt text-primary me-1"></i>
                                 Latitude
                             </small>
 
@@ -215,7 +215,7 @@
                                 Clock In End
                             </small>
 
-                            <h6 class="fw-bold mb-0 text-danger">
+                            <h6 class="fw-bold mb-0 text-primary">
                                 {{ \Carbon\Carbon::parse($setting->clock_in_end)->format('h:i A') }}
                             </h6>
 
@@ -275,7 +275,7 @@
 
                             @else
 
-                                <span class="badge bg-danger p-3 fs-6">
+                                <span class="badge bg-primary p-3 fs-6">
                                     <i class="fas fa-times-circle me-1"></i>
                                     GPS Attendance Disabled
                                 </span>

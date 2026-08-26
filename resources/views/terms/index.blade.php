@@ -10,7 +10,7 @@
         <h5 class="fw-bold bg-light text-dark">Terms Management</h5>
 
         <a href="{{ route('terms.create') }}"
-           class="btn btn-white text-dark">
+           class="btn btn-primary text-white">
             <i class="fa fa-plus"></i> Add Term
         </a>
     </div>

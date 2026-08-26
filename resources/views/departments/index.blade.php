@@ -10,12 +10,12 @@
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
         <div>
             <h5 class="fw-bold mb-1">
-                <i class="fas fa-building me-2 text-danger"></i>
+                <i class="fas fa-building me-2 text-primary"></i>
                 Departments
             </h5>
         </div>
-        <a href="{{ route('departments.create') }}" class="btn btn-white text-dark">
-            <i class="fas fa-plus-circle me-1"></i> Add Department
+        <a href="{{ route('departments.create') }}" class="btn btn-primary text-white">
+            <i class="fas fa-plus-circle me-1"></i> Department
         </a>
     </div>
 

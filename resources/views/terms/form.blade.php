@@ -125,7 +125,7 @@
 <div class="mt-4">
 
     <button type="submit"
-            class="btn btn-light">
+            class="btn btn-primary">
         Save Term
     </button>
 
