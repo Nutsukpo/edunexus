@@ -25,7 +25,7 @@ class LessonNoteController extends Controller
      */
     public function index(Request $request)
     {
-        abort_unless(auth()->user()->can('lesson_notes.view'), 403);
+        abort_unless(auth()->user()->can('lesson-notes.view'), 403);
 
         $query = LessonNote::with(['staff', 'studentClass', 'subject', 'academicYear', 'term']);
 
@@ -88,7 +88,7 @@ class LessonNoteController extends Controller
      */
     public function create()
     {
-        abort_unless(auth()->user()->can('lesson_notes.create'), 403);
+        abort_unless(auth()->user()->can('lesson-notes.create'), 403);
 
         $staffs = $this->authorization->isScopedStaff(auth()->user())
             ? collect([$this->authorization->staffFor(auth()->user())])->filter()
@@ -111,9 +111,9 @@ class LessonNoteController extends Controller
      */
     public function store(Request $request)
     {
-        abort_unless(auth()->user()->can('lesson_notes.create'), 403);
+        abort_unless(auth()->user()->can('lesson-notes.create'), 403);
 
-        abort_unless(auth()->user()->can('lesson_notes.edit'), 403);
+        abort_unless(auth()->user()->can('lesson-notes.edit'), 403);
 
         $request->validate([
             'staff_id' => 'required|exists:staff,id',
@@ -209,7 +209,7 @@ class LessonNoteController extends Controller
      */
     public function show($id)
     {
-        abort_unless(auth()->user()->can('lesson_notes.view'), 403);
+        abort_unless(auth()->user()->can('lesson-notes.view'), 403);
 
         $lessonNote = LessonNote::with([
             'staff', 
@@ -230,7 +230,7 @@ class LessonNoteController extends Controller
      */
     public function edit($id)
     {
-        abort_unless(auth()->user()->can('lesson_notes.edit'), 403);
+        abort_unless(auth()->user()->can('lesson-notes.edit'), 403);
 
         $lessonNote = LessonNote::findOrFail($id);
 

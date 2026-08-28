@@ -7,17 +7,21 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Spatie\Permission\Traits\HasRoles;
-use App\Models\Staff;
 
 class User extends Authenticatable
 {
     use HasFactory, Notifiable, SoftDeletes, HasRoles;
 
+    /**
+     * Spatie Permission uses the web guard for EDUNEXUS users.
+     */
+    protected $guard_name = 'web';
+
     protected $fillable = [
         'name',
         'email',
         'phone',
-        'role', // kept for backward compatibility; Spatie role is authoritative
+        'role',
         'password',
         'status',
         'profile_photo',
@@ -33,13 +37,18 @@ class User extends Authenticatable
         'password' => 'hashed',
     ];
 
-    /**
-     * Spatie is the authoritative RBAC system.
-     * These legacy helpers remain for compatibility with older code.
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | ROLE HELPERS
+    |--------------------------------------------------------------------------
+    */
+
     public function isAdmin(): bool
     {
-        return $this->hasRole('Super Admin') || $this->hasRole('Administrator');
+        return $this->hasAnyRole([
+            'Super Admin',
+            'Administrator',
+        ]);
     }
 
     public function isStaff(): bool
@@ -57,19 +66,39 @@ class User extends Authenticatable
 
     public function isActive(): bool
     {
-        return $this->status === 'active';
+        return strtolower((string) $this->status) === 'active';
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | DEPARTMENT
+    |--------------------------------------------------------------------------
+    */
 
     public function department()
     {
         return $this->belongsTo(Department::class);
     }
 
-    /**
-     * A user account may have one linked staff record.
-     */
-    public function user()
+    /*
+    |--------------------------------------------------------------------------
+    | STAFF
+    |--------------------------------------------------------------------------
+    |
+    | IMPORTANT:
+    | The current users table has no staff_id column.
+    | The current staff table has no user_id column.
+    |
+    | Therefore the existing database links the two records through email.
+    |
+    */
+
+    public function staff()
     {
-        return $this->belongsTo(User::class, 'email', 'email');
+        return $this->hasOne(
+            Staff::class,
+            'email',
+            'email'
+        );
     }
 }

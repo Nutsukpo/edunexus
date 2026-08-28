@@ -2,748 +2,2183 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\PayrollPeriod;
+use App\Models\PayrollAdjustment;
 use App\Models\PayrollItem;
+use App\Models\PayrollPeriod;
 use App\Models\Payslip;
 use App\Models\Staff;
-use App\Models\Attendance; // Assuming you have an Attendance model
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 
 class PayrollController extends Controller
 {
-    /**
-     * Display a listing of payroll periods.
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | INDEX
+    |--------------------------------------------------------------------------
+    */
+
     public function index(Request $request)
     {
-        $query = PayrollPeriod::with(['createdBy', 'approvedBy']);
+        $query = PayrollPeriod::with([
+            'academicYear',
+            'createdBy',
+            'approvedBy',
+        ]);
 
-        // Filters
-        if ($request->has('status') && $request->status) {
+        if ($request->filled('status')) {
             $query->where('status', $request->status);
         }
 
-        if ($request->has('period_type') && $request->period_type) {
-            $query->where('period_type', $request->period_type);
+        if ($request->filled('month')) {
+            $query->where('month', $request->month);
         }
 
-        if ($request->has('search') && $request->search) {
-            $search = $request->search;
+        if ($request->filled('year')) {
+            $query->where('year', $request->year);
+        }
+
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'LIKE', "%{$search}%")
-                  ->orWhere('period_code', 'LIKE', "%{$search}%");
+                    ->orWhere('period_code', 'LIKE', "%{$search}%");
             });
         }
 
-        $payrollPeriods = $query->orderBy('created_at', 'desc')->paginate(15);
-        
+        $payrollPeriods = $query
+            ->latest('created_at')
+            ->paginate(15)
+            ->withQueryString();
+
         return view('payroll.index', compact('payrollPeriods'));
     }
 
-    /**
-     * Show the form for creating a new payroll period.
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | CREATE
+    |--------------------------------------------------------------------------
+    */
+
     public function create()
     {
-        $staff = Staff::all();
+        $staff = Staff::query()
+            ->where('status', 'active')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
+
         return view('payroll.create', compact('staff'));
     }
 
-    /**
-     * Store a newly created payroll period.
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | STORE
+    |--------------------------------------------------------------------------
+    */
+
     public function store(Request $request)
     {
-        // Get the staff IDs and salaries from the form
-        $staffIds = $request->input('staff_ids_hidden', []);
-        $basicSalaries = $request->input('basic_salaries_hidden', []);
-        $dailyRates = $request->input('daily_rates_hidden', []);
-        $attendanceDays = $request->input('attendance_days_hidden', []);
-        
-        // If no hidden fields, try regular fields (fallback)
-        if (empty($staffIds)) {
-            $staffIds = $request->input('staff_ids', []);
-            $basicSalaries = $request->input('basic_salaries', []);
+        /*
+        |--------------------------------------------------------------------------
+        | Collect selected staff
+        |--------------------------------------------------------------------------
+        */
+
+        $staffIds = $request->input(
+            'staff_ids_hidden',
+            $request->input('staff_ids', [])
+        );
+
+        $basicSalaries = $request->input(
+            'basic_salaries_hidden',
+            $request->input('basic_salaries', [])
+        );
+
+        $workedDays = $request->input(
+            'attendance_days_hidden',
+            $request->input(
+                'worked_days',
+                $request->input('attendance_days', [])
+            )
+        );
+
+        if (!is_array($staffIds)) {
+            $staffIds = [];
         }
-        
-        // Validate that we have at least one staff selected
-        if (empty($staffIds) || count($staffIds) === 0) {
-            return redirect()->back()
-                ->with('error', 'Please select at least one staff member.')
-                ->withInput();
+
+        if (!is_array($basicSalaries)) {
+            $basicSalaries = [];
         }
-        
-        // Clean and validate the data
+
+        if (!is_array($workedDays)) {
+            $workedDays = [];
+        }
+
         $cleanedStaffIds = [];
         $cleanedSalaries = [];
-        $cleanedDailyRates = [];
-        $cleanedAttendanceDays = [];
-        
+        $cleanedWorkedDays = [];
+
         foreach ($staffIds as $index => $staffId) {
-            // Skip if staff ID is empty
+
             if (empty($staffId)) {
                 continue;
             }
-            
-            // Get values for this staff
-            $salary = isset($basicSalaries[$index]) ? $basicSalaries[$index] : 0;
-            $dailyRate = isset($dailyRates[$index]) ? $dailyRates[$index] : 0;
-            $attendanceDay = isset($attendanceDays[$index]) ? $attendanceDays[$index] : 0;
-            
-            // Ensure values are numeric
-            if (!is_numeric($salary)) $salary = 0;
-            if (!is_numeric($dailyRate)) $dailyRate = 0;
-            if (!is_numeric($attendanceDay)) $attendanceDay = 0;
-            
-            $cleanedStaffIds[] = $staffId;
-            $cleanedSalaries[] = floatval($salary);
-            $cleanedDailyRates[] = floatval($dailyRate);
-            $cleanedAttendanceDays[] = intval($attendanceDay);
+
+            $salary = $basicSalaries[$index] ?? 0;
+            $days = $workedDays[$index] ?? 0;
+
+            $cleanedStaffIds[] = (int) $staffId;
+            $cleanedSalaries[] = is_numeric($salary)
+                ? (float) $salary
+                : 0;
+
+            $cleanedWorkedDays[] = is_numeric($days)
+                ? (int) $days
+                : 0;
         }
-        
-        // Validate we have cleaned data
+
         if (empty($cleanedStaffIds)) {
-            return redirect()->back()
+            return redirect()
+                ->back()
                 ->with('error', 'Please select at least one staff member.')
                 ->withInput();
         }
-        
-        // Prepare data for validation
-        $data = [
-            'name' => $request->input('name'),
-            'period_type' => $request->input('period_type'),
-            'start_date' => $request->input('start_date'),
-            'end_date' => $request->input('end_date'),
-            'payment_date' => $request->input('payment_date'),
-            'description' => $request->input('description'),
-            'daily_rate' => $request->input('daily_rate', 0),
-            'staff_ids' => $cleanedStaffIds,
-            'basic_salaries' => $cleanedSalaries,
-            'daily_rates' => $cleanedDailyRates,
-            'attendance_days' => $cleanedAttendanceDays,
-        ];
 
-        $validator = Validator::make($data, [
-            'name' => 'required|string|max:255',
-            'period_type' => 'required|in:monthly,bi-weekly,weekly',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after:start_date',
-            'payment_date' => 'nullable|date|after:end_date',
-            'description' => 'nullable|string',
-            'daily_rate' => 'nullable|numeric|min:0',
-            'staff_ids' => 'required|array|min:1',
-            'staff_ids.*' => 'exists:staff,id',
-            'basic_salaries' => 'required|array|min:1',
-            'basic_salaries.*' => 'numeric|min:0',
-            'daily_rates.*' => 'numeric|min:0',
-            'attendance_days.*' => 'integer|min:0',
-        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Validate Payroll Period
+        |--------------------------------------------------------------------------
+        */
+
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'name' => [
+                    'required',
+                    'string',
+                    'max:255',
+                ],
+
+                'academic_year_id' => [
+                    'nullable',
+                    'integer',
+                    'exists:academic_years,id',
+                ],
+
+                'month' => [
+                    'nullable',
+                    'integer',
+                    'between:1,12',
+                ],
+
+                'year' => [
+                    'nullable',
+                    'integer',
+                    'between:2000,2100',
+                ],
+
+                'start_date' => [
+                    'required',
+                    'date',
+                ],
+
+                'end_date' => [
+                    'required',
+                    'date',
+                    'after_or_equal:start_date',
+                ],
+
+                'payment_date' => [
+                    'nullable',
+                    'date',
+                    'after_or_equal:end_date',
+                ],
+
+                'description' => [
+                    'nullable',
+                    'string',
+                ],
+
+                'status' => [
+                    'nullable',
+                    'in:draft,processing,pending_approval,approved,rejected,paid,cancelled',
+                ],
+            ]
+        );
 
         if ($validator->fails()) {
-            return redirect()->back()
+            return redirect()
+                ->back()
                 ->withErrors($validator)
                 ->withInput();
         }
 
+
+        /*
+        |--------------------------------------------------------------------------
+        | Validate Staff
+        |--------------------------------------------------------------------------
+        */
+
+        $staffValidator = Validator::make(
+            [
+                'staff_ids' => $cleanedStaffIds,
+                'basic_salaries' => $cleanedSalaries,
+                'worked_days' => $cleanedWorkedDays,
+            ],
+            [
+                'staff_ids' => [
+                    'required',
+                    'array',
+                    'min:1',
+                ],
+
+                'staff_ids.*' => [
+                    'required',
+                    'integer',
+                    'exists:staff,id',
+                ],
+
+                'basic_salaries' => [
+                    'required',
+                    'array',
+                ],
+
+                'basic_salaries.*' => [
+                    'numeric',
+                    'min:0',
+                ],
+
+                'worked_days' => [
+                    'required',
+                    'array',
+                ],
+
+                'worked_days.*' => [
+                    'integer',
+                    'min:0',
+                ],
+            ]
+        );
+
+        if ($staffValidator->fails()) {
+            return redirect()
+                ->back()
+                ->withErrors($staffValidator)
+                ->withInput();
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Resolve Authenticated User -> Staff
+        |--------------------------------------------------------------------------
+        |
+        | IMPORTANT:
+        | users table does not contain staff_id.
+        |
+        | User and Staff are linked through email.
+        |
+        */
+
+        $creatorStaff = $this->authenticatedStaff();
+
+        if (!$creatorStaff) {
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Your user account is not linked to a staff record. Please contact the system administrator.'
+                )
+                ->withInput();
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | Create Payroll
+        |--------------------------------------------------------------------------
+        */
+
         try {
+
             DB::beginTransaction();
 
-            // Create payroll period
+            $startDate = Carbon::parse($request->start_date);
+            $endDate = Carbon::parse($request->end_date);
+
             $payrollPeriod = new PayrollPeriod();
-            $payrollPeriod->period_code = $payrollPeriod->generatePeriodCode();
-            $payrollPeriod->name = $data['name'];
-            $payrollPeriod->period_type = $data['period_type'];
-            $payrollPeriod->start_date = $data['start_date'];
-            $payrollPeriod->end_date = $data['end_date'];
-            $payrollPeriod->payment_date = $data['payment_date'];
-            $payrollPeriod->description = $data['description'];
-            $payrollPeriod->daily_rate = $data['daily_rate'] ?? 0;
-            $payrollPeriod->created_by = auth()->user()->staff_id ?? null;
+
+            $payrollPeriod->period_code =
+                PayrollPeriod::generatePeriodCode();
+
+            $payrollPeriod->name =
+                $request->name;
+
+            $payrollPeriod->academic_year_id =
+                $request->academic_year_id;
+
+            $payrollPeriod->month =
+                $request->month ?: $startDate->month;
+
+            $payrollPeriod->year =
+                $request->year ?: $startDate->year;
+
+            $payrollPeriod->start_date =
+                $request->start_date;
+
+            $payrollPeriod->end_date =
+                $request->end_date;
+
+            $payrollPeriod->payment_date =
+                $request->payment_date;
+
+            $payrollPeriod->status =
+                $request->status ?: PayrollPeriod::STATUS_DRAFT;
+
+            $payrollPeriod->description =
+                $request->description;
+
+            /*
+             * created_by expects staff.id
+             */
+            $payrollPeriod->created_by =
+                $creatorStaff->id;
+
             $payrollPeriod->save();
 
-            // Create payroll items for each staff
+
+            /*
+            |--------------------------------------------------------------------------
+            | Create Payroll Items
+            |--------------------------------------------------------------------------
+            */
+
             foreach ($cleanedStaffIds as $index => $staffId) {
-                $staff = Staff::find($staffId);
-                $basicSalary = $cleanedSalaries[$index] ?? 0;
-                $dailyRate = $cleanedDailyRates[$index] ?? $staff->daily_rate ?? 0;
-                $attendanceDay = $cleanedAttendanceDays[$index] ?? 0;
 
-                if ($staff) {
-                    $payrollItem = new PayrollItem();
-                    $payrollItem->payroll_period_id = $payrollPeriod->id;
-                    $payrollItem->staff_id = $staffId;
-                    $payrollItem->staff_name = $staff->full_name ?? $staff->name;
-                    $payrollItem->staff_email = $staff->email ?? null;
-                    $payrollItem->staff_phone = $staff->phone ?? null;
-                    $payrollItem->staff_position = $staff->position ?? null;
-                    $payrollItem->staff_department = $staff->department ?? null;
-                    $payrollItem->basic_salary = $basicSalary;
-                    $payrollItem->daily_rate = $dailyRate;
-                    $payrollItem->attendance_days = $attendanceDay;
-                    $payrollItem->save();
+                $staffMember = Staff::find($staffId);
 
-                    // Calculate taxes and deductions
-                    $payrollItem->calculateTax();
-                    $payrollItem->calculatePension();
-                    $payrollItem->calculateHealthInsurance();
-                    
-                    // Calculate totals
-                    $payrollItem->calculateTotals();
+                if (!$staffMember) {
+                    continue;
                 }
+
+                $basicSalary =
+                    (float) ($cleanedSalaries[$index] ?? 0);
+
+                $workedDays =
+                    (int) ($cleanedWorkedDays[$index] ?? 0);
+
+                $payrollItem = new PayrollItem();
+
+                $payrollItem->payroll_period_id =
+                    $payrollPeriod->id;
+
+                $payrollItem->staff_id =
+                    $staffMember->id;
+
+                $payrollItem->basic_salary =
+                    $basicSalary;
+
+                $payrollItem->allowances =
+                    0;
+
+                $payrollItem->overtime =
+                    0;
+
+                $payrollItem->gross_pay =
+                    $basicSalary;
+
+                $payrollItem->tax =
+                    0;
+
+                $payrollItem->pension =
+                    0;
+
+                $payrollItem->deductions =
+                    0;
+
+                $payrollItem->net_pay =
+                    $basicSalary;
+
+                $payrollItem->worked_days =
+                    $workedDays;
+
+                $payrollItem->status =
+                    'pending';
+
+                $payrollItem->notes =
+                    null;
+
+                $payrollItem->save();
             }
 
             DB::commit();
 
-            return redirect()->route('payroll.show', $payrollPeriod->id)
-                ->with('success', 'Payroll period created successfully!');
+            return redirect()
+                ->route('payroll.show', $payrollPeriod->id)
+                ->with(
+                    'success',
+                    'Payroll period created successfully.'
+                );
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to create payroll period: ' . $e->getMessage())
+
+            report($e);
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Failed to create payroll period: ' .
+                    $e->getMessage()
+                )
                 ->withInput();
         }
     }
 
-    /**
-     * Get staff attendance data for payroll
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | ATTENDANCE DATA
+    |--------------------------------------------------------------------------
+    */
+
     public function getAttendanceData(Request $request)
     {
-        $startDate = $request->input('start_date');
-        $endDate = $request->input('end_date');
-        
-        if (!$startDate || !$endDate) {
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'start_date' => 'required|date',
+                'end_date' => 'required|date|after_or_equal:start_date',
+            ]
+        );
+
+        if ($validator->fails()) {
             return response()->json([
                 'success' => false,
-                'message' => 'Start date and end date are required.'
-            ]);
+                'message' => 'Invalid date range.',
+                'errors' => $validator->errors(),
+            ], 422);
         }
-        
+
         try {
-            $staff = Staff::all();
+
+            $staff = Staff::query()
+                ->where('status', 'active')
+                ->orderBy('first_name')
+                ->orderBy('last_name')
+                ->get();
+
             $data = [];
-            
+
             foreach ($staff as $staffMember) {
-                // Count attendance days for this staff member in the date range
-                $attendanceDays = $this->calculateAttendanceDays(
+
+                $workedDays = $this->calculateAttendanceDays(
                     $staffMember->id,
-                    $startDate,
-                    $endDate
+                    $request->start_date,
+                    $request->end_date
                 );
-                
+
                 $data[] = [
                     'staff_id' => $staffMember->id,
-                    'name' => $staffMember->full_name ?? $staffMember->name,
-                    'attendance_days' => $attendanceDays,
-                    'daily_rate' => $staffMember->daily_rate ?? 0,
-                    'basic_salary' => $staffMember->salary ?? 0,
+                    'staff_code' => $staffMember->staff_id,
+                    'name' => $staffMember->full_name,
+                    'attendance_days' => $workedDays,
+                    'worked_days' => $workedDays,
+                    'basic_salary' => (float) ($staffMember->salary ?? 0),
                 ];
             }
-            
+
             return response()->json([
                 'success' => true,
-                'data' => $data
+                'data' => $data,
             ]);
-            
-        } catch (\Exception $e) {
+
+        } catch (\Throwable $e) {
+
+            report($e);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to fetch attendance data: ' . $e->getMessage()
-            ]);
+                'message' => 'Failed to fetch attendance data.',
+            ], 500);
         }
     }
 
-    /**
-     * Calculate attendance days for a staff member in a date range
-     */
-    private function calculateAttendanceDays($staffId, $startDate, $endDate)
-    {
-        // If you have an Attendance model with proper relationship
-        // This assumes you have an attendance table with staff_id, date, and status fields
+
+    /*
+    |--------------------------------------------------------------------------
+    | CALCULATE ATTENDANCE
+    |--------------------------------------------------------------------------
+    */
+
+    private function calculateAttendanceDays(
+        int $staffId,
+        $startDate,
+        $endDate
+    ): int {
+
+        /*
+         * Do not assume a particular Attendance schema.
+         *
+         * The current controller previously assumed:
+         *   staff_id
+         *   date
+         *   status
+         *
+         * Only query those columns when they actually exist.
+         */
+
         try {
-            $attendanceDays = Attendance::where('staff_id', $staffId)
-                ->whereBetween('date', [$startDate, $endDate])
-                ->whereIn('status', ['present', 'present_half_day']) // Count present and half-day as full day
+
+            if (!Schema::hasTable('attendance')) {
+                return 0;
+            }
+
+            $columns = Schema::getColumnListing('attendance');
+
+            if (
+                !in_array('staff_id', $columns) ||
+                !in_array('status', $columns)
+            ) {
+                return 0;
+            }
+
+            $dateColumn = null;
+
+            foreach ([
+                'date',
+                'attendance_date',
+                'check_in_date',
+            ] as $candidate) {
+
+                if (in_array($candidate, $columns)) {
+                    $dateColumn = $candidate;
+                    break;
+                }
+            }
+
+            if (!$dateColumn) {
+                return 0;
+            }
+
+            return (int) DB::table('attendance')
+                ->where('staff_id', $staffId)
+                ->whereBetween(
+                    $dateColumn,
+                    [$startDate, $endDate]
+                )
+                ->whereIn(
+                    'status',
+                    [
+                        'present',
+                        'Present',
+                        'present_half_day',
+                        'half_day',
+                    ]
+                )
                 ->count();
-            
-            return $attendanceDays;
-        } catch (\Exception $e) {
-            // If Attendance table doesn't exist or query fails, return 0
+
+        } catch (\Throwable $e) {
+
+            report($e);
+
             return 0;
         }
     }
 
-    /**
-     * Display the specified payroll period.
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | SHOW
+    |--------------------------------------------------------------------------
+    */
+
     public function show($id)
     {
         $payrollPeriod = PayrollPeriod::with([
+            'academicYear',
             'payrollItems.staff',
-            'payrollItems.payslip',
             'createdBy',
-            'approvedBy'
+            'approvedBy',
         ])->findOrFail($id);
 
+        $items = $payrollPeriod->payrollItems;
+
         $summary = [
-            'total_staff' => $payrollPeriod->payrollItems->count(),
-            'total_gross' => $payrollPeriod->payrollItems->sum('gross_pay'),
-            'total_deductions' => $payrollPeriod->payrollItems->sum('total_deductions'),
-            'total_net' => $payrollPeriod->payrollItems->sum('net_pay'),
-            'total_tax' => $payrollPeriod->payrollItems->sum('tax'),
-            'total_pension' => $payrollPeriod->payrollItems->sum('pension'),
-            'total_health_insurance' => $payrollPeriod->payrollItems->sum('health_insurance'),
-            'paid_count' => $payrollPeriod->payrollItems->where('is_paid', true)->count(),
-            'unpaid_count' => $payrollPeriod->payrollItems->where('is_paid', false)->count(),
-            'total_attendance_days' => $payrollPeriod->payrollItems->sum('attendance_days'),
-            'working_days' => $payrollPeriod->getWorkingDays(),
-        ];
+            'total_staff' =>
+                $items->count(),
 
-        return view('payroll.show', compact('payrollPeriod', 'summary'));
-    }
+            'total_gross' =>
+                (float) $items->sum('gross_pay'),
 
-    /**
-     * Generate payroll from attendance
-     */
-    public function generateFromAttendance(Request $request, $periodId)
-    {
-        $payrollPeriod = PayrollPeriod::findOrFail($periodId);
-        
-        try {
-            DB::beginTransaction();
-            
-            $staff = Staff::all();
-            $generated = 0;
-            
-            foreach ($staff as $staffMember) {
-                // Calculate attendance days
-                $attendanceDays = $this->calculateAttendanceDays(
-                    $staffMember->id,
+            'total_deductions' =>
+                (float) $items->sum('deductions'),
+
+            'total_net' =>
+                (float) $items->sum('net_pay'),
+
+            'total_tax' =>
+                (float) $items->sum('tax'),
+
+            'total_pension' =>
+                (float) $items->sum('pension'),
+
+            'total_allowances' =>
+                (float) $items->sum('allowances'),
+
+            'total_overtime' =>
+                (float) $items->sum('overtime'),
+
+            'total_worked_days' =>
+                (int) $items->sum('worked_days'),
+
+            'paid_count' =>
+                $items->where('status', 'paid')->count(),
+
+            'unpaid_count' =>
+                $items->where('status', '!=', 'paid')->count(),
+
+            'working_days' =>
+                $this->workingDays(
                     $payrollPeriod->start_date,
                     $payrollPeriod->end_date
-                );
-                
-                if ($attendanceDays > 0) {
-                    // Check if payroll item already exists
-                    $existingItem = PayrollItem::where('payroll_period_id', $periodId)
-                        ->where('staff_id', $staffMember->id)
-                        ->first();
-                    
-                    if ($existingItem) {
-                        // Update existing item
-                        $existingItem->attendance_days = $attendanceDays;
-                        $existingItem->basic_salary = $staffMember->daily_rate * $attendanceDays;
-                        $existingItem->daily_rate = $staffMember->daily_rate ?? 0;
-                        $existingItem->calculateTax();
-                        $existingItem->calculatePension();
-                        $existingItem->calculateHealthInsurance();
-                        $existingItem->calculateTotals();
-                    } else {
-                        // Create new payroll item
-                        $payrollItem = new PayrollItem();
-                        $payrollItem->payroll_period_id = $periodId;
-                        $payrollItem->staff_id = $staffMember->id;
-                        $payrollItem->staff_name = $staffMember->full_name ?? $staffMember->name;
-                        $payrollItem->staff_email = $staffMember->email ?? null;
-                        $payrollItem->staff_phone = $staffMember->phone ?? null;
-                        $payrollItem->staff_position = $staffMember->position ?? null;
-                        $payrollItem->staff_department = $staffMember->department ?? null;
-                        $payrollItem->daily_rate = $staffMember->daily_rate ?? 0;
-                        $payrollItem->attendance_days = $attendanceDays;
-                        $payrollItem->basic_salary = $staffMember->daily_rate * $attendanceDays;
-                        $payrollItem->save();
-                        
-                        $payrollItem->calculateTax();
-                        $payrollItem->calculatePension();
-                        $payrollItem->calculateHealthInsurance();
-                        $payrollItem->calculateTotals();
-                    }
-                    
-                    $generated++;
-                }
+                ),
+        ];
+
+        return view(
+            'payroll.show',
+            compact('payrollPeriod', 'summary')
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | WORKING DAYS
+    |--------------------------------------------------------------------------
+    */
+
+    private function workingDays($startDate, $endDate): int
+    {
+        if (!$startDate || !$endDate) {
+            return 0;
+        }
+
+        $start = Carbon::parse($startDate);
+        $end = Carbon::parse($endDate);
+
+        $days = 0;
+
+        while ($start->lte($end)) {
+
+            if (!$start->isWeekend()) {
+                $days++;
             }
-            
+
+            $start->addDay();
+        }
+
+        return $days;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | GENERATE FROM ATTENDANCE
+    |--------------------------------------------------------------------------
+    */
+
+    public function generateFromAttendance(
+        Request $request,
+        $periodId
+    ) {
+
+        $payrollPeriod =
+            PayrollPeriod::findOrFail($periodId);
+
+        if (
+            in_array(
+                $payrollPeriod->status,
+                [
+                    PayrollPeriod::STATUS_APPROVED,
+                    PayrollPeriod::STATUS_PAID,
+                    PayrollPeriod::STATUS_CANCELLED,
+                ],
+                true
+            )
+        ) {
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'This payroll period cannot be regenerated.'
+                );
+        }
+
+        try {
+
+            DB::beginTransaction();
+
+            $staff = Staff::query()
+                ->where('status', 'active')
+                ->get();
+
+            $generated = 0;
+
+            foreach ($staff as $staffMember) {
+
+                $workedDays =
+                    $this->calculateAttendanceDays(
+                        $staffMember->id,
+                        $payrollPeriod->start_date,
+                        $payrollPeriod->end_date
+                    );
+
+                $existingItem =
+                    PayrollItem::where(
+                        'payroll_period_id',
+                        $periodId
+                    )
+                    ->where(
+                        'staff_id',
+                        $staffMember->id
+                    )
+                    ->first();
+
+                if ($existingItem) {
+
+                    $existingItem->worked_days =
+                        $workedDays;
+
+                    $existingItem->save();
+
+                } else {
+
+                    /*
+                     * Salary comes from staff.salary.
+                     *
+                     * We do NOT use the obsolete
+                     * staff.daily_rate field.
+                     */
+
+                    $basicSalary =
+                        (float) ($staffMember->salary ?? 0);
+
+                    $payrollItem = new PayrollItem();
+
+                    $payrollItem->payroll_period_id =
+                        $periodId;
+
+                    $payrollItem->staff_id =
+                        $staffMember->id;
+
+                    $payrollItem->basic_salary =
+                        $basicSalary;
+
+                    $payrollItem->allowances =
+                        0;
+
+                    $payrollItem->overtime =
+                        0;
+
+                    $payrollItem->gross_pay =
+                        $basicSalary;
+
+                    $payrollItem->tax =
+                        0;
+
+                    $payrollItem->pension =
+                        0;
+
+                    $payrollItem->deductions =
+                        0;
+
+                    $payrollItem->net_pay =
+                        $basicSalary;
+
+                    $payrollItem->worked_days =
+                        $workedDays;
+
+                    $payrollItem->status =
+                        'pending';
+
+                    $payrollItem->save();
+                }
+
+                $generated++;
+            }
+
             DB::commit();
-            
-            return redirect()->route('payroll.show', $periodId)
-                ->with('success', "Payroll generated for {$generated} staff members based on attendance!");
-            
-        } catch (\Exception $e) {
+
+            return redirect()
+                ->route('payroll.show', $periodId)
+                ->with(
+                    'success',
+                    "Payroll attendance updated for {$generated} staff members."
+                );
+
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to generate payroll: ' . $e->getMessage());
+
+            report($e);
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Failed to generate payroll from attendance: ' .
+                    $e->getMessage()
+                );
         }
     }
 
-    /**
-     * Show the form for editing the specified payroll period.
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | EDIT PAYROLL PERIOD
+    |--------------------------------------------------------------------------
+    */
+
     public function edit($id)
     {
-        $payrollPeriod = PayrollPeriod::with('payrollItems.staff')->findOrFail($id);
-        
-        if ($payrollPeriod->status === 'completed' || $payrollPeriod->status === 'cancelled') {
-            return redirect()->route('payroll.show', $id)
-                ->with('error', 'Cannot edit completed or cancelled payroll periods.');
+        $payrollPeriod =
+            PayrollPeriod::with([
+                'payrollItems.staff',
+            ])->findOrFail($id);
+
+        if (
+            in_array(
+                $payrollPeriod->status,
+                [
+                    PayrollPeriod::STATUS_APPROVED,
+                    PayrollPeriod::STATUS_PAID,
+                    PayrollPeriod::STATUS_CANCELLED,
+                ],
+                true
+            )
+        ) {
+            return redirect()
+                ->route('payroll.show', $id)
+                ->with(
+                    'error',
+                    'This payroll period cannot be edited.'
+                );
         }
 
-        $staff = Staff::all();
-        return view('payroll.edit', compact('payrollPeriod', 'staff'));
+        $staff = Staff::query()
+            ->where('status', 'active')
+            ->orderBy('first_name')
+            ->orderBy('last_name')
+            ->get();
+
+        return view(
+            'payroll.edit',
+            compact(
+                'payrollPeriod',
+                'staff'
+            )
+        );
     }
 
-    /**
-     * Update the specified payroll period.
-     */
-    public function update(Request $request, $id)
-    {
-        $payrollPeriod = PayrollPeriod::findOrFail($id);
 
-        if ($payrollPeriod->status === 'completed' || $payrollPeriod->status === 'cancelled') {
-            return redirect()->back()
-                ->with('error', 'Cannot update completed or cancelled payroll periods.');
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE PAYROLL PERIOD
+    |--------------------------------------------------------------------------
+    */
+
+    public function update(
+        Request $request,
+        $id
+    ) {
+
+        $payrollPeriod =
+            PayrollPeriod::findOrFail($id);
+
+        if (
+            in_array(
+                $payrollPeriod->status,
+                [
+                    PayrollPeriod::STATUS_APPROVED,
+                    PayrollPeriod::STATUS_PAID,
+                    PayrollPeriod::STATUS_CANCELLED,
+                ],
+                true
+            )
+        ) {
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'This payroll period cannot be updated.'
+                );
         }
 
-        $validator = Validator::make($request->all(), [
-            'name' => 'required|string|max:255',
-            'period_type' => 'required|in:monthly,bi-weekly,weekly',
-            'start_date' => 'required|date',
-            'end_date' => 'required|date|after:start_date',
-            'payment_date' => 'nullable|date|after:end_date',
-            'description' => 'nullable|string',
-            'status' => 'in:draft,processing,completed,cancelled',
-        ]);
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'name' =>
+                    'required|string|max:255',
+
+                'academic_year_id' =>
+                    'nullable|integer|exists:academic_years,id',
+
+                'month' =>
+                    'nullable|integer|between:1,12',
+
+                'year' =>
+                    'nullable|integer|between:2000,2100',
+
+                'start_date' =>
+                    'required|date',
+
+                'end_date' =>
+                    'required|date|after_or_equal:start_date',
+
+                'payment_date' =>
+                    'nullable|date|after_or_equal:end_date',
+
+                'description' =>
+                    'nullable|string',
+
+                'status' =>
+                    'nullable|in:draft,processing,pending_approval,approved,rejected,paid,cancelled',
+            ]
+        );
 
         if ($validator->fails()) {
-            return redirect()->back()
+            return redirect()
+                ->back()
                 ->withErrors($validator)
                 ->withInput();
         }
 
+
         try {
+
             DB::beginTransaction();
 
-            $payrollPeriod->update([
-                'name' => $request->name,
-                'period_type' => $request->period_type,
-                'start_date' => $request->start_date,
-                'end_date' => $request->end_date,
-                'payment_date' => $request->payment_date,
-                'description' => $request->description,
-                'status' => $request->status ?? $payrollPeriod->status,
-            ]);
+            $oldStatus =
+                $payrollPeriod->status;
 
-            if ($request->status === 'completed') {
-                $payrollPeriod->approved_by = auth()->user()->staff_id ?? null;
-                $payrollPeriod->approved_at = now();
-                $payrollPeriod->save();
+            $newStatus =
+                $request->status ?: $oldStatus;
+
+            $payrollPeriod->name =
+                $request->name;
+
+            $payrollPeriod->academic_year_id =
+                $request->academic_year_id;
+
+            $payrollPeriod->month =
+                $request->month
+                ?: Carbon::parse($request->start_date)->month;
+
+            $payrollPeriod->year =
+                $request->year
+                ?: Carbon::parse($request->start_date)->year;
+
+            $payrollPeriod->start_date =
+                $request->start_date;
+
+            $payrollPeriod->end_date =
+                $request->end_date;
+
+            $payrollPeriod->payment_date =
+                $request->payment_date;
+
+            $payrollPeriod->description =
+                $request->description;
+
+            $payrollPeriod->status =
+                $newStatus;
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Approval
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                $newStatus === PayrollPeriod::STATUS_APPROVED
+                &&
+                $oldStatus !== PayrollPeriod::STATUS_APPROVED
+            ) {
+
+                $approver =
+                    $this->authenticatedStaff();
+
+                if (!$approver) {
+
+                    DB::rollBack();
+
+                    return redirect()
+                        ->back()
+                        ->with(
+                            'error',
+                            'Your user account is not linked to a staff record.'
+                        )
+                        ->withInput();
+                }
+
+                $payrollPeriod->approved_by =
+                    $approver->id;
+
+                $payrollPeriod->approved_at =
+                    now();
             }
+
+            $payrollPeriod->save();
 
             DB::commit();
 
-            return redirect()->route('payroll.show', $payrollPeriod->id)
-                ->with('success', 'Payroll period updated successfully!');
+            return redirect()
+                ->route(
+                    'payroll.show',
+                    $payrollPeriod->id
+                )
+                ->with(
+                    'success',
+                    'Payroll period updated successfully.'
+                );
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to update payroll period: ' . $e->getMessage())
+
+            report($e);
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Failed to update payroll period: ' .
+                    $e->getMessage()
+                )
                 ->withInput();
         }
     }
 
-    /**
-     * Remove the specified payroll period.
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | DELETE PAYROLL PERIOD
+    |--------------------------------------------------------------------------
+    */
+
     public function destroy($id)
     {
-        $payrollPeriod = PayrollPeriod::findOrFail($id);
+        $payrollPeriod =
+            PayrollPeriod::with('payrollItems')
+                ->findOrFail($id);
 
-        if ($payrollPeriod->status === 'completed') {
-            return redirect()->back()
-                ->with('error', 'Cannot delete completed payroll periods.');
+        if (
+            in_array(
+                $payrollPeriod->status,
+                [
+                    PayrollPeriod::STATUS_APPROVED,
+                    PayrollPeriod::STATUS_PAID,
+                ],
+                true
+            )
+        ) {
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Approved or paid payroll periods cannot be deleted.'
+                );
         }
 
         try {
+
             DB::beginTransaction();
 
-            // Delete payslips first
-            foreach ($payrollPeriod->payrollItems as $item) {
-                if ($item->payslip) {
-                    $item->payslip->delete();
+            foreach (
+                $payrollPeriod->payrollItems
+                as $item
+            ) {
+
+                if (
+                    method_exists(
+                        $item,
+                        'payslip'
+                    )
+                ) {
+                    $payslip =
+                        $item->payslip;
+
+                    if ($payslip) {
+                        $payslip->delete();
+                    }
                 }
             }
 
-            // Delete payroll items and period
-            $payrollPeriod->payrollItems()->delete();
+            /*
+             * Delete adjustments first.
+             */
+
+            if (
+                Schema::hasTable(
+                    'payroll_adjustments'
+                )
+            ) {
+
+                DB::table(
+                    'payroll_adjustments'
+                )
+                ->whereIn(
+                    'payroll_item_id',
+                    $payrollPeriod
+                        ->payrollItems
+                        ->pluck('id')
+                )
+                ->delete();
+            }
+
+            $payrollPeriod
+                ->payrollItems()
+                ->delete();
+
             $payrollPeriod->delete();
 
             DB::commit();
 
-            return redirect()->route('payroll.index')
-                ->with('success', 'Payroll period deleted successfully!');
+            return redirect()
+                ->route('payroll.index')
+                ->with(
+                    'success',
+                    'Payroll period deleted successfully.'
+                );
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to delete payroll period: ' . $e->getMessage());
+
+            report($e);
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Failed to delete payroll period: ' .
+                    $e->getMessage()
+                );
         }
     }
 
-    /**
-     * Edit a specific payroll item.
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | EDIT PAYROLL ITEM
+    |--------------------------------------------------------------------------
+    */
+
     public function editPayrollItem($id)
     {
-        $payrollItem = PayrollItem::with(['payrollPeriod', 'staff'])->findOrFail($id);
-        
-        if ($payrollItem->payrollPeriod->status === 'completed') {
-            return redirect()->back()
-                ->with('error', 'Cannot edit completed payroll period.');
+        $payrollItem =
+            PayrollItem::with([
+                'payrollPeriod',
+                'staff',
+            ])->findOrFail($id);
+
+        if (
+            in_array(
+                $payrollItem->payrollPeriod->status,
+                [
+                    PayrollPeriod::STATUS_APPROVED,
+                    PayrollPeriod::STATUS_PAID,
+                    PayrollPeriod::STATUS_CANCELLED,
+                ],
+                true
+            )
+        ) {
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'This payroll item cannot be edited.'
+                );
         }
 
-        return view('payroll.edit-item', compact('payrollItem'));
+        return view(
+            'payroll.edit-item',
+            compact('payrollItem')
+        );
     }
 
-    /**
-     * Update a specific payroll item.
-     */
-    public function updatePayrollItem(Request $request, $id)
-    {
-        $payrollItem = PayrollItem::findOrFail($id);
 
-        if ($payrollItem->payrollPeriod->status === 'completed') {
-            return redirect()->back()
-                ->with('error', 'Cannot update completed payroll period.');
+    /*
+    |--------------------------------------------------------------------------
+    | UPDATE PAYROLL ITEM
+    |--------------------------------------------------------------------------
+    */
+
+    public function updatePayrollItem(
+        Request $request,
+        $id
+    ) {
+
+        $payrollItem =
+            PayrollItem::with('payrollPeriod')
+                ->findOrFail($id);
+
+        if (
+            in_array(
+                $payrollItem->payrollPeriod->status,
+                [
+                    PayrollPeriod::STATUS_APPROVED,
+                    PayrollPeriod::STATUS_PAID,
+                    PayrollPeriod::STATUS_CANCELLED,
+                ],
+                true
+            )
+        ) {
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'This payroll item cannot be updated.'
+                );
         }
 
-        $validator = Validator::make($request->all(), [
-            'basic_salary' => 'required|numeric|min:0',
-            'allowance' => 'nullable|numeric|min:0',
-            'bonus' => 'nullable|numeric|min:0',
-            'overtime_pay' => 'nullable|numeric|min:0',
-            'commission' => 'nullable|numeric|min:0',
-            'tax' => 'nullable|numeric|min:0',
-            'pension' => 'nullable|numeric|min:0',
-            'health_insurance' => 'nullable|numeric|min:0',
-            'loan_deduction' => 'nullable|numeric|min:0',
-            'other_deductions' => 'nullable|numeric|min:0',
-            'payment_method' => 'nullable|in:bank_transfer,cash,cheque',
-            'bank_name' => 'nullable|string|max:255',
-            'account_number' => 'nullable|string|max:50',
-            'account_name' => 'nullable|string|max:255',
-            'notes' => 'nullable|string',
-        ]);
+
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'basic_salary' =>
+                    'required|numeric|min:0',
+
+                'allowances' =>
+                    'nullable|numeric|min:0',
+
+                'overtime' =>
+                    'nullable|numeric|min:0',
+
+                'tax' =>
+                    'nullable|numeric|min:0',
+
+                'pension' =>
+                    'nullable|numeric|min:0',
+
+                'deductions' =>
+                    'nullable|numeric|min:0',
+
+                'worked_days' =>
+                    'nullable|integer|min:0',
+
+                'status' =>
+                    'nullable|string|max:50',
+
+                'notes' =>
+                    'nullable|string',
+            ]
+        );
 
         if ($validator->fails()) {
-            return redirect()->back()
+            return redirect()
+                ->back()
                 ->withErrors($validator)
                 ->withInput();
         }
 
+
         try {
+
             DB::beginTransaction();
 
-            $payrollItem->update($request->all());
-            $payrollItem->calculateTotals();
+            $basicSalary =
+                (float) $request->basic_salary;
+
+            $allowances =
+                (float) ($request->allowances ?? 0);
+
+            $overtime =
+                (float) ($request->overtime ?? 0);
+
+            $tax =
+                (float) ($request->tax ?? 0);
+
+            $pension =
+                (float) ($request->pension ?? 0);
+
+            $deductions =
+                (float) ($request->deductions ?? 0);
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Gross
+            |--------------------------------------------------------------------------
+            */
+
+            $grossPay =
+                $basicSalary
+                + $allowances
+                + $overtime;
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Total deductions
+            |--------------------------------------------------------------------------
+            */
+
+            $totalDeductions =
+                $tax
+                + $pension
+                + $deductions;
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Net
+            |--------------------------------------------------------------------------
+            */
+
+            $netPay =
+                max(
+                    0,
+                    $grossPay - $totalDeductions
+                );
+
+
+            $payrollItem->basic_salary =
+                $basicSalary;
+
+            $payrollItem->allowances =
+                $allowances;
+
+            $payrollItem->overtime =
+                $overtime;
+
+            $payrollItem->gross_pay =
+                $grossPay;
+
+            $payrollItem->tax =
+                $tax;
+
+            $payrollItem->pension =
+                $pension;
+
+            $payrollItem->deductions =
+                $deductions;
+
+            $payrollItem->net_pay =
+                $netPay;
+
+            $payrollItem->worked_days =
+                (int) ($request->worked_days ?? 0);
+
+            $payrollItem->status =
+                $request->status
+                ?: ($payrollItem->status ?: 'pending');
+
+            $payrollItem->notes =
+                $request->notes;
+
+            $payrollItem->save();
 
             DB::commit();
 
-            return redirect()->route('payroll.show', $payrollItem->payroll_period_id)
-                ->with('success', 'Payroll item updated successfully!');
+            return redirect()
+                ->route(
+                    'payroll.show',
+                    $payrollItem->payroll_period_id
+                )
+                ->with(
+                    'success',
+                    'Payroll item updated successfully.'
+                );
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to update payroll item: ' . $e->getMessage())
+
+            report($e);
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Failed to update payroll item: ' .
+                    $e->getMessage()
+                )
                 ->withInput();
         }
     }
 
-    /**
-     * Generate payslip for a staff member.
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | GENERATE PAYSLIP
+    |--------------------------------------------------------------------------
+    */
+
     public function generatePayslip($id)
     {
-        $payrollItem = PayrollItem::with(['staff', 'payrollPeriod'])->findOrFail($id);
+        $payrollItem =
+            PayrollItem::with([
+                'staff',
+                'payrollPeriod',
+            ])->findOrFail($id);
 
-        if ($payrollItem->payrollPeriod->status !== 'completed') {
-            return redirect()->back()
-                ->with('error', 'Payroll must be completed to generate payslip.');
+        if (
+            !in_array(
+                $payrollItem->payrollPeriod->status,
+                [
+                    PayrollPeriod::STATUS_APPROVED,
+                    PayrollPeriod::STATUS_PAID,
+                ],
+                true
+            )
+        ) {
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Payroll must be approved before generating a payslip.'
+                );
         }
 
+
         try {
+
             DB::beginTransaction();
 
-            // Check if payslip already exists
-            if ($payrollItem->payslip) {
-                return redirect()->back()
-                    ->with('info', 'Payslip already generated for this staff.');
-            }
+            /*
+             * Check whether the Payslip model provides
+             * the existing generator.
+             */
 
-            $payslip = $payrollItem->generatePayslip();
+            if (
+                method_exists(
+                    $payrollItem,
+                    'generatePayslip'
+                )
+            ) {
+
+                $payslip =
+                    $payrollItem->generatePayslip();
+
+            } else {
+
+                /*
+                 * Fallback creation using the actual
+                 * payroll structure.
+                 */
+
+                $payslip =
+                    Payslip::where(
+                        'payroll_item_id',
+                        $payrollItem->id
+                    )->first();
+
+                if (!$payslip) {
+
+                    $payslip = new Payslip();
+
+                    $payslip->payroll_item_id =
+                        $payrollItem->id;
+
+                    /*
+                     * Only assign fields that exist.
+                     */
+
+                    $payslipColumns =
+                        Schema::getColumnListing(
+                            'payslips'
+                        );
+
+                    if (
+                        in_array(
+                            'staff_id',
+                            $payslipColumns
+                        )
+                    ) {
+                        $payslip->staff_id =
+                            $payrollItem->staff_id;
+                    }
+
+                    if (
+                        in_array(
+                            'payroll_period_id',
+                            $payslipColumns
+                        )
+                    ) {
+                        $payslip->payroll_period_id =
+                            $payrollItem->payroll_period_id;
+                    }
+
+                    if (
+                        in_array(
+                            'basic_salary',
+                            $payslipColumns
+                        )
+                    ) {
+                        $payslip->basic_salary =
+                            $payrollItem->basic_salary;
+                    }
+
+                    if (
+                        in_array(
+                            'gross_pay',
+                            $payslipColumns
+                        )
+                    ) {
+                        $payslip->gross_pay =
+                            $payrollItem->gross_pay;
+                    }
+
+                    if (
+                        in_array(
+                            'deductions',
+                            $payslipColumns
+                        )
+                    ) {
+                        $payslip->deductions =
+                            $payrollItem->deductions;
+                    }
+
+                    if (
+                        in_array(
+                            'net_pay',
+                            $payslipColumns
+                        )
+                    ) {
+                        $payslip->net_pay =
+                            $payrollItem->net_pay;
+                    }
+
+                    if (
+                        in_array(
+                            'status',
+                            $payslipColumns
+                        )
+                    ) {
+                        $payslip->status =
+                            'generated';
+                    }
+
+                    $payslip->save();
+                }
+            }
 
             DB::commit();
 
-            return redirect()->route('payroll.view-payslip', $payslip->id)
-                ->with('success', 'Payslip generated successfully!');
+            return redirect()
+                ->route(
+                    'payroll.view-payslip',
+                    $payslip->id
+                )
+                ->with(
+                    'success',
+                    'Payslip generated successfully.'
+                );
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to generate payslip: ' . $e->getMessage());
+
+            report($e);
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Failed to generate payslip: ' .
+                    $e->getMessage()
+                );
         }
     }
 
-    /**
-     * View payslip.
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | VIEW PAYSLIP
+    |--------------------------------------------------------------------------
+    */
+
     public function viewPayslip($id)
     {
-        $payslip = Payslip::with(['payrollItem.staff', 'payrollItem.payrollPeriod'])->findOrFail($id);
-        
-        // Mark as viewed
-        if ($payslip->status === 'generated') {
+        $payslip =
+            Payslip::with([
+                'payrollItem.staff',
+                'payrollItem.payrollPeriod',
+            ])->findOrFail($id);
+
+        if (
+            method_exists(
+                $payslip,
+                'markAsViewed'
+            )
+            &&
+            isset($payslip->status)
+            &&
+            $payslip->status === 'generated'
+        ) {
             $payslip->markAsViewed();
         }
 
-        return view('payroll.payslip', compact('payslip'));
+        return view(
+            'payroll.payslip',
+            compact('payslip')
+        );
     }
 
-    /**
-     * Generate payslips for all staff in a payroll period.
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | GENERATE ALL PAYSLIPS
+    |--------------------------------------------------------------------------
+    */
+
     public function generateAllPayslips($periodId)
     {
-        $payrollPeriod = PayrollPeriod::with('payrollItems')->findOrFail($periodId);
+        $payrollPeriod =
+            PayrollPeriod::with('payrollItems')
+                ->findOrFail($periodId);
 
-        if ($payrollPeriod->status !== 'completed') {
-            return redirect()->back()
-                ->with('error', 'Payroll must be completed to generate payslips.');
+        if (
+            !in_array(
+                $payrollPeriod->status,
+                [
+                    PayrollPeriod::STATUS_APPROVED,
+                    PayrollPeriod::STATUS_PAID,
+                ],
+                true
+            )
+        ) {
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Payroll must be approved before generating payslips.'
+                );
         }
 
+
         try {
+
             DB::beginTransaction();
 
             $generated = 0;
-            foreach ($payrollPeriod->payrollItems as $item) {
-                if (!$item->payslip) {
-                    $item->generatePayslip();
+
+            foreach (
+                $payrollPeriod->payrollItems
+                as $item
+            ) {
+
+                $exists =
+                    Schema::hasTable('payslips')
+                    &&
+                    DB::table('payslips')
+                        ->where(
+                            'payroll_item_id',
+                            $item->id
+                        )
+                        ->exists();
+
+                if (!$exists) {
+
+                    if (
+                        method_exists(
+                            $item,
+                            'generatePayslip'
+                        )
+                    ) {
+                        $item->generatePayslip();
+                    } else {
+                        $this->createFallbackPayslip(
+                            $item
+                        );
+                    }
+
                     $generated++;
                 }
             }
 
             DB::commit();
 
-            return redirect()->route('payroll.show', $periodId)
-                ->with('success', "{$generated} payslips generated successfully!");
+            return redirect()
+                ->route(
+                    'payroll.show',
+                    $periodId
+                )
+                ->with(
+                    'success',
+                    "{$generated} payslips generated successfully."
+                );
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to generate payslips: ' . $e->getMessage());
+
+            report($e);
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Failed to generate payslips: ' .
+                    $e->getMessage()
+                );
         }
     }
 
-    /**
-     * Mark payroll item as paid.
-     */
-    public function markAsPaid(Request $request, $id)
-    {
-        $payrollItem = PayrollItem::findOrFail($id);
 
-        if ($payrollItem->payrollPeriod->status !== 'completed') {
-            return redirect()->back()
-                ->with('error', 'Payroll must be completed to mark as paid.');
+    /*
+    |--------------------------------------------------------------------------
+    | FALLBACK PAYSLIP CREATOR
+    |--------------------------------------------------------------------------
+    */
+
+    private function createFallbackPayslip(
+        PayrollItem $payrollItem
+    ) {
+
+        if (!Schema::hasTable('payslips')) {
+            throw new \RuntimeException(
+                'The payslips table does not exist.'
+            );
         }
 
-        try {
-            DB::beginTransaction();
+        $columns =
+            Schema::getColumnListing(
+                'payslips'
+            );
 
-            $payrollItem->markAsPaid($request->payment_date);
+        $payslip =
+            new Payslip();
 
-            DB::commit();
-
-            return redirect()->route('payroll.show', $payrollItem->payroll_period_id)
-                ->with('success', 'Payment marked as successful!');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to mark payment: ' . $e->getMessage());
+        if (
+            in_array(
+                'payroll_item_id',
+                $columns
+            )
+        ) {
+            $payslip->payroll_item_id =
+                $payrollItem->id;
         }
+
+        if (
+            in_array(
+                'payroll_period_id',
+                $columns
+            )
+        ) {
+            $payslip->payroll_period_id =
+                $payrollItem->payroll_period_id;
+        }
+
+        if (
+            in_array(
+                'staff_id',
+                $columns
+            )
+        ) {
+            $payslip->staff_id =
+                $payrollItem->staff_id;
+        }
+
+        if (
+            in_array(
+                'basic_salary',
+                $columns
+            )
+        ) {
+            $payslip->basic_salary =
+                $payrollItem->basic_salary;
+        }
+
+        if (
+            in_array(
+                'gross_pay',
+                $columns
+            )
+        ) {
+            $payslip->gross_pay =
+                $payrollItem->gross_pay;
+        }
+
+        if (
+            in_array(
+                'deductions',
+                $columns
+            )
+        ) {
+            $payslip->deductions =
+                $payrollItem->deductions;
+        }
+
+        if (
+            in_array(
+                'net_pay',
+                $columns
+            )
+        ) {
+            $payslip->net_pay =
+                $payrollItem->net_pay;
+        }
+
+        if (
+            in_array(
+                'status',
+                $columns
+            )
+        ) {
+            $payslip->status =
+                'generated';
+        }
+
+        $payslip->save();
+
+        return $payslip;
     }
 
-    /**
-     * Add adjustment to payroll item.
-     */
-    public function addAdjustment(Request $request, $id)
-    {
-        $payrollItem = PayrollItem::findOrFail($id);
 
-        if ($payrollItem->payrollPeriod->status === 'completed') {
-            return redirect()->back()
-                ->with('error', 'Cannot adjust completed payroll period.');
+    /*
+    |--------------------------------------------------------------------------
+    | MARK AS PAID
+    |--------------------------------------------------------------------------
+    */
+
+    public function markAsPaid(
+        Request $request,
+        $id
+    ) {
+
+        $payrollItem =
+            PayrollItem::with('payrollPeriod')
+                ->findOrFail($id);
+
+        if (
+            $payrollItem->payrollPeriod->status
+            !== PayrollPeriod::STATUS_APPROVED
+            &&
+            $payrollItem->payrollPeriod->status
+            !== PayrollPeriod::STATUS_PAID
+        ) {
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Payroll must be approved before payment.'
+                );
         }
 
-        $validator = Validator::make($request->all(), [
-            'type' => 'required|in:allowance,deduction,bonus,overtime,other',
-            'description' => 'required|string|max:255',
-            'amount' => 'required|numeric|min:0',
-            'effect' => 'required|in:add,subtract',
-            'reason' => 'nullable|string',
-        ]);
+
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'payment_date' =>
+                    'nullable|date',
+            ]
+        );
 
         if ($validator->fails()) {
-            return redirect()->back()
+            return redirect()
+                ->back()
                 ->withErrors($validator)
                 ->withInput();
         }
 
+
         try {
+
             DB::beginTransaction();
 
-            $adjustment = $payrollItem->adjustments()->create([
-                'type' => $request->type,
-                'description' => $request->description,
-                'amount' => $request->amount,
-                'effect' => $request->effect,
-                'reason' => $request->reason,
-                'approved_by' => auth()->user()->staff_id ?? null,
-                'approved_at' => now(),
-            ]);
+            if (
+                method_exists(
+                    $payrollItem,
+                    'markAsPaid'
+                )
+            ) {
 
-            // Update payroll item based on adjustment
-            if ($request->effect === 'add') {
-                if ($request->type === 'allowance') {
-                    $payrollItem->allowance += $request->amount;
-                } elseif ($request->type === 'bonus') {
-                    $payrollItem->bonus += $request->amount;
-                } elseif ($request->type === 'overtime') {
-                    $payrollItem->overtime_pay += $request->amount;
-                } elseif ($request->type === 'other') {
-                    $payrollItem->allowance += $request->amount;
-                }
+                $payrollItem->markAsPaid(
+                    $request->payment_date
+                );
+
             } else {
-                if ($request->type === 'deduction' || $request->type === 'other') {
-                    $payrollItem->other_deductions += $request->amount;
-                }
-            }
 
-            $payrollItem->calculateTotals();
+                $payrollItem->status =
+                    'paid';
+
+                $payrollItem->save();
+            }
 
             DB::commit();
 
-            return redirect()->route('payroll.edit-item', $payrollItem->id)
-                ->with('success', 'Adjustment added successfully!');
+            return redirect()
+                ->route(
+                    'payroll.show',
+                    $payrollItem->payroll_period_id
+                )
+                ->with(
+                    'success',
+                    'Payment marked as successful.'
+                );
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to add adjustment: ' . $e->getMessage());
+
+            report($e);
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Failed to mark payment: ' .
+                    $e->getMessage()
+                );
         }
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ADD PAYROLL ADJUSTMENT
+    |--------------------------------------------------------------------------
+    */
+
+    public function addAdjustment(
+        Request $request,
+        $id
+    ) {
+
+        $payrollItem =
+            PayrollItem::with('payrollPeriod')
+                ->findOrFail($id);
+
+        if (
+            in_array(
+                $payrollItem->payrollPeriod->status,
+                [
+                    PayrollPeriod::STATUS_APPROVED,
+                    PayrollPeriod::STATUS_PAID,
+                    PayrollPeriod::STATUS_CANCELLED,
+                ],
+                true
+            )
+        ) {
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Cannot adjust this payroll item.'
+                );
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | IMPORTANT
+        |--------------------------------------------------------------------------
+        |
+        | Current payroll_adjustments table contains only:
+        |
+        | payroll_item_id
+        | type
+        | amount
+        | reason
+        |
+        | Therefore we DO NOT attempt to save:
+        | description
+        | effect
+        | approved_by
+        | approved_at
+        |
+        */
+
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'type' => [
+                    'required',
+                    'in:allowance,deduction,bonus,overtime,other',
+                ],
+
+                'amount' => [
+                    'required',
+                    'numeric',
+                    'min:0',
+                ],
+
+                'reason' => [
+                    'nullable',
+                    'string',
+                    'max:1000',
+                ],
+            ]
+        );
+
+        if ($validator->fails()) {
+            return redirect()
+                ->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+
+        try {
+
+            DB::beginTransaction();
+
+            PayrollAdjustment::create([
+                'payroll_item_id' =>
+                    $payrollItem->id,
+
+                'type' =>
+                    $request->type,
+
+                'amount' =>
+                    $request->amount,
+
+                'reason' =>
+                    $request->reason,
+            ]);
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Apply Adjustment
+            |--------------------------------------------------------------------------
+            */
+
+            $amount =
+                (float) $request->amount;
+
+            switch ($request->type) {
+
+                case 'allowance':
+
+                case 'bonus':
+
+                    $payrollItem->allowances =
+                        (float) $payrollItem->allowances
+                        + $amount;
+
+                    break;
+
+
+                case 'overtime':
+
+                    $payrollItem->overtime =
+                        (float) $payrollItem->overtime
+                        + $amount;
+
+                    break;
+
+
+                case 'deduction':
+
+                case 'other':
+
+                    $payrollItem->deductions =
+                        (float) $payrollItem->deductions
+                        + $amount;
+
+                    break;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | Recalculate Payroll Item
+            |--------------------------------------------------------------------------
+            */
+
+            $gross =
+                (float) $payrollItem->basic_salary
+                +
+                (float) $payrollItem->allowances
+                +
+                (float) $payrollItem->overtime;
+
+            $totalDeductions =
+                (float) $payrollItem->tax
+                +
+                (float) $payrollItem->pension
+                +
+                (float) $payrollItem->deductions;
+
+            $net =
+                max(
+                    0,
+                    $gross - $totalDeductions
+                );
+
+            $payrollItem->gross_pay =
+                $gross;
+
+            $payrollItem->net_pay =
+                $net;
+
+            $payrollItem->save();
+
+            DB::commit();
+
+            return redirect()
+                ->route(
+                    'payroll.edit-item',
+                    $payrollItem->id
+                )
+                ->with(
+                    'success',
+                    'Payroll adjustment added successfully.'
+                );
+
+        } catch (\Throwable $e) {
+
+            DB::rollBack();
+
+            report($e);
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Failed to add payroll adjustment: ' .
+                    $e->getMessage()
+                )
+                ->withInput();
+        }
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | AUTHENTICATED USER -> STAFF
+    |--------------------------------------------------------------------------
+    */
+
+    private function authenticatedStaff(): ?Staff
+    {
+        $user = auth()->user();
+
+        if (!$user) {
+            return null;
+        }
+
+        /*
+         * User::staff() is already correctly configured
+         * to link through email.
+         */
+
+        return $user->staff;
     }
 }
