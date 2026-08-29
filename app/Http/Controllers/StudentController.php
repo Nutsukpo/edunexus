@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Student;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Str;
 
 class StudentController extends Controller
 {
@@ -14,7 +13,9 @@ class StudentController extends Controller
      */
     public function index()
     {
-        $students = Student::orderBy('created_at', 'desc')->paginate(20);
+        $students = Student::orderBy('created_at', 'desc')
+            ->paginate(20);
+
         return view('students.index', compact('students'));
     }
 
@@ -32,8 +33,6 @@ class StudentController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-
-            // PERSONAL INFO
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -44,95 +43,113 @@ class StudentController extends Controller
             'religion' => 'nullable|string|max:255',
             'address' => 'nullable|string',
 
-            // DISABILITY
             'has_disability' => 'required|boolean',
             'disability_type' => 'nullable|string|max:255',
 
-            // FATHER
             'father_name' => 'nullable|string|max:255',
             'father_phone' => 'nullable|string|max:30',
             'father_email' => 'nullable|email|max:255',
             'father_occupation' => 'nullable|string|max:255',
 
-            // MOTHER
             'mother_name' => 'nullable|string|max:255',
             'mother_phone' => 'nullable|string|max:30',
             'mother_email' => 'nullable|email|max:255',
             'mother_occupation' => 'nullable|string|max:255',
 
-            // GUARDIAN
             'guardian_name' => 'nullable|string|max:255',
             'guardian_phone' => 'nullable|string|max:30',
             'guardian_email' => 'nullable|email|max:255',
 
-            // SCHOOL INFO
             'admission_date' => 'required|date',
 
-            // PHOTO
             'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
-        // HANDLE PHOTO UPLOAD
+        /*
+        |--------------------------------------------------------------------------
+        | PHOTO
+        |--------------------------------------------------------------------------
+        */
         if ($request->hasFile('photo')) {
-            $validated['photo'] = $request->file('photo')->store('students', 'public');
+            $validated['photo'] = $request
+                ->file('photo')
+                ->store('students', 'public');
         }
 
-        // DEFAULT ACTIVE STATUS
+        /*
+        |--------------------------------------------------------------------------
+        | DEFAULT VALUES
+        |--------------------------------------------------------------------------
+        */
         $validated['is_active'] = true;
-
-        // =============================================
-        // FIX: GENERATE STUDENT_ID
-        // =============================================
-        // Option 1: Generate a unique student ID
         $validated['student_id'] = $this->generateStudentId();
 
-        // Option 2: Or use the format: STU + Year + Random numbers
-        // $validated['student_id'] = 'STU' . date('Y') . str_pad(rand(1, 9999), 4, '0', STR_PAD_LEFT);
+        $validated['disability_type'] =
+            $validated['disability_type'] ?? null;
 
-        // Option 3: Or use the format: YYYY-XXXXX (Year + sequential number)
-        // $latestStudent = Student::orderBy('id', 'desc')->first();
-        // $nextNumber = $latestStudent ? (intval(substr($latestStudent->student_id, -5)) + 1) : 1;
-        // $validated['student_id'] = date('Y') . '-' . str_pad($nextNumber, 5, '0', STR_PAD_LEFT);
+        $validated['father_occupation'] =
+            $validated['father_occupation'] ?? null;
 
-        // OPTIONAL: Set default values for nullable fields that might be required
-        $validated['disability_type'] = $validated['disability_type'] ?? null;
-        $validated['father_occupation'] = $validated['father_occupation'] ?? null;
-        $validated['mother_occupation'] = $validated['mother_occupation'] ?? null;
-        $validated['guardian_name'] = $validated['guardian_name'] ?? null;
-        $validated['guardian_phone'] = $validated['guardian_phone'] ?? null;
-        $validated['guardian_email'] = $validated['guardian_email'] ?? null;
+        $validated['mother_occupation'] =
+            $validated['mother_occupation'] ?? null;
 
+        $validated['guardian_name'] =
+            $validated['guardian_name'] ?? null;
+
+        $validated['guardian_phone'] =
+            $validated['guardian_phone'] ?? null;
+
+        $validated['guardian_email'] =
+            $validated['guardian_email'] ?? null;
+
+        /*
+        |--------------------------------------------------------------------------
+        | CREATE STUDENT
+        |--------------------------------------------------------------------------
+        */
         Student::create($validated);
 
         return redirect()
             ->route('students.index')
-            ->with('success', 'Student created successfully');
+            ->with('success', 'Student created successfully.');
     }
 
     /**
      * GENERATE UNIQUE STUDENT ID
+     *
+     * Format:
+     * STD-20260001
      */
     private function generateStudentId(): string
     {
-        // Format: STU + Year + 5 digit sequential number
         $year = date('Y');
         $prefix = 'STD-' . $year;
 
-        // Get the latest student with this year's prefix
-        $latestStudent = Student::where('student_id', 'like', $prefix . '%')
+        $latestStudent = Student::where(
+            'student_id',
+            'like',
+            $prefix . '%'
+        )
             ->orderBy('student_id', 'desc')
             ->first();
 
         if ($latestStudent) {
-            // Extract the number from the last student ID
-            $lastNumber = intval(substr($latestStudent->student_id, -5));
+            $lastNumber = (int) substr(
+                $latestStudent->student_id,
+                -4
+            );
+
             $nextNumber = $lastNumber + 1;
         } else {
             $nextNumber = 1;
         }
 
-        // Pad with leading zeros to 5 digits
-        return $prefix . str_pad($nextNumber, 4, '0', STR_PAD_LEFT);
+        return $prefix . str_pad(
+            $nextNumber,
+            4,
+            '0',
+            STR_PAD_LEFT
+        );
     }
 
     /**
@@ -144,14 +161,14 @@ class StudentController extends Controller
             'classAssignments.studentClass',
             'classAssignments.academicYear',
             'studentResults.academicYear',
-            'studentResults.term'
+            'studentResults.term',
         ])->findOrFail($id);
 
         return view('students.show', compact('student'));
     }
 
     /**
-     * EDIT FORM
+     * SHOW EDIT FORM
      */
     public function edit(Student $student)
     {
@@ -164,7 +181,6 @@ class StudentController extends Controller
     public function update(Request $request, Student $student)
     {
         $validated = $request->validate([
-
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
@@ -197,38 +213,89 @@ class StudentController extends Controller
             'photo' => 'nullable|image|mimes:jpg,jpeg,png|max:2048',
         ]);
 
-        // UPDATE PHOTO
+        /*
+        |--------------------------------------------------------------------------
+        | UPDATE PHOTO
+        |--------------------------------------------------------------------------
+        */
         if ($request->hasFile('photo')) {
 
-            // delete old photo if exists
             if ($student->photo) {
-                Storage::disk('public')->delete($student->photo);
+                Storage::disk('public')->delete(
+                    $student->photo
+                );
             }
 
-            $validated['photo'] = $request->file('photo')->store('students', 'public');
+            $validated['photo'] = $request
+                ->file('photo')
+                ->store('students', 'public');
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | UPDATE STUDENT
+        |--------------------------------------------------------------------------
+        */
         $student->update($validated);
 
         return redirect()
             ->route('students.index')
-            ->with('success', 'Student updated successfully');
+            ->with('success', 'Student updated successfully.');
     }
 
     /**
      * DELETE STUDENT
+     *
+     * IMPORTANT:
+     * ONLY SUPER ADMIN CAN DELETE STUDENTS.
      */
     public function destroy(Student $student)
     {
-        if ($student->photo) {
-            Storage::disk('public')->delete($student->photo);
+        /*
+        |--------------------------------------------------------------------------
+        | RBAC SECURITY CHECK
+        |--------------------------------------------------------------------------
+        |
+        | Do NOT use:
+        |
+        | auth()->user()->role
+        |
+        | We use Spatie roles instead.
+        |
+        */
+        $user = auth()->user();
+
+        if (!$user || !$user->hasRole('Super Admin')) {
+            abort(
+                403,
+                'Only the Super Admin can delete students.'
+            );
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | DELETE STUDENT PHOTO
+        |--------------------------------------------------------------------------
+        */
+        if ($student->photo) {
+            Storage::disk('public')->delete(
+                $student->photo
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | DELETE STUDENT
+        |--------------------------------------------------------------------------
+        */
         $student->delete();
 
         return redirect()
             ->route('students.index')
-            ->with('success', 'Student deleted successfully');
+            ->with(
+                'success',
+                'Student deleted successfully.'
+            );
     }
 
     /**
@@ -236,21 +303,39 @@ class StudentController extends Controller
      */
     public function getClassStudents($classId)
     {
-        $students = Student::whereHas('classAssignments', function ($query) use ($classId) {
-            $query->where('student_class_id', $classId)
-                ->whereNull('end_date');
-        })
-        ->orderBy('first_name')
-        ->get(['id', 'student_id', 'first_name', 'middle_name', 'last_name']);
+        $students = Student::whereHas(
+            'classAssignments',
+            function ($query) use ($classId) {
+                $query
+                    ->where('student_class_id', $classId)
+                    ->whereNull('end_date');
+            }
+        )
+            ->orderBy('first_name')
+            ->get([
+                'id',
+                'student_id',
+                'first_name',
+                'middle_name',
+                'last_name',
+            ]);
 
-        // Format the response
-        $formattedStudents = $students->map(function ($student) {
-            return [
-                'id' => $student->id,
-                'student_id' => $student->student_id,
-                'name' => $student->full_name ?? $student->first_name . ' ' . $student->last_name,
-            ];
-        });
+        $formattedStudents = $students->map(
+            function ($student) {
+                return [
+                    'id' => $student->id,
+                    'student_id' => $student->student_id,
+                    'name' => $student->full_name
+                        ?? trim(
+                            $student->first_name
+                            . ' '
+                            . $student->middle_name
+                            . ' '
+                            . $student->last_name
+                        ),
+                ];
+            }
+        );
 
         return response()->json($formattedStudents);
     }
