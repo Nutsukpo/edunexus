@@ -9,6 +9,10 @@
     |--------------------------------------------------------------------------
     | DASHBOARD DISPLAY DATA
     |--------------------------------------------------------------------------
+    |
+    | All fee and attendance database work is performed by the controller.
+    | This Blade is deliberately presentation-only.
+    |--------------------------------------------------------------------------
     */
 
     $dashboardToday = \Carbon\Carbon::today();
@@ -38,6 +42,16 @@
     $dashboardPreviousMonthPaid =
         (float) ($dashboardPreviousMonthPaid ?? 0);
 
+    $dashboardTodayAttended =
+        (int) ($todayPresent ?? 0) +
+        (int) ($todayLate ?? 0);
+
+    $dashboardTodayTotal =
+        (int) ($todayTotal ?? 0);
+
+    $dashboardTodayRate =
+        (float) ($todayRate ?? 0);
+
     $dashboardAttendanceRows =
         (int) ($dashboardAttendanceRows ?? 0);
 
@@ -64,6 +78,90 @@
 
 
 <div class="container-fluid py-4 px-4">
+
+    {{-- =========================================================
+         ACADEMIC YEAR FILTER
+    ========================================================== --}}
+    <div class="card border-0 shadow-sm mb-4 no-print">
+
+        <div class="card-body py-3">
+
+            <form
+                method="GET"
+                action="{{ route('dashboard') }}"
+                class="row g-2 align-items-end">
+
+                <div class="col-md-5 col-lg-4">
+
+                    <label
+                        for="dashboardAcademicYear"
+                        class="form-label small fw-semibold mb-1">
+
+                        <i class="fas fa-calendar-alt text-primary me-1"></i>
+                        Academic Year
+
+                    </label>
+
+                    <select
+                        id="dashboardAcademicYear"
+                        name="academic_year_id"
+                        class="form-select form-select-sm">
+
+                        @forelse(($academicYears ?? collect()) as $year)
+
+                            <option
+                                value="{{ $year->id }}"
+                                {{ (int) ($selectedAcademicYear?->id ?? 0) === (int) $year->id ? 'selected' : '' }}>
+
+                                {{ $year->name ?? $year->year_name ?? 'Academic Year #' . $year->id }}
+
+                            </option>
+
+                        @empty
+
+                            <option value="">
+                                No academic years found
+                            </option>
+
+                        @endforelse
+
+                    </select>
+
+                </div>
+
+                <input
+                    type="hidden"
+                    name="attendance_date"
+                    value="{{ $attendanceDate->format('Y-m-d') }}">
+
+                <div class="col-auto">
+
+                    <button
+                        type="submit"
+                        class="btn btn-primary btn-sm">
+
+                        <i class="fas fa-filter me-1"></i>
+                        Apply
+
+                    </button>
+
+                </div>
+
+                <div class="col-auto">
+
+                    <span class="small text-muted">
+                        Financial figures use the selected academic year.
+                    </span>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
 
     {{-- =========================================================
          TOP METRICS
