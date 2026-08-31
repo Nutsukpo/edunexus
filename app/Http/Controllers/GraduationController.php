@@ -13,67 +13,155 @@ class GraduationController extends Controller
      * Display all graduated students.
      */
     public function index(Request $request)
-    {
-        $query = StudentClassAssignment::with(['student', 'studentClass', 'academicYear'])
-            ->where('status', 'Graduated');
-        
-        // Search
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->whereHas('student', function($q) use ($search) {
-                $q->where('full_name', 'LIKE', "%{$search}%")
-                  ->orWhere('student_id', 'LIKE', "%{$search}%");
+{
+    $query = StudentClassAssignment::with([
+        'student',
+        'studentClass',
+        'academicYear'
+    ])
+    ->where('student_class_assignments.status', 'Graduated');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Search
+    |--------------------------------------------------------------------------
+    */
+    if ($request->filled('search')) {
+        $search = trim($request->search);
+
+        $query->whereHas('student', function ($studentQuery) use ($search) {
+            $studentQuery->where(function ($q) use ($search) {
+
+                $q->where('student_id', 'LIKE', "%{$search}%")
+                    ->orWhere('first_name', 'LIKE', "%{$search}%")
+                    ->orWhere('middle_name', 'LIKE', "%{$search}%")
+                    ->orWhere('last_name', 'LIKE', "%{$search}%")
+                    ->orWhereRaw(
+                        "CONCAT_WS(' ', first_name, middle_name, last_name) LIKE ?",
+                        ["%{$search}%"]
+                    );
             });
-        }
-        
-        // Filter by Class
-        if ($request->filled('class_id')) {
-            $query->where('student_class_id', $request->class_id);
-        }
-        
-        // Filter by Academic Year
-        if ($request->filled('academic_year_id')) {
-            $query->where('academic_year_id', $request->academic_year_id);
-        }
-        
-        // Sort
-        $sortField = $request->get('sort', 'updated_at');
-        $sortDirection = $request->get('direction', 'desc');
-        
-        switch($sortField) {
-            case 'student_id':
-                $query->join('students', 'student_class_assignments.student_id', '=', 'students.id')
-                    ->orderBy('students.student_id', $sortDirection)
-                    ->select('student_class_assignments.*');
-                break;
-            case 'name':
-                $query->join('students', 'student_class_assignments.student_id', '=', 'students.id')
-                    ->orderBy('students.full_name', $sortDirection)
-                    ->select('student_class_assignments.*');
-                break;
-            case 'class':
-                $query->join('student_classes', 'student_class_assignments.student_class_id', '=', 'student_classes.id')
-                    ->orderBy('student_classes.name', $sortDirection)
-                    ->select('student_class_assignments.*');
-                break;
-            case 'academic_year':
-                $query->join('academic_years', 'student_class_assignments.academic_year_id', '=', 'academic_years.id')
-                    ->orderBy('academic_years.name', $sortDirection)
-                    ->select('student_class_assignments.*');
-                break;
-            case 'graduation_date':
-                $query->orderBy('student_class_assignments.updated_at', $sortDirection);
-                break;
-            default:
-                $query->orderBy('student_class_assignments.updated_at', 'desc');
-        }
-        
-        $graduates = $query->paginate(15);
-        $classes = StudentClass::all();
-        $academicYears = AcademicYear::all();
-        
-        return view('graduated-students.index', compact('graduates', 'classes', 'academicYears'));
+        });
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Academic Year Filter
+    |--------------------------------------------------------------------------
+    */
+    if ($request->filled('academic_year_id')) {
+        $query->where(
+            'student_class_assignments.academic_year_id',
+            $request->academic_year_id
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Class Filter
+    |--------------------------------------------------------------------------
+    */
+    if ($request->filled('class_id')) {
+        $query->where(
+            'student_class_assignments.student_class_id',
+            $request->class_id
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Sorting
+    |--------------------------------------------------------------------------
+    */
+    switch ($request->get('sort')) {
+
+        case 'student_name':
+            $query->join(
+                'students',
+                'student_class_assignments.student_id',
+                '=',
+                'students.id'
+            )
+            ->orderBy('students.first_name')
+            ->orderBy('students.last_name')
+            ->select('student_class_assignments.*');
+            break;
+
+        case 'student_id':
+            $query->join(
+                'students',
+                'student_class_assignments.student_id',
+                '=',
+                'students.id'
+            )
+            ->orderBy('students.student_id')
+            ->select('student_class_assignments.*');
+            break;
+
+        case 'class':
+            $query->join(
+                'student_classes',
+                'student_class_assignments.student_class_id',
+                '=',
+                'student_classes.id'
+            )
+            ->orderBy('student_classes.name')
+            ->select('student_class_assignments.*');
+            break;
+
+        case 'academic_year':
+            $query->join(
+                'academic_years',
+                'student_class_assignments.academic_year_id',
+                '=',
+                'academic_years.id'
+            )
+            ->orderBy('academic_years.name')
+            ->select('student_class_assignments.*');
+            break;
+
+        case 'oldest':
+            $query->orderBy(
+                'student_class_assignments.updated_at',
+                'asc'
+            );
+            break;
+
+        default:
+            $query->orderBy(
+                'student_class_assignments.updated_at',
+                'desc'
+            );
+            break;
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | Pagination
+    |--------------------------------------------------------------------------
+    */
+    $graduates = $query
+        ->paginate(15)
+        ->withQueryString();
+
+    /*
+    |--------------------------------------------------------------------------
+    | Filter Data
+    |--------------------------------------------------------------------------
+    */
+    $classes = StudentClass::orderBy('name')->get();
+
+    $academicYears = AcademicYear::orderByDesc('id')->get();
+
+    return view(
+        'graduated-students.index',
+        compact(
+            'graduates',
+            'classes',
+            'academicYears'
+        )
+    );
+}
 
     /**
      * Show a single graduate record.

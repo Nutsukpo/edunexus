@@ -728,22 +728,26 @@ class FeePaymentController extends Controller
 
     public function getStudentsByClass(Request $request)
     {
-        $request->validate([
+        $validated = $request->validate([
             'class_id' => 'required|exists:student_classes,id',
             'academic_year_id' => 'required|exists:academic_years,id',
+            'term_id' => 'nullable|exists:terms,id',
         ]);
 
         $assignments = StudentClassAssignment::query()
             ->with(['student', 'studentClass', 'academicYear'])
-            ->where('student_class_id', $request->class_id)
-            ->where('academic_year_id', $request->academic_year_id)
-            ->where('is_current', true)
-            ->where('status', 'active')
+            ->where('student_class_id', $validated['class_id'])
+            ->where('academic_year_id', $validated['academic_year_id'])
+            ->where(function ($query) {
+                $query->whereNull('status')
+                    ->orWhereIn(DB::raw('LOWER(status)'), ['active']);
+            })
             ->orderBy('id')
             ->get();
 
         $students = $assignments
             ->filter(fn ($assignment) => $assignment->student !== null)
+            ->unique('student_id')
             ->map(function ($assignment) {
                 $student = $assignment->student;
 

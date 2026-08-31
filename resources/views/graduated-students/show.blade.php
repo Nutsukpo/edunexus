@@ -85,7 +85,7 @@
             </div>
         </div>
         <div class="card-footer">
-            <a href="{{ route('graduated-students', request()->query()) }}" class="btn btn-secondary btn-sm">
+            <a href="{{ route('graduates.index', request()->query()) }}" class="btn btn-secondary btn-sm">
                 <i class="fas fa-arrow-left me-1"></i> Back to List
             </a>
             <a href="{{ route('graduates.certificate', $graduate->id) }}" class="btn btn-success btn-sm" target="_blank">

@@ -12,7 +12,7 @@
 
         /*
         |--------------------------------------------------------------------------
-        | STUDENT NAME - Multiple fallback strategies
+        | STUDENT NAME
         |--------------------------------------------------------------------------
         */
 
@@ -36,7 +36,6 @@
 
         $studentName = $studentName ?: 'N/A';
 
-
         /*
         |--------------------------------------------------------------------------
         | CLASS & ACADEMIC YEAR
@@ -45,7 +44,6 @@
 
         $className = optional(optional($assignment)->studentClass)->name ?? 'N/A';
         $academicYear = optional(optional($assignment)->academicYear)->name ?? 'N/A';
-
 
         /*
         |--------------------------------------------------------------------------
@@ -64,10 +62,9 @@
             ?? 0
         );
 
-
         /*
         |--------------------------------------------------------------------------
-        | DATES & TIMES
+        | DATES
         |--------------------------------------------------------------------------
         */
 
@@ -77,7 +74,6 @@
 
         $paymentTime = optional($payment->created_at)->format('h:i A');
 
-
         /*
         |--------------------------------------------------------------------------
         | PAYMENT DETAILS
@@ -86,42 +82,44 @@
 
         $paymentMethod = ucwords(str_replace('_', ' ', $payment->payment_method ?? 'N/A'));
         $paymentType = ucwords(str_replace('_', ' ', $payment->payment_type ?? 'N/A'));
-
         $currency = 'GHS';
-
 
         /*
         |--------------------------------------------------------------------------
-        | STATUS COLOR
+        | STATUS
         |--------------------------------------------------------------------------
         */
 
-        $statusColors = [
-            'paid' => '#28a745',
-            'pending' => '#ffc107',
-            'failed' => '#dc3545',
-            'cancelled' => '#6c757d',
-            'refunded' => '#17a2b8',
-        ];
-
-        $statusColor = $statusColors[$payment->status ?? ''] ?? '#6c757d';
+        $status = strtolower($payment->status ?? '');
+        $statusClass = match ($status) {
+            'paid' => 'status-paid',
+            'pending' => 'status-pending',
+            'failed' => 'status-failed',
+            'cancelled' => 'status-cancelled',
+            'refunded' => 'status-refunded',
+            default => '',
+        };
     @endphp
 
-    <title>Payment Receipt - {{ $payment->receipt_number }}</title>
+    <title>Payment Receipt - {{ $payment->receipt_number ?? 'N/A' }}</title>
 
     <style>
         @page {
-            margin: 18mm 15mm;
+            margin: 16mm 14mm;
         }
 
         * {
             box-sizing: border-box;
         }
 
+        html,
         body {
             margin: 0;
             padding: 0;
-            background: #ffffff;
+            background: #fff;
+        }
+
+        body {
             color: #212529;
             font-family: DejaVu Sans, Arial, sans-serif;
             font-size: 12px;
@@ -134,16 +132,16 @@
             margin: 0 auto;
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | HEADER
-        |--------------------------------------------------------------------------
-        */
-
         .header {
             border-bottom: 2px solid #212529;
-            padding-bottom: 14px;
+            padding: 8px 0 14px;
             margin-bottom: 18px;
+        }
+
+        .receipt-number {
+            float: right;
+            text-align: right;
+            line-height: 1.5;
         }
 
         .school-name {
@@ -151,94 +149,55 @@
             font-weight: 700;
             text-transform: uppercase;
             margin-bottom: 4px;
-            color: #212529;
         }
 
         .document-title {
-            font-size: 18px;
+            font-size: 17px;
             font-weight: 700;
-            margin-top: 8px;
-            color: #212529;
-        }
-
-        .receipt-number {
-            float: right;
-            text-align: right;
-            color: #212529;
-        }
-
-        .receipt-number strong {
-            color: #212529;
+            margin-top: 6px;
         }
 
         .clearfix {
             clear: both;
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | SECTIONS
-        |--------------------------------------------------------------------------
-        */
-
         .section {
             margin-bottom: 16px;
+            page-break-inside: avoid;
         }
 
         .section-title {
             background: #f1f1f1;
-            border: 1px solid #ddd;
+            border: 1px solid #d8d8d8;
             padding: 7px 9px;
             font-weight: 700;
             text-transform: uppercase;
             font-size: 11px;
-            color: #212529;
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | TABLES
-        |--------------------------------------------------------------------------
-        */
 
         table {
             width: 100%;
             border-collapse: collapse;
-            color: #212529;
         }
 
-        .details td {
-            border: 1px solid #ddd;
+        .details td,
+        .items th,
+        .items td {
+            border: 1px solid #d5d5d5;
             padding: 8px;
             vertical-align: top;
-            color: #212529;
         }
 
         .details .label {
-            width: 22%;
+            width: 17%;
             font-weight: 700;
             background: #fafafa;
-            color: #212529;
-        }
-
-        .items th,
-        .items td {
-            border: 1px solid #ccc;
-            padding: 8px;
-            color: #212529;
         }
 
         .items th {
             background: #f1f1f1;
             font-weight: 700;
             text-align: left;
-            color: #212529;
-        }
-
-        .items td {
-            color: #212529;
         }
 
         .right {
@@ -251,16 +210,7 @@
 
         .total-row td {
             font-weight: 700;
-            font-size: 13px;
-            color: #212529;
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | AMOUNT BOX
-        |--------------------------------------------------------------------------
-        */
 
         .amount-box {
             margin-top: 14px;
@@ -271,24 +221,15 @@
         }
 
         .amount-label {
-            font-size: 11px;
+            font-size: 10px;
             text-transform: uppercase;
             margin-bottom: 4px;
-            color: #212529;
         }
 
         .amount {
-            font-size: 24px;
+            font-size: 23px;
             font-weight: 700;
-            color: #212529;
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | STATUS
-        |--------------------------------------------------------------------------
-        */
 
         .status {
             display: inline-block;
@@ -296,8 +237,7 @@
             padding: 4px 12px;
             text-transform: uppercase;
             font-weight: 700;
-            font-size: 11px;
-            color: #212529;
+            font-size: 10px;
             border-radius: 4px;
         }
 
@@ -331,27 +271,16 @@
             background: #d1ecf1;
         }
 
-
-        /*
-        |--------------------------------------------------------------------------
-        | MISC
-        |--------------------------------------------------------------------------
-        */
-
-        .muted {
-            color: #6c757d;
+        .signature {
+            margin-top: 34px;
         }
 
-        .text-dark {
-            color: #212529 !important;
+        .signature-line {
+            width: 220px;
+            border-top: 1px solid #212529;
+            padding-top: 5px;
+            text-align: center;
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | FOOTER
-        |--------------------------------------------------------------------------
-        */
 
         .footer {
             margin-top: 28px;
@@ -361,32 +290,6 @@
             font-size: 10px;
             color: #6c757d;
         }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | SIGNATURE
-        |--------------------------------------------------------------------------
-        */
-
-        .signature {
-            margin-top: 35px;
-        }
-
-        .signature-line {
-            width: 220px;
-            border-top: 1px solid #212529;
-            padding-top: 5px;
-            text-align: center;
-            color: #212529;
-        }
-
-
-        /*
-        |--------------------------------------------------------------------------
-        | PRINT
-        |--------------------------------------------------------------------------
-        */
 
         @media print {
             body {
@@ -407,7 +310,7 @@
     {{-- HEADER --}}
     {{-- ============================================================= --}}
 
-    <div class="header mt-3">
+    <div class="header">
         <div class="receipt-number">
             <strong>Receipt No.</strong><br>
             {{ $payment->receipt_number ?? 'N/A' }}
@@ -423,7 +326,6 @@
 
         <div class="clearfix"></div>
     </div>
-
 
     {{-- ============================================================= --}}
     {{-- STUDENT INFORMATION --}}
@@ -459,7 +361,6 @@
         </table>
     </div>
 
-
     {{-- ============================================================= --}}
     {{-- PAYMENT INFORMATION --}}
     {{-- ============================================================= --}}
@@ -468,7 +369,6 @@
         <div class="section-title">Payment Information</div>
 
         <table class="details">
-
             <tr>
                 <td class="label">Payment Method</td>
                 <td>{{ $paymentMethod }}</td>
@@ -481,14 +381,8 @@
                 <td class="label">Transaction ID</td>
                 <td>{{ $payment->transaction_id ?: 'N/A' }}</td>
 
-
                 <td class="label">Reference</td>
                 <td>{{ $payment->transaction_id ?: 'N/A' }}</td>
-            </tr>
-
-            <tr>
-                
-                
             </tr>
 
             @if($payment->bank_name || $payment->cheque_number)
@@ -502,7 +396,6 @@
             @endif
         </table>
     </div>
-
 
     {{-- ============================================================= --}}
     {{-- PAYMENT BREAKDOWN --}}
@@ -554,15 +447,15 @@
         </div>
     </div>
 
-
     {{-- ============================================================= --}}
     {{-- BILL SHEET ITEMS --}}
+    {{-- The original commented section remains commented. --}}
     {{-- ============================================================= --}}
-<!-- 
+
+    <!--
     @if($billSheet && $billTotal > 0)
         <div class="section">
             <div class="section-title">Bill Sheet Items</div>
-
             <table class="items">
                 <thead>
                     <tr>
@@ -570,7 +463,6 @@
                         <th class="right">Amount ({{ $currency }})</th>
                     </tr>
                 </thead>
-
                 <tbody>
                     @forelse($billSheet->items ?? [] as $item)
                         <tr>
@@ -581,12 +473,9 @@
                         </tr>
                     @empty
                         <tr>
-                            <td colspan="2" class="muted center">
-                                No Bill Sheet items recorded.
-                            </td>
+                            <td colspan="2" class="center">No Bill Sheet items recorded.</td>
                         </tr>
                     @endforelse
-
                     <tr class="total-row">
                         <td>Bill Sheet Total</td>
                         <td class="right">{{ number_format($billTotal, 2) }}</td>
@@ -594,29 +483,20 @@
                 </tbody>
             </table>
         </div>
-    @endif -->
-
+    @endif
+    -->
 
     {{-- ============================================================= --}}
     {{-- PAYMENT STATUS --}}
+    {{-- The original commented section remains commented. --}}
     {{-- ============================================================= --}}
 
-    <!-- <div class="section">
+    <!--
+    <div class="section">
         <div class="section-title">Payment Status</div>
 
         <p>
             Status:
-            @php
-                $statusClass = match($payment->status ?? '') {
-                    'paid' => 'status-paid',
-                    'pending' => 'status-pending',
-                    'failed' => 'status-failed',
-                    'cancelled' => 'status-cancelled',
-                    'refunded' => 'status-refunded',
-                    default => '',
-                };
-            @endphp
-
             <span class="status {{ $statusClass }}">
                 {{ strtoupper($payment->status ?? 'N/A') }}
             </span>
@@ -628,8 +508,8 @@
                 {{ $payment->notes }}
             </p>
         @endif
-    </div> -->
-
+    </div>
+    -->
 
     {{-- ============================================================= --}}
     {{-- SIGNATURE --}}
@@ -640,7 +520,6 @@
             Authorized Officer
         </div>
     </div>
-
 
     {{-- ============================================================= --}}
     {{-- FOOTER --}}

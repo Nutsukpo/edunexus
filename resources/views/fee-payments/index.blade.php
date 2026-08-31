@@ -151,7 +151,7 @@
                                                    class="btn btn-sm btn-info">
                                                     <i class="fas fa-eye"></i>
                                                 </a>
-                                                <a href="{{ route('fee-payments.print-receipt', $payment->id) }}" 
+                                                <a href="{{ route('fee-payments.receipt', $payment->id) }}" 
                                                    class="btn btn-sm btn-secondary" target="_blank">
                                                     <i class="fas fa-print"></i>
                                                 </a>

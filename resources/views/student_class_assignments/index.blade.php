@@ -71,7 +71,7 @@
                             <th><i class="fas fa-calendar me-1"></i> Academic Year</th>
                             <th><i class="fas fa-tag me-1"></i> Status</th>
                             <th><i class="fas fa-flag me-1"></i> Current</th>
-                            <th width="150"><i class="fas fa-cog me-1"></i> Actions</th>
+                            <!-- <th width="150"><i class="fas fa-cog me-1"></i> Actions</th> -->
                         </tr>
                     </thead>
                     <tbody>
@@ -144,7 +144,7 @@
 
                                 @endif
                                 </td>
-                                <td>
+                                <!-- <td>
                                     <div class="btn-group btn-group-sm">
                                         <a href="{{ route('student-class-assignments.show', $assignment->id) }}" 
                                            class="btn btn-outline-white" title="View">
@@ -155,7 +155,7 @@
                                             <i class="fas fa-edit"></i>
                                         </a>
                                     </div>
-                                </td>
+                                </td> -->
                             </tr>
                         @empty
                             <tr>

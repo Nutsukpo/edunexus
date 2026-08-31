@@ -948,111 +948,73 @@ $(document).ready(function () {
 
     function loadStudents() {
 
-        const yearId =
-            academicYear.val();
-
-        const classId =
-            classSelect.val();
+        const yearId = academicYear.val();
+        const classId = classSelect.val();
+        const termId = termSelect.val();
 
         resetStudent();
 
-        if (!yearId || !classId) {
+        // Students are loaded only after all three filters are selected.
+        if (!yearId || !classId || !termId) {
+            studentSelect
+                .prop('disabled', true)
+                .html('<option value="">Select Academic Year, Class and Term first</option>');
             return;
         }
 
         studentSelect
             .prop('disabled', true)
-            .html(
-                '<option value="">Loading students...</option>'
-            );
+            .html('<option value="">Loading students...</option>');
 
         $.ajax({
-
-            url:
-                '{{ route("fee-payments.get-students-by-class") }}',
-
-            type:
-                'GET',
-
+            url: '{{ route("fee-payments.get-students-by-class") }}',
+            type: 'GET',
+            dataType: 'json',
             data: {
-                class_id:
-                    classId,
-
-                academic_year_id:
-                    yearId
+                class_id: classId,
+                academic_year_id: yearId,
+                term_id: termId
             },
+            success: function (response) {
+                studentSelect.empty();
 
-            success:
-                function (response) {
+                if (response && response.success && Array.isArray(response.students) && response.students.length > 0) {
+                    studentSelect.append('<option value="">Select Student</option>');
 
-                    studentSelect.empty();
+                    response.students.forEach(function (student) {
+                        const option = $('<option>')
+                            .val(student.id)
+                            .text((student.full_name || 'Unnamed Student') + ' (' + (student.student_id || '-') + ')')
+                            .attr('data-assignment', student.assignment_id);
 
-                    studentSelect.append(
-                        '<option value="">Select Student</option>'
-                    );
+                        studentSelect.append(option);
+                    });
 
-                    if (
-                        response.success &&
-                        response.students.length
-                    ) {
-
-                        response.students.forEach(
-                            function (student) {
-
-                                studentSelect.append(
-
-                                    $('<option>', {
-                                        value:
-                                            student.id,
-
-                                        text:
-                                            student.full_name
-                                            +
-                                            ' ('
-                                            +
-                                            student.student_id
-                                            +
-                                            ')',
-
-                                        'data-assignment':
-                                            student.assignment_id
-                                    })
-
-                                );
-
-                            }
-                        );
-
-                        studentSelect
-                            .prop('disabled', false);
-
-                    } else {
-
-                        studentSelect
-                            .append(
-                                '<option value="">No students found</option>'
-                            );
-
-                    }
-
-                },
-
-            error:
-                function (xhr) {
-
-                    console.error(xhr);
-
+                    studentSelect.prop('disabled', false);
+                } else {
                     studentSelect
-                        .html(
-                            '<option value="">Unable to load students</option>'
-                        );
+                        .append('<option value="">No students found for the selected Academic Year, Class and Term</option>')
+                        .prop('disabled', true);
+                }
+            },
+            error: function (xhr) {
+                console.error('Student loading failed:', xhr.status, xhr.responseText);
 
+                let message = 'Unable to load students.';
+                if (xhr.responseJSON && xhr.responseJSON.message) {
+                    message = xhr.responseJSON.message;
+                } else if (xhr.status === 404) {
+                    message = 'Student loading endpoint was not found. Check the fee-payment routes.';
+                } else if (xhr.status === 422) {
+                    message = 'The selected Academic Year, Class or Term is invalid.';
                 }
 
+                studentSelect
+                    .html('<option value="">' + message + '</option>')
+                    .prop('disabled', true);
+            }
         });
-
     }
-
 
     /*
     |--------------------------------------------------------------------------
@@ -1115,38 +1077,6 @@ $(document).ready(function () {
         }
     );
 
-
-    /*
-    |--------------------------------------------------------------------------
-    | TERM CHANGED
-    |--------------------------------------------------------------------------
-    */
-
-    termSelect.on(
-        'change',
-        function () {
-
-            resetBill();
-
-            const studentId =
-                studentSelect.val();
-
-            const assignmentId =
-                assignmentInput.val();
-
-            if (
-                studentId &&
-                assignmentId &&
-                termSelect.val()
-            ) {
-
-                loadStudentBill(
-                    studentId,
-                    assignmentId
-                );
-            }
-        }
-    );
 
 
     /*
@@ -1687,15 +1617,18 @@ $(document).ready(function () {
     |--------------------------------------------------------------------------
     */
 
-    academicYear.on(
-        'change',
-        loadStudents
-    );
+    academicYear.on('change', loadStudents);
+    classSelect.on('change', loadStudents);
+    termSelect.on('change', function () {
+        loadStudents();
 
-    classSelect.on(
-        'change',
-        loadStudents
-    );
+        const studentId = studentSelect.val();
+        const assignmentId = assignmentInput.val();
+
+        if (studentId && assignmentId && termSelect.val()) {
+            loadStudentBill(studentId, assignmentId);
+        }
+    });
 
 
     /*

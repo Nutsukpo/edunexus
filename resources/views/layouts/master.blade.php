@@ -4,776 +4,669 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>@yield('title', 'Kabore USMS')</title>
 
-    <!-- Bootstrap 5 + Icons + Fonts -->
-    <!-- IMPORTANT: Bootstrap 5.3.3 is loaded ONCE. Do not load Bootstrap 4/5 again in child views. -->
+    <title>@yield('title', 'TalhaPremier USMS')</title>
+
+    {{-- =========================================================
+         CORE LIBRARIES
+         Bootstrap is retained for the rest of the application.
+         The sidebar itself DOES NOT use Bootstrap Offcanvas/Collapse.
+    ========================================================== --}}
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
-    
-    <!-- Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700&display=swap" rel="stylesheet">
- 
-    <!-- Toastr CSS -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
-    
+
     <link rel="icon" type="image/png" href="{{ asset('img/Talha.jpeg') }}">
+
     @yield('styles')
-    
-    
+    @stack('styles')
+
     <style>
-        /* ---------- PRELOADER ---------- */
-        #preloader {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, #f0f7ff 0%, #ffffff 100%);
-            z-index: 999999;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.5s ease;
-            opacity: 1;
-            visibility: visible;
+        :root {
+            --brand-dark: #062654;
+            --brand: #1557a6;
+            --brand-light: #3d8bd9;
+            --brand-soft: #eaf3ff;
+            --page-bg: #f5f8fc;
+            --border: #e4ebf3;
+            --text: #172033;
+            --muted: #718096;
+            --sidebar-width: 310px;
+            --navbar-height: 70px;
+            --speed: .22s;
         }
-        
-        body.dark-mode #preloader {
-            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
-        }
-        
-        .loader-container {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 24px;
-            transform: scale(1);
-            animation: loaderFadeIn 0.4s ease-out;
-        }
-        
-        @keyframes loaderFadeIn {
-            from { opacity: 0; transform: scale(0.95); }
-            to { opacity: 1; transform: scale(1); }
-        }
-        
-        .loader {
-            width: 64px;
-            height: 64px;
-            border: 5px solid rgba(26, 75, 140, 0.15);
-            border-top: 5px solid #1a4b8c;
-            border-right: 5px solid #2b6bb0;
-            border-bottom: 5px solid #1a4b8c;
-            border-radius: 50%;
-            animation: rotation 0.8s linear infinite;
-            box-shadow: 0 4px 15px rgba(26, 75, 140, 0.2);
-        }
-        
-        @keyframes rotation {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        
-        .loader-dots {
-            display: flex;
-            gap: 8px;
-            justify-content: center;
-            margin-top: 8px;
-        }
-        
-        .dot {
-            width: 8px;
-            height: 8px;
-            background: #1a4b8c;
-            border-radius: 50%;
-            animation: pulse 1.4s ease-in-out infinite;
-        }
-        
-        .dot:nth-child(1) { animation-delay: 0s; }
-        .dot:nth-child(2) { animation-delay: 0.2s; }
-        .dot:nth-child(3) { animation-delay: 0.4s; }
-        
-        @keyframes pulse {
-            0%, 100% { opacity: 0.3; transform: scale(0.8); }
-            50% { opacity: 1; transform: scale(1.2); }
-        }
-        
-        .loader-text {
-            color: #1a4b8c;
-            font-weight: 600;
-            text-align: center;
-            font-size: 1.1rem;
-            letter-spacing: 1px;
-            background: rgba(26, 75, 140, 0.08);
-            padding: 8px 24px;
-            border-radius: 40px;
-        }
-        
-        .loader-subtext {
-            color: #6c757d;
-            font-size: 0.75rem;
-            margin-top: -8px;
-        }
-        
-        body.dark-mode .loader-subtext {
-            color: #94a3b8;
-        }
-        
-        .preloader-hidden {
-            opacity: 0 !important;
-            visibility: hidden !important;
-            pointer-events: none !important;
-        }
-        
-        body.preloader-active .main-content,
-        body.preloader-active .navbar,
-        body.preloader-active .footer {
-            opacity: 0;
-        }
-        
-        body.preloader-done .main-content,
-        body.preloader-done .navbar,
-        body.preloader-done .footer {
-            animation: contentReveal 0.6s cubic-bezier(0.2, 0.9, 0.4, 1.1) forwards;
-        }
-        
-        @keyframes contentReveal {
-            from { opacity: 0; transform: translateY(15px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        
-        /* ---------- SAFE GLOBAL RESETS ---------- */
-        html {
+
+        * { box-sizing: border-box; }
+
+        html, body {
             min-height: 100%;
         }
 
         body {
-            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            background: #f0f7ff;
-            min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            transition: background-color 0.3s ease, color 0.2s ease;
+            margin: 0;
+            background: var(--page-bg);
+            color: var(--text);
+            font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
         }
 
-        .main-content {
-            flex: 1;
-            padding: 0;
-        }
-        
-        @keyframes slideDown {
-            from { opacity: 0; transform: translateY(-20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
+        a { text-decoration: none; }
 
-        @keyframes pulseSoft {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.85; transform: scale(1.02); }
-        }
-
-        /* ========== EDUNEXUS SIDEBAR - BLUE GRADIENT ========== */
-        .offcanvas {
-            background: linear-gradient(180deg, #0a2f66 0%, #1a4b8c 40%, #2b6bb0 70%, #1a4b8c 100%) !important;
-            border-right: none !important;
-            box-shadow: 4px 0 30px rgba(26, 75, 140, 0.4);
-            display: flex !important;
-            flex-direction: column !important;
-        }
-
-        .offcanvas-start {
-            width: 280px !important;
-        }
-        
-        /* Sidebar scrollbar - subtle blue */
-        .offcanvas-body::-webkit-scrollbar {
-            width: 4px;
-        }
-        
-        .offcanvas-body::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 10px;
-        }
-        
-        .offcanvas-body::-webkit-scrollbar-thumb {
-            background: rgba(43, 107, 176, 0.4);
-            border-radius: 10px;
-        }
-        
-        .offcanvas-body::-webkit-scrollbar-thumb:hover {
-            background: rgba(43, 107, 176, 0.6);
-        }
-
-        /* MAKE SIDEBAR CONTENT SCROLLABLE */
-        .offcanvas-body {
-            flex: 1 !important;
-            overflow-y: auto !important;
-            padding: 0 !important;
-            display: flex !important;
-            flex-direction: column !important;
-        }
-        
-        /* Sidebar Header - with subtle blue glow */
-        .sidebar-header {
-            padding: 1.5rem 1.25rem;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-            margin-bottom: 0;
-            flex-shrink: 0;
-            background: rgba(0, 0, 0, 0.15);
-            position: relative;
-        }
-        
-        .sidebar-header::after {
-            content: '';
-            position: absolute;
-            bottom: 0;
-            left: 20%;
-            right: 20%;
-            height: 2px;
-            background: linear-gradient(90deg, transparent, #3f87d0, transparent);
-            opacity: 0.3;
-        }
-
-        .sidebar-logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .sidebar-logo-icon {
-            width: 42px;
-            height: 42px;
-            background: linear-gradient(135deg, #2b6bb0, #1a4b8c);
-            border-radius: 14px;
+        /* =========================================================
+           PRELOADER
+        ========================================================== */
+        #preloader {
+            position: fixed;
+            inset: 0;
+            z-index: 100000;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.3rem;
-            color: white;
-            box-shadow: 0 6px 16px rgba(43, 107, 176, 0.35);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-        
-        .sidebar-logo-icon:hover {
-            transform: scale(1.05) rotate(-5deg);
-            box-shadow: 0 8px 24px rgba(43, 107, 176, 0.5);
-        }
-        
-        .sidebar-logo-text a {
-            text-decoration: none;
-        }
-        
-        .sidebar-logo-text h4 {
-            font-size: 1.1rem;
-            font-weight: 700;
-            margin: 0;
-            color: #ffffff;
-            letter-spacing: -0.3px;
-            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
-        }
-        
-        .sidebar-logo-text h4 span {
-            color: #6ba3e0;
-        }
-
-        .sidebar-logo-text p {
-            font-size: 0.65rem;
-            color: rgba(255, 255, 255, 0.6);
-            margin: 0;
-            letter-spacing: 0.5px;
-        }
-
-        /* Sidebar Navigation Container - Scrollable */
-        .sidebar-nav-container {
-            flex: 1;
-            overflow-y: auto;
-            padding: 0.75rem 0.75rem 1rem 0.75rem;
-        }
-        
-        .sidebar-nav-container::-webkit-scrollbar {
-            width: 4px;
-        }
-        
-        .sidebar-nav-container::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.03);
-            border-radius: 10px;
-        }
-        
-        .sidebar-nav-container::-webkit-scrollbar-thumb {
-            background: rgba(43, 107, 176, 0.3);
-            border-radius: 10px;
-        }
-
-        .sidebar-nav {
-            padding: 0;
-        }
-
-        /* Section Title - subtle and elegant */
-        .nav-section {
-            margin-bottom: 1.5rem;
-        }
-
-        .nav-section-title {
-            font-size: 0.6rem;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.12em;
-            color: rgba(255, 255, 255, 0.35);
-            padding: 0.5rem 0.75rem;
-            margin-bottom: 0.25rem;
-        }
-
-        /* Nav Items - Clean white text with hover effects */
-        .nav-item-custom {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 0.7rem 1rem;
-            margin-bottom: 2px;
-            border-radius: 12px;
-            color: rgba(255, 255, 255, 0.8) !important;
-            text-decoration: none;
-            transition: all 0.25s ease;
-            font-weight: 500;
-            font-size: 0.85rem;
-            position: relative;
-            cursor: pointer;
-            border: 1px solid transparent;
-        }
-
-        .nav-item-custom i {
-            width: 22px;
-            font-size: 1rem;
-            text-align: center;
-            transition: all 0.2s;
-            color: rgba(255, 255, 255, 0.6);
-        }
-
-        .nav-item-custom:hover {
-            background: rgba(255, 255, 255, 0.08);
-            color: #ffffff !important;
-            transform: translateX(4px);
-            border-color: rgba(255, 255, 255, 0.05);
-        }
-
-        .nav-item-custom:hover i {
-            color: #ffffff;
-        }
-
-        .nav-item-custom.active {
-            background: linear-gradient(95deg, rgba(43, 107, 176, 0.4), rgba(26, 75, 140, 0.6));
-            color: #ffffff !important;
-            border-left: 3px solid #3f87d0;
-            box-shadow: 0 4px 15px rgba(43, 107, 176, 0.15);
-        }
-        
-        .nav-item-custom.active i {
-            color: #6ba3e0;
-        }
-        
-        .nav-item-custom.active::before {
-            content: '';
-            position: absolute;
-            left: 0;
-            top: 20%;
-            bottom: 20%;
-            width: 3px;
-            background: linear-gradient(180deg, #3f87d0, #6ba3e0);
-            border-radius: 0 4px 4px 0;
-        }
-
-        .nav-badge {
-            margin-left: auto;
-            background: rgba(43, 107, 176, 0.25);
-            color: #6ba3e0;
-            font-size: 0.6rem;
-            padding: 2px 10px;
-            border-radius: 20px;
-            font-weight: 600;
-        }
-        
-        /* Collapse submenu styles - with indentation */
-        .collapse.nav-collapse {
-            padding-left: 1.75rem;
-        }
-        
-        .collapse.nav-collapse .nav-item-custom {
-            padding: 0.55rem 1rem;
-            font-size: 0.8rem;
-            color: rgba(255, 255, 255, 0.65) !important;
-            border-left: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 0 12px 12px 0;
-        }
-        
-        .collapse.nav-collapse .nav-item-custom i {
-            color: rgba(255, 255, 255, 0.4);
-            font-size: 0.9rem;
-        }
-        
-        .collapse.nav-collapse .nav-item-custom:hover {
-            color: #ffffff !important;
-            background: rgba(255, 255, 255, 0.05);
-        }
-        
-        .collapse.nav-collapse .nav-item-custom:hover i {
-            color: #ffffff;
-        }
-        
-        .collapse.nav-collapse .nav-item-custom.active {
-            background: rgba(43, 107, 176, 0.2);
-            border-left: 2px solid #3f87d0;
-            color: #ffffff !important;
-        }
-        
-        /* Sidebar footer - subtle blue gradient */
-        .sidebar-footer {
-            flex-shrink: 0;
-            padding: 1rem;
-            border-top: 1px solid rgba(255, 255, 255, 0.06);
-            margin-top: auto;
-            background: rgba(0, 0, 0, 0.25);
-            backdrop-filter: blur(10px);
-        }
-        
-        .sidebar-user {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 0.5rem;
-            border-radius: 14px;
-            transition: all 0.2s;
-        }
-        
-        .sidebar-user:hover {
-            background: rgba(255, 255, 255, 0.05);
-        }
-        
-        .sidebar-user-avatar {
-            width: 38px;
-            height: 38px;
-            background: linear-gradient(135deg, #2b6bb0, #1a4b8c);
-            border-radius: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 0.9rem;
-            color: white;
-            box-shadow: 0 4px 12px rgba(43, 107, 176, 0.3);
-        }
-        
-        .sidebar-user-info .name {
-            font-size: 0.8rem;
-            font-weight: 600;
-            color: #ffffff;
-            margin: 0;
-        }
-        
-        .sidebar-user-info .role {
-            font-size: 0.6rem;
-            color: rgba(255, 255, 255, 0.5);
-            margin: 0;
-        }
-        
-        /* Dark mode - sidebar stays blue gradient */
-        body.dark-mode .offcanvas {
-            background: linear-gradient(180deg, #0a2f66 0%, #1a4b8c 40%, #2b6bb0 70%, #1a4b8c 100%) !important;
-        }
-        
-        body.dark-mode .sidebar-footer {
-            background: rgba(0, 0, 0, 0.25);
-        }
-        
-        body.dark-mode {
-            background: #0f172a;
-        }
-
-        body.dark-mode .navbar {
-            background: #1e293b !important;
-            border-bottom-color: #334155;
-        }
-
-        body.dark-mode .navbar-brand,
-        body.dark-mode .greeting-text,
-        body.dark-mode .icon-btn {
-            color: #e2e8f0;
-        }
-
-        body.dark-mode .dropdown-menu {
-            background: #1e293b;
-            border-color: #334155;
-        }
-
-        body.dark-mode .dropdown-item {
-            color: #cbd5e1;
-        }
-        
-        body.dark-mode .dropdown-item:hover {
-            background: #334155;
-            color: white;
-        }
-
-        body.dark-mode .footer {
-            background: #1e293b;
-            border-top-color: #334155;
-            color: #94a3b8;
-        }
-
-        body.dark-mode .darkmode-toggle {
-            background: #334155;
-            color: #f1f5f9;
-        }
-        
-        body.dark-mode .greeting-wrapper {
-            background: #334155;
-        }
-        
-        body.dark-mode .date-display {
-            background: #334155;
-            color: #cbd5e1;
-        }
-
-        /* ---------- BOOTSTRAP 5 SAFE APPLICATION LAYER ---------- */
-        /*
-         * Bootstrap 5.3.3 is loaded once in this layout.
-         * Page-specific styles should be placed in @push('styles').
-         * Do not redefine Bootstrap modal, dropdown, button, form, table,
-         * navbar or collapse rules globally.
-         */
-        .app-content {
-            width: 100%;
-            min-width: 0;
-        }
-
-        .navbar .dropdown-menu {
-            z-index: 1080;
-        }
-
-        .modal {
-            z-index: 1055;
-        }
-
-        .modal-backdrop {
-            z-index: 1050;
+            background: linear-gradient(135deg, #f3f8ff, #fff);
+            transition: opacity .35s ease, visibility .35s ease;
         }
 
         #preloader.preloader-hidden {
-            pointer-events: none !important;
+            opacity: 0;
+            visibility: hidden;
+            pointer-events: none;
         }
 
-        /* Navbar & misc */
-        .navbar {
-            background: rgba(255, 255, 255, 0.96);
-            backdrop-filter: blur(10px);
-            border-bottom: 1px solid #edf2f7;
-            transition: all 0.3s cubic-bezier(0.2, 0, 0, 1);
-            padding: 0.75rem 1.5rem;
-            animation: slideDown 0.4s ease-out;
+        .loader-container { text-align: center; }
+
+        .loader {
+            width: 58px;
+            height: 58px;
+            margin: 0 auto 16px;
+            border: 5px solid rgba(21,87,166,.12);
+            border-top-color: var(--brand);
+            border-right-color: var(--brand-light);
+            border-radius: 50%;
+            animation: spin .8s linear infinite;
+        }
+
+        .loader-dots {
+            display: flex;
+            justify-content: center;
+            gap: 7px;
+            margin-bottom: 14px;
+        }
+
+        .loader-dots .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--brand);
+            animation: pulse 1.2s infinite ease-in-out;
+        }
+
+        .loader-dots .dot:nth-child(2) { animation-delay: .15s; }
+        .loader-dots .dot:nth-child(3) { animation-delay: .3s; }
+
+        .loader-text {
+            display: inline-block;
+            padding: 7px 18px;
+            border-radius: 30px;
+            background: var(--brand-soft);
+            color: var(--brand-dark);
+            font-weight: 800;
+        }
+
+        .loader-subtext {
+            margin-top: 8px;
+            color: var(--muted);
+            font-size: .72rem;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse {
+            0%,100% { opacity: .3; transform: scale(.8); }
+            50% { opacity: 1; transform: scale(1); }
+        }
+
+        /* =========================================================
+           NAVBAR
+        ========================================================== */
+        .app-navbar {
+            position: sticky;
+            top: 0;
+            z-index: 2000;
+            min-height: var(--navbar-height);
+            background: rgba(255,255,255,.97);
+            border-bottom: 1px solid var(--border);
+            backdrop-filter: blur(12px);
+        }
+
+        .navbar-inner {
+            min-height: var(--navbar-height);
+            padding: 0 1.1rem;
+        }
+
+        .sidebar-trigger {
+            width: 44px;
+            height: 44px;
+            border: 0;
+            border-radius: 13px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            background: linear-gradient(135deg, var(--brand-dark), var(--brand-light));
+            box-shadow: 0 7px 18px rgba(21,87,166,.22);
+            cursor: pointer;
+        }
+
+        .sidebar-trigger:hover {
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        .navbar-title {
+            color: var(--text);
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        .date-display,
+        .greeting-wrapper {
+            padding: .42rem .8rem;
+            border-radius: 30px;
+            background: #f1f5f9;
+            color: #526174;
+            font-size: .73rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .greeting-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+
+        .greeting-icon { color: #e8a317; }
+
+        .darkmode-toggle,
+        .icon-btn {
+            width: 42px;
+            height: 42px;
+            border: 0;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: transparent;
+            color: #536174;
+            cursor: pointer;
+        }
+
+        .darkmode-toggle:hover,
+        .icon-btn:hover {
+            background: #eef3f8;
+            color: var(--brand);
         }
 
         .user-avatar {
             width: 42px;
             height: 42px;
-            background: linear-gradient(135deg, #2b6bb0, #1a4b8c);
             border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-weight: 600;
-            font-size: 1rem;
-            color: white;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 12px rgba(43, 107, 176, 0.2);
+            background: linear-gradient(135deg, var(--brand-dark), var(--brand-light));
+            color: #fff;
+            font-size: .85rem;
+            font-weight: 800;
         }
 
-        .user-avatar:hover {
-            transform: scale(1.08);
-            box-shadow: 0 8px 20px rgba(43, 107, 176, 0.4);
-        }
-
-        .dropdown-menu {
-            border-radius: 16px;
-            padding: 0.5rem 0;
-            margin-top: 0.5rem;
-            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
-            border: 1px solid #eef2f6;
-            min-width: 220px;
-        }
-
-        .dropdown-item {
-            padding: 0.6rem 1.2rem;
-            font-size: 0.85rem;
-            font-weight: 500;
-        }
-        
-        .dropdown-item i {
-            width: 22px;
-            margin-right: 8px;
+        .notification-badge {
+            position: absolute;
+            top: 0;
+            right: 0;
+            min-width: 18px;
+            height: 18px;
+            padding: 0 5px;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #dc3545;
+            color: #fff;
+            font-size: .58rem;
+            font-weight: 800;
         }
 
         .notification-dropdown {
             width: 340px;
             padding: 0;
-            border-radius: 20px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            box-shadow: 0 18px 45px rgba(15,23,42,.14);
         }
-        
+
         .notification-header {
             padding: 1rem;
-            border-bottom: 1px solid #eef2f6;
-            font-weight: 600;
+            border-bottom: 1px solid var(--border);
+            font-weight: 700;
         }
-        
+
         .notification-item {
-            padding: 0.85rem 1rem;
-            transition: all 0.2s;
-            cursor: pointer;
-            border-bottom: 1px solid #f1f5f9;
+            padding: .8rem 1rem;
+            border-bottom: 1px solid #eef2f6;
         }
-        
-        .notification-item:hover {
-            background: #f8fafc;
-            transform: translateX(4px);
+
+        /* =========================================================
+           NEW SIDEBAR ARCHITECTURE
+           IMPORTANT:
+           - NOT Bootstrap Offcanvas.
+           - NOT Bootstrap Collapse.
+           - Dropdown state is controlled only by this page's JS.
+           - Clicking a dropdown NEVER closes the drawer.
+           - No document click handler closes the drawer.
+           - No backdrop click closes the drawer.
+           - The drawer closes only from the close button or menu button.
+           - A normal link navigates to a new page; that page starts closed.
+        ========================================================== */
+
+        .sidebar-shell {
+            position: fixed;
+            inset: 0;
+            z-index: 5000;
+            pointer-events: none;
+            visibility: hidden;
         }
-        
-        .notification-badge {
+
+        .sidebar-shell.is-open {
+            pointer-events: auto;
+            visibility: visible;
+        }
+
+        .sidebar-panel {
             position: absolute;
-            top: -5px;
-            right: -5px;
-            background: #ef4444;
-            color: white;
-            font-size: 10px;
-            font-weight: 600;
-            padding: 2px 6px;
-            border-radius: 20px;
-            animation: pulseSoft 2s infinite;
+            top: 0;
+            left: 0;
+            width: min(var(--sidebar-width), 92vw);
+            height: 100%;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            background: linear-gradient(180deg, #061f46 0%, #0b3974 50%, #125cae 100%);
+            box-shadow: 18px 0 50px rgba(0,0,0,.28);
+            transform: translateX(-105%);
+            transition: transform var(--speed) ease;
         }
-        
-        .darkmode-toggle {
-            background: #f1f5f9;
-            border: none;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
+
+        .sidebar-shell.is-open .sidebar-panel {
+            transform: translateX(0);
+        }
+
+        .sidebar-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(3,14,30,.38);
+            opacity: 0;
+            transition: opacity var(--speed) ease;
+        }
+
+        .sidebar-shell.is-open .sidebar-backdrop {
+            opacity: 1;
+        }
+
+        .sidebar-head {
+            flex: 0 0 auto;
+            min-height: 82px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 1rem 1rem .9rem;
+            border-bottom: 1px solid rgba(255,255,255,.09);
+            background: rgba(0,0,0,.12);
+        }
+
+        .sidebar-brand {
+            display: flex;
+            align-items: center;
+            gap: 11px;
+            min-width: 0;
+        }
+
+        .sidebar-brand-icon {
+            width: 45px;
+            height: 45px;
+            flex: 0 0 45px;
+            border-radius: 13px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.3s ease;
+            color: #fff;
+            background: linear-gradient(135deg, #4b9be0, #174d94);
+            box-shadow: 0 7px 20px rgba(0,0,0,.18);
+        }
+
+        .sidebar-brand-text { min-width: 0; }
+
+        .sidebar-brand-text h5 {
+            margin: 0;
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 800;
+        }
+
+        .sidebar-brand-text h5 span { color: #7fc2f7; }
+
+        .sidebar-brand-text small {
+            display: block;
+            margin-top: 3px;
+            color: rgba(255,255,255,.54);
+            font-size: .57rem;
+        }
+
+        .sidebar-close {
+            width: 38px;
+            height: 38px;
+            flex: 0 0 38px;
+            border: 1px solid rgba(255,255,255,.12);
+            border-radius: 11px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255,255,255,.75);
+            background: rgba(255,255,255,.06);
             cursor: pointer;
         }
-        
-        .icon-btn {
-            background: transparent;
-            border: none;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            transition: all 0.25s;
+
+        .sidebar-close:hover {
+            color: #fff;
+            background: rgba(255,255,255,.12);
         }
-        
-        .icon-btn:hover {
-            background: #f1f5f9;
+
+        .sidebar-content {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow-y: auto;
+            padding: .9rem .8rem 1rem;
         }
-        
-        .footer {
-            background: white;
-            border-top: 1px solid #edf2f7;
-            padding: 1.2rem 2rem;
-            margin-top: auto;
+
+        .sidebar-content::-webkit-scrollbar { width: 5px; }
+        .sidebar-content::-webkit-scrollbar-track { background: rgba(255,255,255,.03); }
+        .sidebar-content::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,.17);
+            border-radius: 10px;
         }
-        
-        .footer-content {
+
+        .nav-section {
+            margin-bottom: .85rem;
+        }
+
+        .nav-section-title {
+            padding: .25rem .7rem .4rem;
+            color: rgba(255,255,255,.35);
+            font-size: .57rem;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: .12em;
+        }
+
+        .nav-link-main,
+        .nav-link-child {
+            width: 100%;
+            border: 0;
             display: flex;
-            justify-content: space-between;
             align-items: center;
-            flex-wrap: wrap;
+            gap: 11px;
+            color: rgba(255,255,255,.78);
+            background: transparent;
+            cursor: pointer;
+            text-align: left;
         }
-        
-        .date-display {
-            font-size: 0.75rem;
-            font-weight: 500;
-            background: #f1f5f9;
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
+
+        .nav-link-main {
+            min-height: 44px;
+            padding: .65rem .78rem;
+            border-radius: 12px;
+            font-size: .8rem;
+            font-weight: 600;
         }
-        
-        .greeting-wrapper {
+
+        .nav-link-main:hover {
+            color: #fff;
+            background: rgba(255,255,255,.09);
+        }
+
+        .nav-link-main.active {
+            color: #fff;
+            background: linear-gradient(90deg, rgba(61,139,217,.42), rgba(21,87,166,.55));
+            border-left: 3px solid #82c5f6;
+        }
+
+        .nav-link-main > i:first-child,
+        .nav-link-child > i:first-child {
+            width: 21px;
+            text-align: center;
+            color: rgba(255,255,255,.55);
+        }
+
+        .nav-link-main:hover > i:first-child,
+        .nav-link-main.active > i:first-child {
+            color: #8dccf8;
+        }
+
+        .nav-chevron {
+            margin-left: auto;
+            font-size: .65rem;
+            transition: transform .18s ease;
+        }
+
+        .nav-group.is-expanded > .nav-link-main .nav-chevron {
+            transform: rotate(180deg);
+        }
+
+        .nav-children {
+            display: none;
+            margin: .15rem 0 0 .72rem;
+            padding-left: .55rem;
+            border-left: 1px solid rgba(255,255,255,.10);
+        }
+
+        .nav-group.is-expanded > .nav-children {
+            display: block;
+        }
+
+        .nav-link-child {
+            min-height: 38px;
+            padding: .48rem .65rem;
+            border-radius: 0 9px 9px 0;
+            font-size: .75rem;
+        }
+
+        .nav-link-child:hover {
+            color: #fff;
+            background: rgba(255,255,255,.07);
+        }
+
+        .nav-link-child.active {
+            color: #fff;
+            background: rgba(61,139,217,.18);
+            border-left: 2px solid #82c5f6;
+        }
+
+        .sidebar-user {
+            flex: 0 0 auto;
+            padding: .8rem .95rem;
+            border-top: 1px solid rgba(255,255,255,.08);
+            background: rgba(0,0,0,.17);
+        }
+
+        .sidebar-user-inner {
             display: flex;
             align-items: center;
             gap: 10px;
-            background: #f1f5f9;
-            padding: 6px 16px;
-            border-radius: 40px;
-            transition: all 0.2s;
         }
-        
-        .menu-btn {
-            transition: all 0.2s;
-            background: linear-gradient(135deg, #1a4b8c, #2b6bb0) !important;
-            border: none !important;
+
+        .sidebar-user-avatar {
+            width: 38px;
+            height: 38px;
+            border-radius: 11px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            background: linear-gradient(135deg, #3d8bd9, #174d94);
+            font-size: .78rem;
+            font-weight: 800;
         }
-        
-        .menu-btn:hover {
-            transform: scale(1.05);
-            box-shadow: 0 4px 15px rgba(43, 107, 176, 0.4) !important;
-            background: linear-gradient(135deg, #0a2f66, #1a4b8c) !important;
+
+        .sidebar-user-name {
+            margin: 0;
+            color: #fff;
+            font-size: .76rem;
+            font-weight: 700;
         }
-        
+
+        .sidebar-user-role {
+            margin: 2px 0 0;
+            color: rgba(255,255,255,.5);
+            font-size: .58rem;
+        }
+
+        /* =========================================================
+           CONTENT / FOOTER
+        ========================================================== */
+        .app-content {
+            width: 100%;
+            min-height: calc(100vh - var(--navbar-height));
+            padding: 1.25rem;
+        }
+
+        .footer {
+            padding: 1rem 1.4rem;
+            background: #fff;
+            border-top: 1px solid var(--border);
+        }
+
+        .footer-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        /* =========================================================
+           LOGOUT
+        ========================================================== */
         .logout-overlay {
             position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0,0,0,0.85);
+            inset: 0;
             z-index: 1000000;
             display: flex;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
             flex-direction: column;
-            gap: 20px;
-            backdrop-filter: blur(8px);
+            gap: 18px;
+            background: rgba(0,0,0,.82);
+            backdrop-filter: blur(7px);
         }
-        
+
         .logout-spinner {
-            width: 55px;
-            height: 55px;
-            border: 4px solid rgba(255,255,255,0.2);
-            border-top: 4px solid #2b6bb0;
-            border-right: 4px solid #1a4b8c;
+            width: 52px;
+            height: 52px;
+            border: 4px solid rgba(255,255,255,.2);
+            border-top-color: #fff;
             border-radius: 50%;
-            animation: rotation 0.7s linear infinite;
+            animation: spin .7s linear infinite;
         }
-        
+
         .logout-text {
-            color: white;
-            font-weight: 500;
-            font-size: 1.1rem;
+            color: #fff;
+            font-size: 1rem;
+            font-weight: 600;
         }
-        
-        @media (max-width: 768px) {
-            .greeting-text { display: none; }
-            .date-display { display: none; }
-            .offcanvas-start {
-                width: 260px !important;
+
+        /* =========================================================
+           DARK MODE
+        ========================================================== */
+        body.dark-mode {
+            --page-bg: #0f172a;
+            --text: #e5edf7;
+            --muted: #94a3b8;
+            --border: #26344a;
+            background: #0f172a;
+            color: #e5edf7;
+        }
+
+        body.dark-mode .app-navbar,
+        body.dark-mode .footer {
+            background: #111b2d;
+            border-color: #26344a;
+        }
+
+        body.dark-mode .navbar-title,
+        body.dark-mode .icon-btn,
+        body.dark-mode .darkmode-toggle {
+            color: #e5edf7;
+        }
+
+        body.dark-mode .date-display,
+        body.dark-mode .greeting-wrapper {
+            background: #1e293b;
+            color: #cbd5e1;
+        }
+
+        body.dark-mode .dropdown-menu {
+            background: #172033;
+            border-color: #26344a;
+        }
+
+        body.dark-mode .dropdown-item { color: #e5edf7; }
+        body.dark-mode .dropdown-item:hover { background: #26344a; }
+
+        @media (max-width: 991.98px) {
+            :root {
+                --navbar-height: 64px;
+                --sidebar-width: 292px;
+            }
+
+            .navbar-inner { min-height: 64px; }
+            .greeting-text, .date-display { display: none; }
+            .app-content { padding: 1rem; }
+        }
+
+        @media (max-width: 575.98px) {
+            :root { --sidebar-width: 285px; }
+
+            .app-content { padding: .75rem; }
+
+            .navbar-title {
+                max-width: 130px;
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+
+            .notification-dropdown {
+                width: min(340px, calc(100vw - 20px));
+            }
+
+            .sidebar-trigger,
+            .darkmode-toggle,
+            .icon-btn,
+            .user-avatar {
+                width: 39px;
+                height: 39px;
             }
         }
-        
-        /* Rotate icon for collapsed items */
-        .nav-item-custom[data-bs-toggle="collapse"] i.fa-chevron-down,
-        .nav-item-custom[data-bs-toggle="collapse"] i.fa-chevron-right {
-            margin-left: auto;
-            transition: transform 0.3s ease;
-        }
-        
-        .nav-item-custom[data-bs-toggle="collapse"]:not(.collapsed) i.fa-chevron-down {
-            transform: rotate(180deg);
-        }
     </style>
-    @stack('styles')
 </head>
+
 <body class="preloader-active">
-    <!-- PRELOADER -->
-    <div id="preloader">
+
+    {{-- =========================================================
+         PRELOADER
+    ========================================================== --}}
+    <div id="preloader" aria-hidden="true">
         <div class="loader-container">
             <div class="loader"></div>
             <div class="loader-dots">
@@ -782,637 +675,972 @@
                 <span class="dot"></span>
             </div>
             <div class="loader-text">Talha Prem USMS</div>
-            <div class="loader-subtext">Loading at {{ now()->format('h:i:s A') }} ...</div>
+            <div class="loader-subtext">
+                Loading at {{ now()->format('h:i:s A') }} ...
+            </div>
         </div>
     </div>
 
-    <!-- SIDEBAR (Offcanvas) - EDUNEXUS BLUE GRADIENT -->
-    <div class="offcanvas offcanvas-start" tabindex="-1" id="sidebar">
-        <div class="sidebar-header">
-            <div class="sidebar-logo">
-                <div class="sidebar-logo-icon">
-                    <i class="fas fa-graduation-cap"></i>
+    {{-- =========================================================
+         SIDEBAR
+         TOTALLY INDEPENDENT OF BOOTSTRAP OFFCANVAS/COLLAPSE.
+         It starts hidden on EVERY PAGE LOAD.
+    ========================================================== --}}
+    <aside class="sidebar-shell" id="sidebarShell" aria-hidden="true">
+
+        {{-- This backdrop is visual only. It DOES NOT close the sidebar. --}}
+        <div class="sidebar-backdrop" aria-hidden="true"></div>
+
+        <div class="sidebar-panel" id="sidebarPanel">
+
+            <div class="sidebar-head">
+                <div class="sidebar-brand">
+                    <div class="sidebar-brand-icon">
+                        <i class="fas fa-graduation-cap"></i>
+                    </div>
+                    <div class="sidebar-brand-text">
+                        <h5>Talha<span>Premier</span></h5>
+                        <small>Universal School Management System</small>
+                    </div>
                 </div>
-                <div class="sidebar-logo-text">
-                    <h4>Talha<span>Premier</span></h4>
-                    <p>Universal School Management System</p>
-                </div>
+
+                <button type="button"
+                        class="sidebar-close"
+                        id="sidebarClose"
+                        aria-label="Close navigation">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
-        </div>
-        
-        <!-- SCROLLABLE SIDEBAR CONTENT -->
-        <div class="offcanvas-body">
-            <div class="sidebar-nav-container">
-                <div class="sidebar-nav">
-                    
-                    <!-- DASHBOARD -->
-                    <div class="nav-section">
-                        <div class="nav-section-title">DASHBOARD</div>
-                        <a href="/dashboard" class="nav-item-custom active">
-                            <i class="fas fa-home"></i>
-                            <span>Dashboard</span>
+
+            <div class="sidebar-content">
+
+                {{-- DASHBOARD --}}
+                <div class="nav-section">
+                    <div class="nav-section-title">Dashboard</div>
+
+                    <a href="{{ url('/dashboard') }}"
+                       class="nav-link-main {{ request()->is('dashboard') ? 'active' : '' }}">
+                        <i class="fas fa-home"></i>
+                        <span>Dashboard</span>
+                    </a>
+                </div>
+
+                {{-- STUDENT MANAGEMENT --}}
+                <div class="nav-section nav-group" data-menu-group="students">
+                    <button type="button" class="nav-link-main nav-toggle">
+                        <i class="fas fa-user-graduate"></i>
+                        <span>Students</span>
+                        <i class="fas fa-chevron-down nav-chevron"></i>
+                    </button>
+
+                    <div class="nav-children">
+                        <a href="/students" class="nav-link-child">
+                            <i class="fas fa-list"></i>
+                            <span>Admissions</span>
+                        </a>
+
+                        <a href="/student-class-assignments" class="nav-link-child">
+                            <i class="fas fa-building"></i>
+                            <span>Students Class Enrolled</span>
+                        </a>
+
+                        <a href="/student-progressions" class="nav-link-child">
+                            <i class="fas fa-level-up-alt"></i>
+                            <span>Promotions</span>
+                        </a>
+
+                        <a href="/graduated-students" class="nav-link-child">
+                            <i class="fas fa-graduation-cap"></i>
+                            <span>Graduated Students</span>
                         </a>
                     </div>
+                </div>
 
-                    <!-- STUDENT MANAGEMENT -->
-                    <div class="nav-section">
-                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#studentMenu" aria-expanded="false">
-                            <i class="fas fa-user-graduate"></i>
-                            <span>Students</span>
-                            <i class="fas fa-chevron-down ms-auto"></i>
+                {{-- ACADEMICS --}}
+                <div class="nav-section nav-group" data-menu-group="academics">
+                    <button type="button" class="nav-link-main nav-toggle">
+                        <i class="fas fa-book-open"></i>
+                        <span>Academics</span>
+                        <i class="fas fa-chevron-down nav-chevron"></i>
+                    </button>
+
+                    <div class="nav-children">
+                        <a href="/student-classes" class="nav-link-child">
+                            <i class="fas fa-building"></i>
+                            <span>Class/Form</span>
                         </a>
-                        <div class="collapse nav-collapse" id="studentMenu">
-                            <a href="/students" class="nav-item-custom">
-                                <i class="fas fa-list"></i>
-                                <span>Admissions</span>
-                            </a>
-                            
-                            <a href="/student-class-assignments" class="nav-item-custom">
-                                <i class="fas fa-building"></i>
-                                <span>Students Class Enrolled</span>
-                            </a>
-                            <a href="/student-progressions" class="nav-item-custom">
-                                <i class="fas fa-level-up-alt"></i>
-                                <span>Promotions</span>
-                            </a>
-                            <a href="/graduated-students" class="nav-item-custom">
-                                <i class="fas fa-graduation-cap"></i>
-                                <span>Graduated Students</span>
-                            </a>
-                        </div>
-                    </div>
 
-                    <!-- ACADEMICS -->
-                    <div class="nav-section">
-                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#academicMenu">
-                            <i class="fas fa-book-open"></i>
-                            <span>Academics</span>
-                            <i class="fas fa-chevron-down ms-auto"></i>
+                        <a href="/lesson-notes" class="nav-link-child">
+                            <i class="fas fa-sticky-note"></i>
+                            <span>Lesson Notes</span>
                         </a>
-                        <div class="collapse nav-collapse" id="academicMenu">
-                            <a href="/student-classes" class="nav-item-custom">
-                                    <i class="fas fa-building"></i>
-                                    <span>Class/Form</span>
-                                </a>    
-                            <a href="/lesson-notes" class="nav-item-custom">
-                                <i class="fas fa-sticky-note"></i>
-                                <span>Lesson Notes</span>
-                            </a>
-                            <a href="/academic-years" class="nav-item-custom">
-                                <i class="fas fa-user-shield"></i>
-                                <span>Academic Years</span>
-                            </a>
-                            <a href="/terms" class="nav-item-custom">
-                                <i class="fas fa-calendar-alt"></i>
-                                <span>Terms</span>
-                            </a>
-                            <a href="/subjects" class="nav-item-custom">
-                                <i class="fas fa-book"></i>
-                                <span>Subjects</span>
-                            </a>
-                            <a href="/timetables" class="nav-item-custom">
-                                <i class="fas fa-clock"></i>
-                                <span>Timetable</span>
-                            </a>
-                            
-                        </div>
-                    </div>
 
-                    <!-- ASSESSMENT -->
-                    <div class="nav-section">
-                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#examMenu">
-                            <i class="fas fa-clipboard-list"></i>
-                            <span>Assessment</span>
-                            <i class="fas fa-chevron-down ms-auto"></i>
+                        <a href="/academic-years" class="nav-link-child">
+                            <i class="fas fa-calendar-alt"></i>
+                            <span>Academic Years</span>
                         </a>
-                        <div class="collapse nav-collapse" id="examMenu">
-                            <a href="/scores" class="nav-item-custom">
-                                <i class="fas fa-chart-line"></i>
-                                <span>Subject Scores</span>
-                            </a>
-                            <a href="/assessment-forms" class="nav-item-custom">
-                                <i class="fas fa-upload"></i>
-                                <span>Assessment Form</span>
-                            </a>
-                          
-                        </div>
-                    </div>
 
-                      <!-- RESULTS -->
-                      <div class="nav-section">
-                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#resultMenu">
-                            <i class="fas fa-clipboard-list"></i>
-                            <span>Results</span>
-                            <i class="fas fa-chevron-down ms-auto"></i>
-                        </a>
-                        <div class="collapse nav-collapse" id="resultMenu">
-                            <a href="/broadsheet" class="nav-item-custom">
-                                <i class="fas fa-registered"></i>
-                                <span>Class Results</span>
-                            </a>
-                            <a href="/subject-results" class="nav-item-custom">
-                                <i class="fas fa-chart-line"></i>
-                                <span>Subject Results</span>
-                            </a>
-                            <a href="/report-cards" class="nav-item-custom">
-                                <i class="fas fa-id-card"></i>
-                                <span>Report Cards</span>
-                            </a>
-                        </div>
-                    </div>
-
-                    <!-- ATTENDANCE -->
-                    <div class="nav-section">
-                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#attendanceMenu">
+                        <a href="/terms" class="nav-link-child">
                             <i class="fas fa-calendar-check"></i>
-                            <span>Attendance</span>
-                            <i class="fas fa-chevron-down ms-auto"></i>
+                            <span>Terms</span>
                         </a>
-                        <div class="collapse nav-collapse" id="attendanceMenu">
-                            <a href="/attendance-sessions" class="nav-item-custom">
-                                <i class="fas fa-user-check"></i>
-                                <span>Student Attendance</span>
-                            </a>
-                            <a href="/staff-attendance" class="nav-item-custom">
-                                <i class="fas fa-users"></i>
-                                <span>Staff Attendance</span>
-                            </a>
-                            <a href="/staffattendance-live-map" class="nav-item-custom">
-                                <i class="fas fa-map-marker-alt"></i>
-                                <span>Attendance Map</span>
-                            </a>
-                        </div>
-                    </div>
 
-                     <!-- APPROVALS -->
-                     <div class="nav-section">
-                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#approvalMenu">
-                            <i class="fas fa-calendar-check"></i>
-                            <span>Approvals</span>
-                            <i class="fas fa-chevron-down ms-auto"></i>
+                        <a href="/subjects" class="nav-link-child">
+                            <i class="fas fa-book"></i>
+                            <span>Subjects</span>
                         </a>
-                        <div class="collapse nav-collapse" id="approvalMenu">
-                            <a href="/payroll-period-approvals" class="nav-item-custom">
-                                <i class="fas fa-paypal"></i>
-                                <span>Payroll</span>
-                            </a>
-                            <a href="/leave-approvals" class="nav-item-custom">
-                                <i class="fas fa-clock"></i>
-                                <span>Leaves</span>
-                            </a>
-                            <a href="/approvals" class="nav-item-custom">
-                                <i class="fas fa-sticky-note"></i>
-                                <span>Lesson Note</span>
-                            </a>
-                            <a href="/bill-sheet-approvals" class="nav-item-custom">
-                                <i class="fas fa-sticky-note"></i>
-                                <span>Bill Sheets</span>
-                            </a>
-                        </div>
-                    </div>
 
-                    <!-- FINANCE -->
-                    <div class="nav-section">
-                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#financeMenu">
-                            <i class="fas fa-wallet"></i>
-                            <span>Fees & Payments</span>
-                            <i class="fas fa-chevron-down ms-auto"></i>
+                        <a href="/timetables" class="nav-link-child">
+                            <i class="fas fa-clock"></i>
+                            <span>Timetable</span>
                         </a>
-                        <div class="collapse nav-collapse" id="financeMenu">
-                            <!-- <a href="/fee-categories" class="nav-item-custom">
-                                <i class="fas fa-credit-card"></i>
-                                <span>Fee Categories</span>
-                            </a> -->
-                            <!-- <a href="/class-fee-structures" class="nav-item-custom">
-                                <i class="fas fa-refresh"></i>
-                                <span>Fee Structure</span>
-                            </a> -->
-                            <a href="/bill-sheets" class="nav-item-custom">
-                                <i class="fas fa-file-invoice"></i>
-                                <span>BillSheet</span>
-                            </a>  
-                            <a href="/fee-payments" class="nav-item-custom">
-                                <i class="fas fa-money-bill-wave"></i>
-                                <span>Payments</span>
-                            </a> 
-                            <a href="/payroll-periods" class="nav-item-custom">
-                                <i class="fas fa-paypal"></i>
-                                <span>Payroll</span>
-                            </a>
-                            <a href="/payslips" class="nav-item-custom">
-                                <i class="fas fa-paypal"></i>
-                                <span>PaySlip</span>
-                            </a> 
-                            <a href="/salary-structures" class="nav-item-custom">
-                                <i class="fas fa-paypal"></i>
-                                <span>salary-structures</span>
-                            </a>                    
-                        </div>
                     </div>
-                            <!-- ASSET MANAGEMENT -->
-                    <div class="nav-section">
-                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#assetMenu">
-                            <i class="fas fa-hand"></i>
-                            <span>Asset Manager</span>
-                            <i class="fas fa-chevron-down ms-auto"></i>
-                        </a>
-                        <div class="collapse nav-collapse" id="assetMenu">
-                            <a href="assets" class="nav-item-custom">
-                                <i class="fas fa-archive"></i>
-                                <span>Store Records</span>
-                            </a>
-                            <a href="#" class="nav-item-custom">
-                                <i class="fas fa-upload"></i>
-                                <span>Upload Docs</span>
-                            </a>
-                          
-                        </div>
-                    </div>
+                </div>
 
-                    <!-- COMMUNICATION -->
-                    <div class="nav-section">
-                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#communicationMenu">
-                            <i class="fas fa-comments"></i>
-                            <span>Communication</span>
-                            <i class="fas fa-chevron-down ms-auto"></i>
-                        </a>
-                        <div class="collapse nav-collapse" id="communicationMenu">
-                            <a href="/discussions" class="nav-item-custom">
-                                <i class="fas fa-envelope"></i>
-                                <span>Messages</span>
-                            </a>
-                            <a href="/announcements" class="nav-item-custom">
-                                <i class="fas fa-bullhorn"></i>
-                                <span>Announcements</span>
-                            </a>
-                            <a href="/grievance" class="nav-item-custom">
-                                <i class="fas fa-calendar"></i>
-                                <span>Staff Gravience</span>
-                            </a>
-                            <!-- <a href="/student-grievance" class="nav-item-custom">
-                                <i class="fas fa-calendar"></i>
-                                <span>Student Gravience</span>
-                            </a> -->
-                        </div>
-                    </div>
+                {{-- ASSESSMENT --}}
+                <div class="nav-section nav-group" data-menu-group="assessment">
+                    <button type="button" class="nav-link-main nav-toggle">
+                        <i class="fas fa-clipboard-list"></i>
+                        <span>Assessment</span>
+                        <i class="fas fa-chevron-down nav-chevron"></i>
+                    </button>
 
-                    <!-- ADMINISTRATION -->
-                    <div class="nav-section">
-                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#administrationMenu">
+                    <div class="nav-children">
+                        <a href="/scores" class="nav-link-child">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Subject Scores</span>
+                        </a>
+
+                        <a href="/assessment-forms" class="nav-link-child">
+                            <i class="fas fa-upload"></i>
+                            <span>Assessment Form</span>
+                        </a>
+                    </div>
+                </div>
+
+                {{-- RESULTS --}}
+                <div class="nav-section nav-group" data-menu-group="results">
+                    <button type="button" class="nav-link-main nav-toggle">
+                        <i class="fas fa-chart-bar"></i>
+                        <span>Results</span>
+                        <i class="fas fa-chevron-down nav-chevron"></i>
+                    </button>
+
+                    <div class="nav-children">
+                        <a href="/broadsheet" class="nav-link-child">
+                            <i class="fas fa-table"></i>
+                            <span>Class Results</span>
+                        </a>
+
+                        <a href="/subject-results" class="nav-link-child">
+                            <i class="fas fa-chart-line"></i>
+                            <span>Subject Results</span>
+                        </a>
+
+                        <a href="/report-cards" class="nav-link-child">
+                            <i class="fas fa-id-card"></i>
+                            <span>Report Cards</span>
+                        </a>
+                    </div>
+                </div>
+
+                {{-- ATTENDANCE --}}
+                <div class="nav-section nav-group" data-menu-group="attendance">
+                    <button type="button" class="nav-link-main nav-toggle">
+                        <i class="fas fa-calendar-check"></i>
+                        <span>Attendance</span>
+                        <i class="fas fa-chevron-down nav-chevron"></i>
+                    </button>
+
+                    <div class="nav-children">
+                        <a href="/attendance-sessions" class="nav-link-child">
+                            <i class="fas fa-user-check"></i>
+                            <span>Student Attendance</span>
+                        </a>
+
+                        <a href="/staff-attendance" class="nav-link-child">
+                            <i class="fas fa-users"></i>
+                            <span>Staff Attendance</span>
+                        </a>
+
+                        <a href="/staffattendance-live-map" class="nav-link-child">
+                            <i class="fas fa-map-marker-alt"></i>
+                            <span>Attendance Map</span>
+                        </a>
+                    </div>
+                </div>
+
+                {{-- APPROVALS --}}
+                <div class="nav-section nav-group" data-menu-group="approvals">
+                    <button type="button" class="nav-link-main nav-toggle">
+                        <i class="fas fa-check-double"></i>
+                        <span>Approvals</span>
+                        <i class="fas fa-chevron-down nav-chevron"></i>
+                    </button>
+
+                    <div class="nav-children">
+                        <a href="/payroll-period-approvals" class="nav-link-child">
+                            <i class="fas fa-paypal"></i>
+                            <span>Payroll</span>
+                        </a>
+
+                        <a href="/leave-approvals" class="nav-link-child">
+                            <i class="fas fa-clock"></i>
+                            <span>Leaves</span>
+                        </a>
+
+                        <a href="/approvals" class="nav-link-child">
+                            <i class="fas fa-sticky-note"></i>
+                            <span>Lesson Note</span>
+                        </a>
+
+                        <a href="/bill-sheet-approvals" class="nav-link-child">
+                            <i class="fas fa-file-invoice"></i>
+                            <span>Bill Sheets</span>
+                        </a>
+                    </div>
+                </div>
+
+                {{-- FINANCE --}}
+                <div class="nav-section nav-group" data-menu-group="finance">
+                    <button type="button" class="nav-link-main nav-toggle">
+                        <i class="fas fa-wallet"></i>
+                        <span>Fees &amp; Payments</span>
+                        <i class="fas fa-chevron-down nav-chevron"></i>
+                    </button>
+
+                    <div class="nav-children">
+
+                        <!-- <a href="/fee-categories" class="nav-link-child">
+                            <i class="fas fa-credit-card"></i>
+                            <span>Fee Categories</span>
+                        </a> -->
+
+                        <!-- <a href="/class-fee-structures" class="nav-link-child">
+                            <i class="fas fa-refresh"></i>
+                            <span>Fee Structure</span>
+                        </a> -->
+
+                        <a href="/bill-sheets" class="nav-link-child">
+                            <i class="fas fa-file-invoice"></i>
+                            <span>BillSheet</span>
+                        </a>
+
+                        <a href="/fee-payments" class="nav-link-child">
+                            <i class="fas fa-money-bill-wave"></i>
+                            <span>Payments</span>
+                        </a>
+
+                        <a href="/payroll-periods" class="nav-link-child">
+                            <i class="fas fa-paypal"></i>
+                            <span>Payroll</span>
+                        </a>
+
+                        <a href="/payslips" class="nav-link-child">
+                            <i class="fas fa-file-invoice-dollar"></i>
+                            <span>PaySlip</span>
+                        </a>
+
+                        <a href="/salary-structures" class="nav-link-child">
+                            <i class="fas fa-coins"></i>
+                            <span>Salary Structures</span>
+                        </a>
+                    </div>
+                </div>
+
+                {{-- ASSET MANAGEMENT --}}
+                <div class="nav-section nav-group" data-menu-group="assets">
+                    <button type="button" class="nav-link-main nav-toggle">
+                        <i class="fas fa-boxes-stacked"></i>
+                        <span>Asset Manager</span>
+                        <i class="fas fa-chevron-down nav-chevron"></i>
+                    </button>
+
+                    <div class="nav-children">
+                        <a href="/assets" class="nav-link-child">
+                            <i class="fas fa-archive"></i>
+                            <span>Store Records</span>
+                        </a>
+
+                        <a href="#" class="nav-link-child">
+                            <i class="fas fa-upload"></i>
+                            <span>Upload Docs</span>
+                        </a>
+                    </div>
+                </div>
+
+                {{-- COMMUNICATION --}}
+                <div class="nav-section nav-group" data-menu-group="communication">
+                    <button type="button" class="nav-link-main nav-toggle">
+                        <i class="fas fa-comments"></i>
+                        <span>Communication</span>
+                        <i class="fas fa-chevron-down nav-chevron"></i>
+                    </button>
+
+                    <div class="nav-children">
+                        <a href="/discussions" class="nav-link-child">
+                            <i class="fas fa-envelope"></i>
+                            <span>Messages</span>
+                        </a>
+
+                        <a href="/announcements" class="nav-link-child">
+                            <i class="fas fa-bullhorn"></i>
+                            <span>Announcements</span>
+                        </a>
+
+                        <a href="/grievance" class="nav-link-child">
+                            <i class="fas fa-calendar"></i>
+                            <span>Staff Gravience</span>
+                        </a>
+
+                        <!-- <a href="/student-grievance" class="nav-link-child">
+                            <i class="fas fa-calendar"></i>
+                            <span>Student Gravience</span>
+                        </a> -->
+                    </div>
+                </div>
+
+                {{-- ADMINISTRATION --}}
+                <div class="nav-section nav-group" data-menu-group="administration">
+                    <button type="button" class="nav-link-main nav-toggle">
+                        <i class="fas fa-users-cog"></i>
+                        <span>Administration</span>
+                        <i class="fas fa-chevron-down nav-chevron"></i>
+                    </button>
+
+                    <div class="nav-children">
+                        <a href="/staff" class="nav-link-child">
+                            <i class="fas fa-users"></i>
+                            <span>Staff</span>
+                        </a>
+
+                        <a href="/departments" class="nav-link-child">
+                            <i class="fas fa-building"></i>
+                            <span>Departments</span>
+                        </a>
+
+                        <a href="/leaves" class="nav-link-child">
+                            <i class="fas fa-clock"></i>
+                            <span>Leave</span>
+                        </a>
+
+                        <a href="/staff-appraisals" class="nav-link-child">
+                            <i class="fas fa-list-check"></i>
+                            <span>Appraisals</span>
+                        </a>
+                    </div>
+                </div>
+
+                {{-- REPORTS --}}
+                <div class="nav-section nav-group" data-menu-group="reports">
+                    <button type="button" class="nav-link-main nav-toggle">
+                        <i class="fas fa-chart-pie"></i>
+                        <span>Reports</span>
+                        <i class="fas fa-chevron-down nav-chevron"></i>
+                    </button>
+
+                    <div class="nav-children">
+                        <a href="/staffattendance/monthly-report" class="nav-link-child">
+                            <i class="fas fa-archive"></i>
+                            <span>Staff-Attendance</span>
+                        </a>
+
+                        <a href="/attendance/monthly-report" class="nav-link-child">
+                            <i class="fas fa-upload"></i>
+                            <span>Student-Attendance</span>
+                        </a>
+
+                        <a href="/fee-payment-reports" class="nav-link-child">
+                            <i class="fas fa-money-bill-wave"></i>
+                            <span>Student-Fee Payment</span>
+                        </a>
+                    </div>
+                </div>
+
+                {{-- SYSTEM --}}
+                <div class="nav-section nav-group" data-menu-group="settings">
+                    <button type="button" class="nav-link-main nav-toggle">
+                        <i class="fas fa-cogs"></i>
+                        <span>Settings</span>
+                        <i class="fas fa-chevron-down nav-chevron"></i>
+                    </button>
+
+                    <div class="nav-children">
+                        <a href="/users" class="nav-link-child">
                             <i class="fas fa-users-cog"></i>
-                            <span>Administration</span>
-                            <i class="fas fa-chevron-down ms-auto"></i>
+                            <span>User Management</span>
                         </a>
-                        <div class="collapse nav-collapse" id="administrationMenu">
-                            <a href="/staff" class="nav-item-custom">
-                                <i class="fas fa-users"></i>
-                                <span>Staff</span>
-                            </a>
-                            <a href="/departments" class="nav-item-custom">
-                                <i class="fas fa-building"></i>
-                                <span>Departments</span>
-                            </a>
-                            <a href="/leaves" class="nav-item-custom">
-                                <i class="fas fa-clock"></i>
-                                <span>Leave</span>
-                            </a>
-                            <a href="/staff-appraisals" class="nav-item-custom">
-                                <i class="fas fa-list-check"></i>
-                                <span>Appraisals</span>
-                            </a>
-                        </div>
-                    </div>
 
-                     <!-- REPORTS -->
-                     <div class="nav-section">
-                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#reportMenu">
-                            <i class="fas fa-hand-lizard"></i>
-                            <span>Reports</span>
-                            <i class="fas fa-chevron-down ms-auto"></i>
+                        <a href="/roles-permissions" class="nav-link-child">
+                            <i class="fas fa-user-shield"></i>
+                            <span>Roles &amp; Permissions</span>
                         </a>
-                        <div class="collapse nav-collapse" id="reportMenu">
-                            <a href="/staffattendance/monthly-report" class="nav-item-custom">
-                                <i class="fas fa-archive"></i>
-                                <span>Staff-Attendance</span>
-                            </a>
-                            <a href="/attendance/monthly-report" class="nav-item-custom">
-                                <i class="fas fa-upload"></i>
-                                <span>Student-Attendance</span>
-                            </a>
-                            <a href="/fee-payment-reports" class="nav-item-custom">
-                                <i class="fas fa-upload"></i>
-                                <span>Student-Fee Payment</span>
-                            </a>
-                          
-                        </div>
-                    </div>
 
-                    <!-- SYSTEM -->
-                    <div class="nav-section">
-                        <a class="nav-item-custom collapsed" data-bs-toggle="collapse" href="#settingsMenu">
-                            <i class="fas fa-cogs"></i>
-                            <span>Settings</span>
-                            <i class="fas fa-chevron-down ms-auto"></i>
+                        <a href="/attendance-settings" class="nav-link-child">
+                            <i class="fas fa-database"></i>
+                            <span>Attendance Settings</span>
                         </a>
-                        <div class="collapse nav-collapse" id="settingsMenu">
-                            <a href="/users" class="nav-item-custom">
-                                <i class="fas fa-users-cog"></i>
-                                <span>User Management</span>
-                            </a>
-                          
-                            <a href="/roles-permissions" class="nav-item-custom">
-                                <i class="fas fa-user-shield"></i>
-                                <span>Roles & Permissions</span>
-                            </a>
-                            <a href="/attendance-settings" class="nav-item-custom">
-                                <i class="fas fa-database"></i>
-                                <span>Attendance Settings</span>
-                            </a>
-                            <a href="/settings" class="nav-item-custom">
-                                <i class="fas fa-tools"></i>
-                                <span>System Settings</span>
-                            </a>
-                        </div>
+
+                        <a href="/settings" class="nav-link-child">
+                            <i class="fas fa-tools"></i>
+                            <span>System Settings</span>
+                        </a>
                     </div>
                 </div>
+
             </div>
-            
-            <!-- Sidebar Footer - User Info (Fixed at bottom) -->
-            <div class="sidebar-footer">
-                <div class="sidebar-user">
+
+            {{-- SIDEBAR USER FOOTER --}}
+            <div class="sidebar-user">
+                <div class="sidebar-user-inner">
                     <div class="sidebar-user-avatar" id="sidebarUserInitials">AD</div>
-                    <div class="sidebar-user-info">
-                        <p class="name" id="sidebarUserName">Administrator</p>
-                        <p class="role" id="sidebarUserRole">School Administrator</p>
+                    <div>
+                        <p class="sidebar-user-name" id="sidebarUserName">Administrator</p>
+                        <p class="sidebar-user-role" id="sidebarUserRole">School Administrator</p>
                     </div>
                 </div>
             </div>
-        </div>
-    </div>
 
-    <!-- NAVBAR -->
-    <nav class="navbar navbar-expand-lg sticky-top">
-        <div class="container-fluid">
-            <button class="btn btn-primary menu-btn rounded-3 px-3 py-2 me-3" data-bs-toggle="offcanvas" data-bs-target="#sidebar">
-                <i class="fas fa-bars fa-lg"></i>
-            </button>
-            <a class="navbar-brand text-dark fw-bold" href="{{ url('/dashboard') }}">Dashboard</a>
-            <div class="date-display">
-                <i class="far fa-calendar-alt me-1"></i> 
-                <span id="liveDateTime"></span>
+        </div>
+    </aside>
+
+    {{-- =========================================================
+         NAVBAR
+    ========================================================== --}}
+    <nav class="navbar app-navbar">
+        <div class="container-fluid navbar-inner">
+
+            <div class="d-flex align-items-center gap-3">
+
+                {{-- ONLY SIDEBAR OPEN BUTTON --}}
+                <button type="button"
+                        class="sidebar-trigger"
+                        id="sidebarTrigger"
+                        aria-label="Open navigation"
+                        aria-controls="sidebarShell"
+                        aria-expanded="false">
+                    <i class="fas fa-bars"></i>
+                </button>
+
+                <a href="{{ url('/dashboard') }}" class="navbar-title">
+                    Dashboard
+                </a>
+
+                <div class="date-display">
+                    <i class="far fa-calendar-alt me-1"></i>
+                    <span id="liveDateTime"></span>
+                </div>
+
             </div>
-            <div class="collapse navbar-collapse" id="navbarContent">
-                <ul class="navbar-nav ms-auto mb-2 mb-lg-0 align-items-center gap-2">
-                    <li class="nav-item">
-                        <div class="greeting-wrapper">
-                            <i class="fas fa-sun greeting-icon" id="greetingIcon"></i>
-                            <span class="greeting-text" id="greetingMessage">Loading...</span>
+
+            <div class="d-flex align-items-center gap-2 ms-auto">
+
+                <div class="greeting-wrapper">
+                    <i class="fas fa-sun greeting-icon" id="greetingIcon"></i>
+                    <span class="greeting-text" id="greetingMessage">Loading...</span>
+                </div>
+
+                <button type="button"
+                        class="darkmode-toggle"
+                        id="darkModeToggle"
+                        aria-label="Toggle dark mode">
+                    <i class="fas fa-moon" id="darkModeIcon"></i>
+                </button>
+
+                {{-- NOTIFICATIONS --}}
+                <div class="dropdown">
+                    <button type="button"
+                            class="icon-btn position-relative"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            aria-label="Notifications">
+                        <i class="fas fa-bell fs-5"></i>
+                        <span class="notification-badge" id="notificationCount">3</span>
+                    </button>
+
+                    <div class="dropdown-menu dropdown-menu-end notification-dropdown">
+                        <div class="notification-header">
+                            <i class="fas fa-bell me-2"></i>
+                            Notifications
+                            <span class="float-end text-primary small"
+                                  style="cursor:pointer"
+                                  id="markAllReadBtn">
+                                Mark all read
+                            </span>
                         </div>
-                    </li>
-                    <li class="nav-item">
-                        <button class="darkmode-toggle" id="darkModeToggle">
-                            <i class="fas fa-moon" id="darkModeIcon"></i>
-                        </button>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link icon-btn position-relative" href="#" role="button" data-bs-toggle="dropdown">
-                            <i class="fas fa-bell fs-5"></i>
-                            <span class="notification-badge" id="notificationCount">3</span>
-                        </a>
-                        <ul class="dropdown-menu notification-dropdown dropdown-menu-end">
-                            <div class="notification-header">
-                                <i class="fas fa-bell me-2"></i> Notifications
-                                <span class="float-end text-primary small" style="cursor:pointer;" id="markAllReadBtn">Mark all read</span>
+
+                        <div id="notificationList">
+                            <div class="notification-item">
+                                <div>📊 New attendance record</div>
+                                <small class="text-muted">5 min ago</small>
                             </div>
-                            <div id="notificationList">
-                                <li class="notification-item"><div>📊 New attendance record</div><small class="text-muted">5 min ago</small></li>
-                                <li class="notification-item"><div>💰 Fee payment received</div><small class="text-muted">1 hour ago</small></li>
-                                <li class="notification-item"><div>👩‍🏫 New teacher assigned</div><small class="text-muted">3 hours ago</small></li>
+
+                            <div class="notification-item">
+                                <div>💰 Fee payment received</div>
+                                <small class="text-muted">1 hour ago</small>
                             </div>
-                            <div class="text-center p-2"><a href="#" class="small text-decoration-none">View all notifications</a></div>
-                        </ul>
-                    </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link" href="#" role="button" data-bs-toggle="dropdown">
-                            <div class="user-avatar" id="userAvatarInitials">AD</div>
-                        </a>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li class="dropdown-header text-muted small px-4 py-2"><i class="fas fa-user-circle me-1"></i> <span id="userNameHeader">Administrator</span></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="#"><i class="fas fa-user me-2"></i> My Profile</a></li>
-                            <li><a class="dropdown-item" href="#"><i class="fas fa-key me-2"></i> Change Password</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item text-danger" href="#" id="logoutBtn"><i class="fas fa-sign-out-alt me-2"></i> Logout</a></li>
-                        </ul>
-                    </li>
-                </ul>
+
+                            <div class="notification-item">
+                                <div>👩‍🏫 New staff assigned</div>
+                                <small class="text-muted">3 hours ago</small>
+                            </div>
+                        </div>
+
+                        <div class="text-center p-2">
+                            <a href="#" class="small text-decoration-none">
+                                View all notifications
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- USER MENU --}}
+                <div class="dropdown">
+                    <a href="#"
+                       class="nav-link p-0"
+                       data-bs-toggle="dropdown"
+                       aria-expanded="false">
+                        <div class="user-avatar" id="userAvatarInitials">AD</div>
+                    </a>
+
+                    <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                        <li class="dropdown-header text-muted small px-4 py-2">
+                            <i class="fas fa-user-circle me-1"></i>
+                            <span id="userNameHeader">Administrator</span>
+                        </li>
+
+                        <li><hr class="dropdown-divider"></li>
+
+                        <li>
+                            <a class="dropdown-item" href="#">
+                                <i class="fas fa-user me-2"></i>
+                                My Profile
+                            </a>
+                        </li>
+
+                        <li>
+                            <a class="dropdown-item" href="#">
+                                <i class="fas fa-key me-2"></i>
+                                Change Password
+                            </a>
+                        </li>
+
+                        <li><hr class="dropdown-divider"></li>
+
+                        <li>
+                            <a class="dropdown-item text-danger" href="#" id="logoutBtn">
+                                <i class="fas fa-sign-out-alt me-2"></i>
+                                Logout
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+
             </div>
         </div>
     </nav>
 
-    <main class="main-content app-content">
+    {{-- PAGE CONTENT --}}
+    <main class="app-content">
         @yield('content')
     </main>
 
+    {{-- FOOTER --}}
     <footer class="footer">
         <div class="footer-content">
-            <div class="copyright">&copy; {{ date('Y') }} EduNexus USMS. All rights reserved.</div>
-            <div><span id="footerGreeting" class="text-muted small"></span></div>
+            <div class="copyright small">
+                &copy; {{ date('Y') }} EduNexus USMS. All rights reserved.
+            </div>
+            <div>
+                <span id="footerGreeting" class="text-muted small"></span>
+            </div>
         </div>
     </footer>
 
-    {{-- Bootstrap 5 modals supplied by individual pages --}}
+    {{-- Page-specific Bootstrap modals --}}
     @stack('modals')
 
+    {{-- =========================================================
+         JAVASCRIPT
+         Bootstrap remains available for child-page components.
+         SIDEBAR JAVASCRIPT IS COMPLETELY CUSTOM.
+    ========================================================== --}}
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    {{-- Bootstrap 5.3.3 JavaScript: load exactly once in the master layout --}}
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    
+
     <script>
-        (function() {
-            // Preloader
+        (() => {
+            'use strict';
+
+            /* =====================================================
+               PRELOADER
+            ====================================================== */
             const preloader = document.getElementById('preloader');
-            const body = document.body;
-            
-            function hidePreloaderAndRevealContent() {
-                if (preloader) {
-                    preloader.classList.add('preloader-hidden');
-                    body.classList.remove('preloader-active');
-                    body.classList.add('preloader-done');
-                    setTimeout(() => {
-                        if (preloader.style.display !== 'none') {
-                            preloader.style.display = 'none';
-                        }
-                    }, 600);
+
+            function hidePreloader() {
+                if (!preloader) return;
+
+                preloader.classList.add('preloader-hidden');
+                document.body.classList.remove('preloader-active');
+
+                window.setTimeout(() => {
+                    if (preloader) preloader.style.display = 'none';
+                }, 400);
+            }
+
+            window.addEventListener('load', () => {
+                window.setTimeout(hidePreloader, 300);
+            }, { once: true });
+
+            window.setTimeout(hidePreloader, 2500);
+
+            /* =====================================================
+               SIDEBAR
+               CRITICAL DESIGN RULE:
+               NOTHING HERE CLOSES THE SIDEBAR WHEN A DROPDOWN
+               OR CHILD LINK IS CLICKED.
+
+               A page link causes normal browser navigation.
+               The newly loaded page creates a fresh closed sidebar.
+            ====================================================== */
+            const sidebarShell = document.getElementById('sidebarShell');
+            const sidebarTrigger = document.getElementById('sidebarTrigger');
+            const sidebarClose = document.getElementById('sidebarClose');
+
+            function openSidebar() {
+                if (!sidebarShell) return;
+
+                sidebarShell.classList.add('is-open');
+                sidebarShell.setAttribute('aria-hidden', 'false');
+
+                if (sidebarTrigger) {
+                    sidebarTrigger.setAttribute('aria-expanded', 'true');
                 }
+
+                document.body.style.overflow = 'hidden';
             }
-            
-            body.classList.add('preloader-active');
-            
-            if (document.readyState === 'complete') {
-                setTimeout(hidePreloaderAndRevealContent, 300);
-            } else {
-                window.addEventListener('load', function() {
-                    setTimeout(hidePreloaderAndRevealContent, 500);
+
+            function closeSidebar() {
+                if (!sidebarShell) return;
+
+                sidebarShell.classList.remove('is-open');
+                sidebarShell.setAttribute('aria-hidden', 'true');
+
+                if (sidebarTrigger) {
+                    sidebarTrigger.setAttribute('aria-expanded', 'false');
+                }
+
+                document.body.style.overflow = '';
+            }
+
+            if (sidebarTrigger) {
+                sidebarTrigger.addEventListener('click', event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    if (sidebarShell.classList.contains('is-open')) {
+                        closeSidebar();
+                    } else {
+                        openSidebar();
+                    }
                 });
-                setTimeout(hidePreloaderAndRevealContent, 2500);
             }
-            
-            // Logout functionality
-            window.performLogout = function() {
+
+            if (sidebarClose) {
+                sidebarClose.addEventListener('click', event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    closeSidebar();
+                });
+            }
+
+            /*
+             * IMPORTANT:
+             * There is intentionally NO click listener on document,
+             * sidebarShell, sidebarPanel, sidebar children, or links
+             * that closes the sidebar.
+             *
+             * The visual backdrop is also intentionally NOT clickable.
+             */
+
+            /* =====================================================
+               SIDEBAR DROPDOWNS
+               CUSTOM JS ONLY — NO BOOTSTRAP COLLAPSE.
+            ====================================================== */
+            document.querySelectorAll('.nav-toggle').forEach(toggle => {
+                toggle.addEventListener('click', event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    const group = toggle.closest('.nav-group');
+                    if (!group) return;
+
+                    /*
+                     * Only this dropdown's open/closed state changes.
+                     * The sidebar itself is NEVER touched here.
+                     */
+                    group.classList.toggle('is-expanded');
+                });
+            });
+
+            /* =====================================================
+               ACTIVE MENU
+               Highlight current page without closing the drawer.
+            ====================================================== */
+            const currentPath = window.location.pathname.replace(/\/+$/, '') || '/';
+
+            document.querySelectorAll('.nav-link-child[href]').forEach(link => {
+                const href = link.getAttribute('href');
+
+                if (!href || href === '#') return;
+
+                try {
+                    const linkPath = new URL(href, window.location.origin)
+                        .pathname
+                        .replace(/\/+$/, '') || '/';
+
+                    if (
+                        currentPath === linkPath ||
+                        (linkPath !== '/' && currentPath.startsWith(linkPath + '/'))
+                    ) {
+                        link.classList.add('active');
+
+                        const group = link.closest('.nav-group');
+                        if (group) group.classList.add('is-expanded');
+                    }
+                } catch (error) {
+                    /* Invalid navigation target: leave it untouched. */
+                }
+            });
+
+            /* =====================================================
+               ESCAPE KEY
+               ESC is treated like the explicit close button.
+               It does NOT affect dropdowns.
+            ====================================================== */
+            document.addEventListener('keydown', event => {
+                if (event.key === 'Escape' &&
+                    sidebarShell &&
+                    sidebarShell.classList.contains('is-open')) {
+                    closeSidebar();
+                }
+            });
+
+            /* =====================================================
+               LOGOUT
+            ====================================================== */
+            window.performLogout = function () {
                 const overlay = document.createElement('div');
+
                 overlay.className = 'logout-overlay';
                 overlay.innerHTML = `
                     <div class="logout-spinner"></div>
                     <div class="logout-text">Logging out, please wait...</div>
                 `;
+
                 document.body.appendChild(overlay);
                 sessionStorage.clear();
-                const logoutForm = document.getElementById('logout-form-real') || document.getElementById('logout-form');
+
+                const logoutForm =
+                    document.getElementById('logout-form-real') ||
+                    document.getElementById('logout-form');
+
                 if (logoutForm && logoutForm.action && logoutForm.action !== '#') {
                     logoutForm.submit();
                 } else {
-                    setTimeout(() => { window.location.href = '/login'; }, 800);
+                    window.setTimeout(() => {
+                        window.location.href = '/login';
+                    }, 800);
                 }
             };
-            
+
             let logoutRealForm = document.getElementById('logout-form-real');
+
             if (!logoutRealForm) {
                 logoutRealForm = document.createElement('form');
                 logoutRealForm.id = 'logout-form-real';
                 logoutRealForm.method = 'POST';
-                logoutRealForm.action = '{{ route("logout") }}';
-                if (logoutRealForm.action === '') logoutRealForm.action = '/logout';
+                logoutRealForm.action = @json(route('logout'));
                 logoutRealForm.style.display = 'none';
-                const csrfToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
+                const csrfToken =
+                    document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+
                 const csrfInput = document.createElement('input');
                 csrfInput.type = 'hidden';
                 csrfInput.name = '_token';
                 csrfInput.value = csrfToken;
+
                 logoutRealForm.appendChild(csrfInput);
                 document.body.appendChild(logoutRealForm);
             }
-            
+
             const logoutBtn = document.getElementById('logoutBtn');
+
             if (logoutBtn) {
-                logoutBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    if (confirm('Are you sure you want to logout?')) performLogout();
+                logoutBtn.addEventListener('click', event => {
+                    event.preventDefault();
+
+                    if (window.confirm('Are you sure you want to logout?')) {
+                        window.performLogout();
+                    }
                 });
             }
-            
-            // Live date time
+
+            /* =====================================================
+               LIVE DATE / TIME
+            ====================================================== */
             function updateDateTime() {
+                const element = document.getElementById('liveDateTime');
+                if (!element) return;
+
                 const now = new Date();
-                const options = { year: 'numeric', month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' };
-                const formatted = now.toLocaleDateString('en-US', options).replace(',', ' |');
-                const dateSpan = document.getElementById('liveDateTime');
-                if (dateSpan) dateSpan.innerText = formatted;
+
+                element.textContent = now.toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                }).replace(',', ' |');
             }
+
             updateDateTime();
-            setInterval(updateDateTime, 60000);
-            
-            // Time greeting
-            function getTimeBasedGreeting() {
+            window.setInterval(updateDateTime, 60000);
+
+            /* =====================================================
+               GREETING / USER
+            ====================================================== */
+            const userNameFromBlade = @json(Auth::user()->name ?? 'Administrator');
+
+            const displayUserName =
+                userNameFromBlade &&
+                userNameFromBlade !== 'Guest'
+                    ? userNameFromBlade
+                    : 'Administrator';
+
+            function getGreeting() {
                 const hour = new Date().getHours();
-                if (hour < 12) return { text: 'Good Morning', icon: 'fa-sun', emoji: '🌅' };
-                if (hour < 18) return { text: 'Good Afternoon', icon: 'fa-cloud-sun', emoji: '☀️' };
+
+                if (hour < 12) {
+                    return { text: 'Good Morning', icon: 'fa-sun', emoji: '🌅' };
+                }
+
+                if (hour < 18) {
+                    return { text: 'Good Afternoon', icon: 'fa-cloud-sun', emoji: '☀️' };
+                }
+
                 return { text: 'Good Evening', icon: 'fa-moon', emoji: '🌙' };
             }
-            
-            const userNameFromBlade = '{{ Auth::user()->name ?? "Educator" }}';
-            const displayUserName = (userNameFromBlade.includes('Guest') || userNameFromBlade === '' || userNameFromBlade === 'Educator') ? 'John Doe' : userNameFromBlade;
-            
+
             function updateGreetings() {
-                const greeting = getTimeBasedGreeting();
-                const fullMessage = `${greeting.text}, ${displayUserName}! ${greeting.emoji}`;
-                const msgEl = document.getElementById('greetingMessage');
-                const iconEl = document.getElementById('greetingIcon');
-                const footerGreet = document.getElementById('footerGreeting');
-                if (msgEl) msgEl.textContent = fullMessage;
-                if (iconEl) iconEl.className = `fas ${greeting.icon} greeting-icon`;
-                if (footerGreet) footerGreet.textContent = `✨ Have a great ${greeting.text.toLowerCase()}! ✨`;
-                
-                const avatarDiv = document.getElementById('userAvatarInitials');
+                const greeting = getGreeting();
+
+                const message = document.getElementById('greetingMessage');
+                const icon = document.getElementById('greetingIcon');
+                const footer = document.getElementById('footerGreeting');
+                const avatar = document.getElementById('userAvatarInitials');
                 const sidebarAvatar = document.getElementById('sidebarUserInitials');
-                const userNameSpan = document.getElementById('userNameHeader');
-                const sidebarUserName = document.getElementById('sidebarUserName');
-                
-                let initials = displayUserName.split(' ').map(n => n[0]).join('').toUpperCase().substring(0,2);
-                if (initials.length === 0) initials = 'JD';
-                if (avatarDiv) avatarDiv.textContent = initials;
+                const headerName = document.getElementById('userNameHeader');
+                const sidebarName = document.getElementById('sidebarUserName');
+
+                if (message) {
+                    message.textContent =
+                        `${greeting.text}, ${displayUserName}! ${greeting.emoji}`;
+                }
+
+                if (icon) {
+                    icon.className = `fas ${greeting.icon} greeting-icon`;
+                }
+
+                if (footer) {
+                    footer.textContent =
+                        `✨ Have a great ${greeting.text.toLowerCase()}! ✨`;
+                }
+
+                const initials = displayUserName
+                    .trim()
+                    .split(/\s+/)
+                    .map(part => part.charAt(0))
+                    .join('')
+                    .toUpperCase()
+                    .substring(0, 2) || 'AD';
+
+                if (avatar) avatar.textContent = initials;
                 if (sidebarAvatar) sidebarAvatar.textContent = initials;
-                if (userNameSpan) userNameSpan.textContent = displayUserName;
-                if (sidebarUserName) sidebarUserName.textContent = displayUserName;
+                if (headerName) headerName.textContent = displayUserName;
+                if (sidebarName) sidebarName.textContent = displayUserName;
             }
-            
-            // Dark mode
+
+            updateGreetings();
+            window.setInterval(updateGreetings, 60000);
+
+            /* =====================================================
+               DARK MODE
+            ====================================================== */
             function initDarkMode() {
                 const toggle = document.getElementById('darkModeToggle');
                 const icon = document.getElementById('darkModeIcon');
+
+                if (!toggle || !icon) return;
+
                 const isDark = localStorage.getItem('darkMode') === 'true';
+
                 if (isDark) {
                     document.body.classList.add('dark-mode');
                     icon.classList.remove('fa-moon');
                     icon.classList.add('fa-sun');
                 }
-                if (toggle) {
-                    toggle.addEventListener('click', () => {
-                        document.body.classList.toggle('dark-mode');
-                        const darkActive = document.body.classList.contains('dark-mode');
-                        localStorage.setItem('darkMode', darkActive);
-                        if (darkActive) {
-                            icon.classList.remove('fa-moon');
-                            icon.classList.add('fa-sun');
-                        } else {
-                            icon.classList.remove('fa-sun');
-                            icon.classList.add('fa-moon');
-                        }
-                        icon.style.transform = 'rotate(20deg)';
-                        setTimeout(() => { if(icon) icon.style.transform = ''; }, 200);
-                    });
-                }
+
+                toggle.addEventListener('click', () => {
+                    document.body.classList.toggle('dark-mode');
+
+                    const darkActive =
+                        document.body.classList.contains('dark-mode');
+
+                    localStorage.setItem('darkMode', darkActive);
+
+                    icon.classList.toggle('fa-moon', !darkActive);
+                    icon.classList.toggle('fa-sun', darkActive);
+                });
             }
-            
-            // Notifications
-            const markBtn = document.getElementById('markAllReadBtn');
-            if (markBtn) {
-                markBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    const notifContainer = document.getElementById('notificationList');
-                    const badge = document.getElementById('notificationCount');
-                    if (notifContainer) {
-                        notifContainer.style.opacity = '0.5';
-                        setTimeout(() => {
-                            notifContainer.innerHTML = '<div class="text-center py-4 text-muted small"><i class="fas fa-check-circle me-2"></i>All caught up!</div>';
-                            notifContainer.style.opacity = '1';
-                            if (badge) {
-                                badge.textContent = '0';
-                                badge.style.display = 'none';
-                            }
-                        }, 200);
+
+            initDarkMode();
+
+            /* =====================================================
+               NOTIFICATIONS
+            ====================================================== */
+            const markAllReadBtn =
+                document.getElementById('markAllReadBtn');
+
+            if (markAllReadBtn) {
+                markAllReadBtn.addEventListener('click', event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+
+                    const list = document.getElementById('notificationList');
+                    const count = document.getElementById('notificationCount');
+
+                    if (!list) return;
+
+                    list.innerHTML = `
+                        <div class="text-center py-4 text-muted small">
+                            <i class="fas fa-check-circle me-2"></i>
+                            All caught up!
+                        </div>
+                    `;
+
+                    if (count) {
+                        count.textContent = '0';
+                        count.style.display = 'none';
                     }
                 });
             }
-            
-            // Initialize everything
-            updateGreetings();
-            initDarkMode();
-            setInterval(updateGreetings, 60000);
 
-            /*
-             * Bootstrap integrity guard.
-             * Bootstrap's bundle is loaded once by this master layout.
-             * Page blades must NOT load another Bootstrap CSS/JS version.
-             */
-            window.USMSBootstrap = window.bootstrap || null;
-
-            // Bootstrap 5 manages modal/backdrop lifecycle itself.
-            // Do not manually remove .modal-backdrop or modal-open here;
-            // doing so can break modal transitions and focus handling.
         })();
     </script>
+
     @stack('scripts')
 </body>
 </html>

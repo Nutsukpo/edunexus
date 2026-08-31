@@ -307,13 +307,15 @@ Route::middleware(['auth:web'])->group(function () {
                 ->name('resubmit');
         });
 
-    /*
+        /*
     |--------------------------------------------------------------------------
     | FEE PAYMENTS
     |--------------------------------------------------------------------------
+    | IMPORTANT: Put the fixed AJAX routes BEFORE Route::resource().
+    | Otherwise /fee-payments/get-students-by-class can be captured by the
+    | resource show route as {fee_payment}.
+    |--------------------------------------------------------------------------
     */
-
-    Route::resource('fee-payments', FeePaymentController::class);
 
     Route::get(
         '/fee-payments/get-students-by-class',
@@ -340,6 +342,9 @@ Route::middleware(['auth:web'])->group(function () {
         [FeePaymentController::class, 'getBillSheetItems']
     )->name('fee-payments.get-bill-sheet-items');
 
+    // Resource routes MUST come after the specific GET routes above.
+    Route::resource('fee-payments', FeePaymentController::class);
+
     Route::get(
         '/fee-payments/{id}/receipt',
         [FeePaymentController::class, 'printReceipt']
@@ -355,20 +360,11 @@ Route::middleware(['auth:web'])->group(function () {
         [FeePaymentController::class, 'downloadReceipt']
     )->name('fee-payments.receipt.download');
 
-    Route::get(
-        'payments/receipt/{payment}/html',
-        [FeePaymentController::class, 'downloadHtmlReceipt']
-    )->name('payments.receipt.html');
+    Route::get('/fee-payment-reports/school-overview',
+    [FeePaymentReportController::class, 'schoolOverview']
+    )->name('fee.payment.reports.school-overview');
 
-    Route::get(
-        '/fee-payments/{id}/pdf',
-        [FeePaymentController::class, 'pdf']
-    )->name('fee-payments.pdf');
 
-    Route::get(
-        '/fee-payments/{id}/print-receipt',
-        [FeePaymentController::class, 'printReceipt']
-    )->name('fee-payments.print-receipt');
 
     /*
     |--------------------------------------------------------------------------
@@ -570,6 +566,7 @@ Route::middleware(['auth:web'])->group(function () {
             Route::get('/api/summary-stats', [FeePaymentReportController::class, 'getSummaryStats'])->name('api.summary');
             Route::get('/api/chart-data', [FeePaymentReportController::class, 'getChartData'])->name('api.chart');
         });
+        
 
     /*
     |--------------------------------------------------------------------------
@@ -681,6 +678,9 @@ Route::middleware(['auth:web'])->group(function () {
 
     Route::resource('timetables', TimetableController::class);
 
+    Route::get('/timetables/{timetable}/preview', [TimetableController::class, 'preview'])
+        ->name('timetables.preview');
+    
     Route::get('/timetables/{timetable}/download', [TimetableController::class, 'download'])
         ->name('timetables.download');
 

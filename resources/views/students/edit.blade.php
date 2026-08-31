@@ -19,7 +19,7 @@
 
                 @include('students.form')
 
-                <button class="btn btn-danger text-white">
+                <button class="btn btn-primary text-white">
                     Update Student
                 </button>
 
