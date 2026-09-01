@@ -726,6 +726,7 @@
                 </div>
 
                 {{-- STUDENT MANAGEMENT --}}
+                @canany(['students.view', 'student-class-assignments.view', 'progression.view', 'graduation.view'])
                 <div class="nav-section nav-group" data-menu-group="students">
                     <button type="button" class="nav-link-main nav-toggle">
                         <i class="fas fa-user-graduate"></i>
@@ -734,29 +735,53 @@
                     </button>
 
                     <div class="nav-children">
+                        @can('students.view')
+
                         <a href="/students" class="nav-link-child">
                             <i class="fas fa-list"></i>
                             <span>Admissions</span>
                         </a>
+
+                        @endcan
+
+                        @can('student-class-assignments.view')
+
 
                         <a href="/student-class-assignments" class="nav-link-child">
                             <i class="fas fa-building"></i>
                             <span>Students Class Enrolled</span>
                         </a>
 
+
+                        @endcan
+
+                        @can('progression.view')
+
+
                         <a href="/student-progressions" class="nav-link-child">
                             <i class="fas fa-level-up-alt"></i>
                             <span>Promotions</span>
                         </a>
 
+
+                        @endcan
+
+                        @can('graduation.view')
+
+
                         <a href="/graduated-students" class="nav-link-child">
                             <i class="fas fa-graduation-cap"></i>
                             <span>Graduated Students</span>
                         </a>
+
+
+                        @endcan
                     </div>
                 </div>
+                @endcanany
 
                 {{-- ACADEMICS --}}
+                @canany(['classes.view', 'lesson-notes.view', 'academic-years.view', 'terms.view', 'subjects.view', 'timetables.view'])
                 <div class="nav-section nav-group" data-menu-group="academics">
                     <button type="button" class="nav-link-main nav-toggle">
                         <i class="fas fa-book-open"></i>
@@ -765,39 +790,75 @@
                     </button>
 
                     <div class="nav-children">
+                        @can('classes.view')
+
                         <a href="/student-classes" class="nav-link-child">
                             <i class="fas fa-building"></i>
                             <span>Class/Form</span>
                         </a>
+
+                        @endcan
+
+                        @can('lesson-notes.view')
+
 
                         <a href="/lesson-notes" class="nav-link-child">
                             <i class="fas fa-sticky-note"></i>
                             <span>Lesson Notes</span>
                         </a>
 
+
+                        @endcan
+
+                        @can('academic-years.view')
+
+
                         <a href="/academic-years" class="nav-link-child">
                             <i class="fas fa-calendar-alt"></i>
                             <span>Academic Years</span>
                         </a>
+
+
+                        @endcan
+
+                        @can('terms.view')
+
 
                         <a href="/terms" class="nav-link-child">
                             <i class="fas fa-calendar-check"></i>
                             <span>Terms</span>
                         </a>
 
+
+                        @endcan
+
+                        @can('subjects.view')
+
+
                         <a href="/subjects" class="nav-link-child">
                             <i class="fas fa-book"></i>
                             <span>Subjects</span>
                         </a>
 
+
+                        @endcan
+
+                        @can('timetables.view')
+
+
                         <a href="/timetables" class="nav-link-child">
                             <i class="fas fa-clock"></i>
                             <span>Timetable</span>
                         </a>
+
+
+                        @endcan
                     </div>
                 </div>
+                @endcanany
 
                 {{-- ASSESSMENT --}}
+                @canany(['results.view', 'assessment-forms.view'])
                 <div class="nav-section nav-group" data-menu-group="assessment">
                     <button type="button" class="nav-link-main nav-toggle">
                         <i class="fas fa-clipboard-list"></i>
@@ -806,19 +867,31 @@
                     </button>
 
                     <div class="nav-children">
+                        @can('results.view')
+
                         <a href="/scores" class="nav-link-child">
                             <i class="fas fa-chart-line"></i>
                             <span>Subject Scores</span>
                         </a>
 
+                        @endcan
+
+                        @can('assessment-forms.view')
+
+
                         <a href="/assessment-forms" class="nav-link-child">
                             <i class="fas fa-upload"></i>
                             <span>Assessment Form</span>
                         </a>
+
+
+                        @endcan
                     </div>
                 </div>
+                @endcanany
 
                 {{-- RESULTS --}}
+                @canany(['broadsheet.view', 'results.reports', 'report-cards.view'])
                 <div class="nav-section nav-group" data-menu-group="results">
                     <button type="button" class="nav-link-main nav-toggle">
                         <i class="fas fa-chart-bar"></i>
@@ -827,24 +900,42 @@
                     </button>
 
                     <div class="nav-children">
+                        @can('broadsheet.view')
+
                         <a href="/broadsheet" class="nav-link-child">
                             <i class="fas fa-table"></i>
                             <span>Class Results</span>
                         </a>
+
+                        @endcan
+
+                        @can('results.reports')
+
 
                         <a href="/subject-results" class="nav-link-child">
                             <i class="fas fa-chart-line"></i>
                             <span>Subject Results</span>
                         </a>
 
+
+                        @endcan
+
+                        @can('report-cards.view')
+
+
                         <a href="/report-cards" class="nav-link-child">
                             <i class="fas fa-id-card"></i>
                             <span>Report Cards</span>
                         </a>
+
+
+                        @endcan
                     </div>
                 </div>
+                @endcanany
 
                 {{-- ATTENDANCE --}}
+                @canany(['attendance.view', 'staff-attendance.view'])
                 <div class="nav-section nav-group" data-menu-group="attendance">
                     <button type="button" class="nav-link-main nav-toggle">
                         <i class="fas fa-calendar-check"></i>
@@ -853,24 +944,42 @@
                     </button>
 
                     <div class="nav-children">
+                        @can('attendance.view')
+
                         <a href="/attendance-sessions" class="nav-link-child">
                             <i class="fas fa-user-check"></i>
                             <span>Student Attendance</span>
                         </a>
+
+                        @endcan
+
+                        @can('staff-attendance.view')
+
 
                         <a href="/staff-attendance" class="nav-link-child">
                             <i class="fas fa-users"></i>
                             <span>Staff Attendance</span>
                         </a>
 
+
+                        @endcan
+
+                        @can('staff-attendance.view')
+
+
                         <a href="/staffattendance-live-map" class="nav-link-child">
                             <i class="fas fa-map-marker-alt"></i>
                             <span>Attendance Map</span>
                         </a>
+
+
+                        @endcan
                     </div>
                 </div>
+                @endcanany
 
                 {{-- APPROVALS --}}
+                @canany(['payroll.approve', 'leaves.approve', 'lesson-notes.approve', 'bill-sheets.approve'])
                 <div class="nav-section nav-group" data-menu-group="approvals">
                     <button type="button" class="nav-link-main nav-toggle">
                         <i class="fas fa-check-double"></i>
@@ -879,29 +988,53 @@
                     </button>
 
                     <div class="nav-children">
+                        @can('payroll.approve')
+
                         <a href="/payroll-period-approvals" class="nav-link-child">
                             <i class="fas fa-paypal"></i>
                             <span>Payroll</span>
                         </a>
+
+                        @endcan
+
+                        @can('leaves.approve')
+
 
                         <a href="/leave-approvals" class="nav-link-child">
                             <i class="fas fa-clock"></i>
                             <span>Leaves</span>
                         </a>
 
+
+                        @endcan
+
+                        @can('lesson-notes.approve')
+
+
                         <a href="/approvals" class="nav-link-child">
                             <i class="fas fa-sticky-note"></i>
                             <span>Lesson Note</span>
                         </a>
 
+
+                        @endcan
+
+                        @can('bill-sheets.approve')
+
+
                         <a href="/bill-sheet-approvals" class="nav-link-child">
                             <i class="fas fa-file-invoice"></i>
                             <span>Bill Sheets</span>
                         </a>
+
+
+                        @endcan
                     </div>
                 </div>
+                @endcanany
 
                 {{-- FINANCE --}}
+                @canany(['bill-sheets.view', 'payments.view', 'payroll.view', 'payslips.view', 'salary-structures.view'])
                 <div class="nav-section nav-group" data-menu-group="finance">
                     <button type="button" class="nav-link-main nav-toggle">
                         <i class="fas fa-wallet"></i>
@@ -921,34 +1054,66 @@
                             <span>Fee Structure</span>
                         </a> -->
 
+                        @can('bill-sheets.view')
+
+
                         <a href="/bill-sheets" class="nav-link-child">
                             <i class="fas fa-file-invoice"></i>
                             <span>BillSheet</span>
                         </a>
+
+
+                        @endcan
+
+                        @can('payments.view')
+
 
                         <a href="/fee-payments" class="nav-link-child">
                             <i class="fas fa-money-bill-wave"></i>
                             <span>Payments</span>
                         </a>
 
+
+                        @endcan
+
+                        @can('payroll.view')
+
+
                         <a href="/payroll-periods" class="nav-link-child">
                             <i class="fas fa-paypal"></i>
                             <span>Payroll</span>
                         </a>
+
+
+                        @endcan
+
+                        @can('payslips.view')
+
 
                         <a href="/payslips" class="nav-link-child">
                             <i class="fas fa-file-invoice-dollar"></i>
                             <span>PaySlip</span>
                         </a>
 
+
+                        @endcan
+
+                        @can('salary-structures.view')
+
+
                         <a href="/salary-structures" class="nav-link-child">
                             <i class="fas fa-coins"></i>
                             <span>Salary Structures</span>
                         </a>
+
+
+                        @endcan
                     </div>
                 </div>
+                @endcanany
 
                 {{-- ASSET MANAGEMENT --}}
+                @canany(['assets.view'])
                 <div class="nav-section nav-group" data-menu-group="assets">
                     <button type="button" class="nav-link-main nav-toggle">
                         <i class="fas fa-boxes-stacked"></i>
@@ -957,10 +1122,14 @@
                     </button>
 
                     <div class="nav-children">
+                        @can('assets.view')
+
                         <a href="/assets" class="nav-link-child">
                             <i class="fas fa-archive"></i>
                             <span>Store Records</span>
                         </a>
+
+                        @endcan
 
                         <a href="#" class="nav-link-child">
                             <i class="fas fa-upload"></i>
@@ -968,8 +1137,10 @@
                         </a>
                     </div>
                 </div>
+                @endcanany
 
                 {{-- COMMUNICATION --}}
+                @canany(['discussions.view', 'announcements.view', 'grievances.view'])
                 <div class="nav-section nav-group" data-menu-group="communication">
                     <button type="button" class="nav-link-main nav-toggle">
                         <i class="fas fa-comments"></i>
@@ -978,20 +1149,36 @@
                     </button>
 
                     <div class="nav-children">
+                        @can('discussions.view')
+
                         <a href="/discussions" class="nav-link-child">
                             <i class="fas fa-envelope"></i>
                             <span>Messages</span>
                         </a>
+
+                        @endcan
+
+                        @can('announcements.view')
+
 
                         <a href="/announcements" class="nav-link-child">
                             <i class="fas fa-bullhorn"></i>
                             <span>Announcements</span>
                         </a>
 
+
+                        @endcan
+
+                        @can('grievances.view')
+
+
                         <a href="/grievance" class="nav-link-child">
                             <i class="fas fa-calendar"></i>
                             <span>Staff Gravience</span>
                         </a>
+
+
+                        @endcan
 
                         <!-- <a href="/student-grievance" class="nav-link-child">
                             <i class="fas fa-calendar"></i>
@@ -999,8 +1186,10 @@
                         </a> -->
                     </div>
                 </div>
+                @endcanany
 
                 {{-- ADMINISTRATION --}}
+                @canany(['staff.view', 'departments.view', 'leaves.view', 'appraisals.view'])
                 <div class="nav-section nav-group" data-menu-group="administration">
                     <button type="button" class="nav-link-main nav-toggle">
                         <i class="fas fa-users-cog"></i>
@@ -1009,29 +1198,53 @@
                     </button>
 
                     <div class="nav-children">
+                        @can('staff.view')
+
                         <a href="/staff" class="nav-link-child">
                             <i class="fas fa-users"></i>
                             <span>Staff</span>
                         </a>
+
+                        @endcan
+
+                        @can('departments.view')
+
 
                         <a href="/departments" class="nav-link-child">
                             <i class="fas fa-building"></i>
                             <span>Departments</span>
                         </a>
 
+
+                        @endcan
+
+                        @can('leaves.view')
+
+
                         <a href="/leaves" class="nav-link-child">
                             <i class="fas fa-clock"></i>
                             <span>Leave</span>
                         </a>
 
+
+                        @endcan
+
+                        @can('appraisals.view')
+
+
                         <a href="/staff-appraisals" class="nav-link-child">
                             <i class="fas fa-list-check"></i>
                             <span>Appraisals</span>
                         </a>
+
+
+                        @endcan
                     </div>
                 </div>
+                @endcanany
 
                 {{-- REPORTS --}}
+                @canany(['staff-attendance.reports', 'attendance.reports', 'fees.reports', 'payments.reports'])
                 <div class="nav-section nav-group" data-menu-group="reports">
                     <button type="button" class="nav-link-main nav-toggle">
                         <i class="fas fa-chart-pie"></i>
@@ -1040,24 +1253,42 @@
                     </button>
 
                     <div class="nav-children">
+                        @can('staff-attendance.reports')
+
                         <a href="/staffattendance/monthly-report" class="nav-link-child">
                             <i class="fas fa-archive"></i>
                             <span>Staff-Attendance</span>
                         </a>
+
+                        @endcan
+
+                        @can('attendance.reports')
+
 
                         <a href="/attendance/monthly-report" class="nav-link-child">
                             <i class="fas fa-upload"></i>
                             <span>Student-Attendance</span>
                         </a>
 
+
+                        @endcan
+
+                        @can('fees.reports')
+
+
                         <a href="/fee-payment-reports" class="nav-link-child">
                             <i class="fas fa-money-bill-wave"></i>
                             <span>Student-Fee Payment</span>
                         </a>
+
+
+                        @endcan
                     </div>
                 </div>
+                @endcanany
 
                 {{-- SYSTEM --}}
+                @canany(['users.view', 'roles.view', 'attendance.view'])
                 <div class="nav-section nav-group" data-menu-group="settings">
                     <button type="button" class="nav-link-main nav-toggle">
                         <i class="fas fa-cogs"></i>
@@ -1066,20 +1297,35 @@
                     </button>
 
                     <div class="nav-children">
+                        @can('users.view')
+
                         <a href="/users" class="nav-link-child">
                             <i class="fas fa-users-cog"></i>
                             <span>User Management</span>
                         </a>
+
+                        @endcan
+
+                        @can('roles.view')
+
 
                         <a href="/roles-permissions" class="nav-link-child">
                             <i class="fas fa-user-shield"></i>
                             <span>Roles &amp; Permissions</span>
                         </a>
 
-                        <a href="/attendance-settings" class="nav-link-child">
-                            <i class="fas fa-database"></i>
-                            <span>Attendance Settings</span>
-                        </a>
+
+                        @endcan
+
+                     
+
+
+                        @can('attendance-settings.view')
+                            <a href="/attendance-settings" class="nav-link-child">
+                                <i class="fas fa-database"></i>
+                                <span>Attendance Settings</span>
+                            </a>
+                        @endcan
 
                         <a href="/settings" class="nav-link-child">
                             <i class="fas fa-tools"></i>
@@ -1087,6 +1333,7 @@
                         </a>
                     </div>
                 </div>
+                @endcanany
 
             </div>
 

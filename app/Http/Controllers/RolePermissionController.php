@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
@@ -11,11 +10,12 @@ use Spatie\Permission\PermissionRegistrar;
 class RolePermissionController extends Controller
 {
     /**
-     * Display all roles and their permission counts.
+     * Display all web roles and their permission counts.
      */
     public function index()
     {
-        $roles = Role::where('guard_name', 'web')
+        $roles = Role::query()
+            ->where('guard_name', 'web')
             ->withCount('permissions')
             ->orderBy('name')
             ->get();
@@ -24,62 +24,138 @@ class RolePermissionController extends Controller
     }
 
     /**
-     * Show the permission assignment page for a role.
+     * Display the permission assignment page for a role.
      */
     public function edit(Role $role)
     {
         abort_unless($role->guard_name === 'web', 404);
 
-        $permissions = Permission::where('guard_name', 'web')
+        /*
+        |--------------------------------------------------------------------------
+        | Load all web permissions
+        |--------------------------------------------------------------------------
+        */
+
+        $allPermissions = Permission::query()
+            ->where('guard_name', 'web')
             ->orderBy('name')
-            ->get()
-            ->groupBy(function ($permission) {
-                return explode('.', $permission->name)[0];
-            });
+            ->get();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Group permissions by functional module
+        |--------------------------------------------------------------------------
+        |
+        | Example:
+        |
+        | students.view
+        | students.create
+        | students.edit
+        |
+        | becomes:
+        |
+        | students
+        |   - view
+        |   - create
+        |   - edit
+        |
+        */
+
+        $permissions = $allPermissions->groupBy(
+            fn (Permission $permission) =>
+                explode('.', $permission->name, 2)[0]
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Backward-compatible alias
+        |--------------------------------------------------------------------------
+        |
+        | Some versions of the Blade use $groupedPermissions while others
+        | use $permissions. Provide both so the view contract remains safe.
+        |
+        */
+
+        $groupedPermissions = $permissions;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Assigned permissions
+        |--------------------------------------------------------------------------
+        */
 
         $assignedPermissionIds = $role->permissions()
+            ->where('guard_name', 'web')
             ->pluck('permissions.id')
+            ->map(fn ($id) => (int) $id)
             ->toArray();
 
+        /*
+        |--------------------------------------------------------------------------
+        | All roles for the left-hand role selector
+        |--------------------------------------------------------------------------
+        */
+
+        $roles = Role::query()
+            ->where('guard_name', 'web')
+            ->withCount('permissions')
+            ->orderBy('name')
+            ->get();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Return view
+        |--------------------------------------------------------------------------
+        */
+
         return view('users.roles.edit', [
+            'roles' => $roles,
             'role' => $role,
             'permissions' => $permissions,
+            'groupedPermissions' => $groupedPermissions,
             'assignedPermissionIds' => $assignedPermissionIds,
         ]);
     }
 
     /**
-     * Save permissions assigned to a role.
+     * Update permissions assigned to a role.
      */
     public function update(Request $request, Role $role)
     {
         abort_unless($role->guard_name === 'web', 404);
 
+        /*
+        |--------------------------------------------------------------------------
+        | Validate submitted permissions
+        |--------------------------------------------------------------------------
+        */
+
         $validated = $request->validate([
             'permissions' => ['nullable', 'array'],
-            'permissions.*' => ['integer', 'exists:permissions,id'],
+            'permissions.*' => [
+                'integer',
+                'exists:permissions,id',
+            ],
         ]);
 
         /*
         |--------------------------------------------------------------------------
-        | Super Admin Protection
+        | Super Admin protection
         |--------------------------------------------------------------------------
         |
-        | Super Admin must always have every available permission.
-        | This prevents the system owner from accidentally locking
-        | themselves out of EDUNEXUS.
+        | Super Admin always receives every web permission.
         |
         */
 
         if ($role->name === 'Super Admin') {
-            $allPermissions = Permission::where(
-                'guard_name',
-                'web'
-            )->get();
+            $allPermissions = Permission::query()
+                ->where('guard_name', 'web')
+                ->get();
 
             $role->syncPermissions($allPermissions);
 
-            app(PermissionRegistrar::class)->forgetCachedPermissions();
+            app(PermissionRegistrar::class)
+                ->forgetCachedPermissions();
 
             return redirect()
                 ->route('roles.permissions.edit', $role)
@@ -91,22 +167,31 @@ class RolePermissionController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Resolve Selected Permissions
+        | Submitted permission IDs
         |--------------------------------------------------------------------------
         */
 
-        $permissionIds = $validated['permissions'] ?? [];
-
-        $permissions = Permission::where(
-            'guard_name',
-            'web'
+        $permissionIds = collect(
+            $validated['permissions'] ?? []
         )
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Restrict assignments to web-guard permissions
+        |--------------------------------------------------------------------------
+        */
+
+        $permissions = Permission::query()
+            ->where('guard_name', 'web')
             ->whereIn('id', $permissionIds)
             ->get();
 
         /*
         |--------------------------------------------------------------------------
-        | Sync Role Permissions
+        | Synchronize permissions
         |--------------------------------------------------------------------------
         */
 
@@ -114,11 +199,12 @@ class RolePermissionController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | Clear Permission Cache
+        | Clear Spatie cache
         |--------------------------------------------------------------------------
         */
 
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
+        app(PermissionRegistrar::class)
+            ->forgetCachedPermissions();
 
         return redirect()
             ->route('roles.permissions.edit', $role)

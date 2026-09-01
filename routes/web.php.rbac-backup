@@ -117,7 +117,18 @@ Route::middleware(['auth:student'])->group(function () {
 |--------------------------------------------------------------------------
 */
 
+
 Route::middleware(['auth:web'])->group(function () {
+
+    /*
+    |--------------------------------------------------------------------------
+    | RBAC HELPERS
+    |--------------------------------------------------------------------------
+    | Resource routes use action-level permissions. Custom routes below use
+    | the same Spatie permission names already defined in the database.
+    |--------------------------------------------------------------------------
+    */
+
 
     /*
     |--------------------------------------------------------------------------
@@ -131,15 +142,12 @@ Route::middleware(['auth:web'])->group(function () {
 
     Route::prefix('dashboard')->name('dashboard.')->group(function () {
         Route::get('/attendance-summary', [DashboardController::class, 'getAttendanceSummary'])
-            ->middleware('permission:dashboard.view')
             ->name('attendance.summary');
 
         Route::get('/class-attendance', [DashboardController::class, 'getClassAttendance'])
-            ->middleware('permission:dashboard.view')
             ->name('class-attendance');
 
         Route::get('/attendance-data', [DashboardController::class, 'getAttendanceData'])
-            ->middleware('permission:dashboard.view')
             ->name('attendance-data');
     });
 
@@ -156,7 +164,7 @@ Route::middleware(['auth:web'])->group(function () {
         ->middlewareFor('destroy', 'permission:users.delete');
 
     Route::patch('users/{user}/toggle-status', [UserController::class, 'toggleStatus'])
-        ->middleware('permission:users.toggle-status')
+        ->middleware('permission:users.delete')
         ->name('users.toggle-status');
 
     Route::resource('departments', DepartmentController::class)
@@ -229,8 +237,7 @@ Route::middleware(['auth:web'])->group(function () {
     Route::delete(
         '/classes/{class}/students/{student}',
         [StudentClassAssignmentController::class, 'destroy']
-    )->middleware('permission:student-class-assignments.delete')
-->name('classes.students.remove');
+    )->name('classes.students.remove');
 
     /*
     |--------------------------------------------------------------------------
@@ -247,104 +254,87 @@ Route::middleware(['auth:web'])->group(function () {
     Route::post(
         'payroll-periods/{payrollPeriod}/add-staff',
         [PayrollGenerationController::class, 'addStaff']
-    )->middleware('permission:payroll.edit')
-->name('payroll.addStaff');
+    )->name('payroll.addStaff');
 
     Route::get(
         'payroll-periods/{id}/assign-staff',
         [PayrollPeriodController::class, 'assignStaffForm']
-    )->middleware('permission:payroll.edit')
-->name('payroll.assign-staff.form');
+    )->name('payroll.assign-staff.form');
 
     Route::post(
         'payroll-periods/{id}/assign-staff',
         [PayrollPeriodController::class, 'assignStaff']
-    )->middleware('permission:payroll.edit')
-->name('payroll.assign-staff.store');
+    )->name('payroll.assign-staff.store');
 
     Route::post(
         'payroll-periods/{id}/remove-staff',
         [PayrollPeriodController::class, 'removeStaff']
-    )->middleware('permission:payroll.edit')
-->name('payroll-periods.remove-staff');
+    )->name('payroll-periods.remove-staff');
 
     Route::delete(
         'payroll-periods/{id}/remove-staff',
         [PayrollPeriodController::class, 'removeStaff']
-    )->middleware('permission:payroll.edit')
-->name('payroll-periods.remove-staff.delete');
+    )->name('payroll-periods.remove-staff.delete');
 
     Route::delete(
         'payroll-periods/{payrollPeriod}/remove-staff/{staff}',
         [PayrollPeriodController::class, 'removeStaff']
-    )->middleware('permission:payroll.edit')
-->name('payroll-periods.remove-single-staff');
+    )->name('payroll-periods.remove-single-staff');
 
     Route::delete(
         'payroll-periods/{payrollPeriod}/remove-all-staff',
         [PayrollPeriodController::class, 'removeAllStaff']
-    )->middleware('permission:payroll.edit')
-->name('payroll-periods.remove-all-staff');
+    )->name('payroll-periods.remove-all-staff');
 
     Route::patch(
         'payroll-periods/{payrollPeriod}/start-processing',
         [PayrollPeriodController::class, 'startProcessing']
-    )->middleware('permission:payroll.process')
-->name('payroll-periods.start-processing');
+    )->name('payroll-periods.start-processing');
 
     Route::patch(
         'payroll-periods/{payrollPeriod}/process',
         [PayrollPeriodController::class, 'process']
-    )->middleware('permission:payroll.process')
-->name('payroll-periods.process');
+    )->name('payroll-periods.process');
 
     Route::post(
         'payroll-periods/{id}/submit',
         [PayrollPeriodController::class, 'submitForApproval']
-    )->middleware('permission:payroll.process')
-->name('payroll-periods.submit');
+    )->name('payroll-periods.submit');
 
     Route::post(
         'payroll-periods/{id}/approve',
         [PayrollPeriodController::class, 'approve']
-    )->middleware('permission:payroll.approve')
-->name('payroll-periods.approve');
+    )->name('payroll-periods.approve');
 
     Route::post(
         'payroll-periods/{id}/reject',
         [PayrollPeriodController::class, 'reject']
-    )->middleware('permission:payroll.reject')
-->name('payroll-periods.reject');
+    )->name('payroll-periods.reject');
 
     Route::get(
         'payroll-periods/{payrollPeriod}/export',
         [PayrollPeriodController::class, 'export']
-    )->middleware('permission:payroll.reports')
-->name('payroll-periods.export');
+    )->name('payroll-periods.export');
 
     Route::get(
         'payroll-periods/{payrollPeriod}/export-excel',
         [PayrollPeriodController::class, 'exportExcel']
-    )->middleware('permission:payroll.reports')
-->name('payroll-periods.export-excel');
+    )->name('payroll-periods.export-excel');
 
     Route::get(
         'payroll-periods/{payrollPeriod}/export-pdf',
         [PayrollPeriodController::class, 'exportPdf']
-    )->middleware('permission:payroll.reports')
-->name('payroll-periods.export-pdf');
+    )->name('payroll-periods.export-pdf');
 
     Route::get(
         'payroll-periods/{payrollPeriod}/export-word',
         [PayrollPeriodController::class, 'exportWord']
-    )->middleware('permission:payroll.reports')
-->name('payroll-periods.export-word');
+    )->name('payroll-periods.export-word');
 
     Route::get(
         'payroll-periods/{payrollPeriod}/export-all',
         [PayrollPeriodController::class, 'exportAll']
-    )->middleware('permission:payroll.reports')
-->name('payroll-periods.export-all');
+    )->name('payroll-periods.export-all');
 
     /*
     |--------------------------------------------------------------------------
@@ -356,27 +346,21 @@ Route::middleware(['auth:web'])->group(function () {
         ->name('payroll-period-approvals.')
         ->group(function () {
             Route::get('/', [PayrollPeriodApprovalController::class, 'index'])
-                ->middleware('permission:payroll.view')
                 ->name('index');
 
             Route::get('/{payrollPeriod}', [PayrollPeriodApprovalController::class, 'show'])
-                ->middleware('permission:payroll.view')
                 ->name('show');
 
             Route::post('/{payrollPeriod}/submit', [PayrollPeriodApprovalController::class, 'submit'])
-                ->middleware('permission:payroll.process')
                 ->name('submit');
 
             Route::post('/{payrollPeriod}/approve', [PayrollPeriodApprovalController::class, 'approve'])
-                ->middleware('permission:payroll.approve')
                 ->name('approve');
 
             Route::post('/{payrollPeriod}/reject', [PayrollPeriodApprovalController::class, 'reject'])
-                ->middleware('permission:payroll.reject')
                 ->name('reject');
 
             Route::post('/{payrollPeriod}/resubmit', [PayrollPeriodApprovalController::class, 'resubmit'])
-                ->middleware('permission:payroll.process')
                 ->name('resubmit');
         });
 
@@ -393,32 +377,27 @@ Route::middleware(['auth:web'])->group(function () {
     Route::get(
         '/fee-payments/get-students-by-class',
         [FeePaymentController::class, 'getStudentsByClass']
-    )->middleware('permission:payments.create')
-->name('fee-payments.get-students-by-class');
+    )->name('fee-payments.get-students-by-class');
 
     Route::get(
         '/fee-payments/get-student-details/{studentId}',
         [FeePaymentController::class, 'getStudentDetails']
-    )->middleware('permission:payments.create')
-->name('fee-payments.get-student-details');
+    )->name('fee-payments.get-student-details');
 
     Route::get(
         '/fee-payments/get-student-bill-sheets',
         [FeePaymentController::class, 'getStudentBillSheets']
-    )->middleware('permission:payments.create')
-->name('fee-payments.get-student-bill-sheets');
+    )->name('fee-payments.get-student-bill-sheets');
 
     Route::get(
         '/fee-payments/get-bill-sheet-total/{studentId}',
         [FeePaymentController::class, 'getBillSheetTotal']
-    )->middleware('permission:payments.create')
-->name('fee-payments.get-bill-sheet-total');
+    )->name('fee-payments.get-bill-sheet-total');
 
     Route::get(
         '/fee-payments/get-bill-sheet-items',
         [FeePaymentController::class, 'getBillSheetItems']
-    )->middleware('permission:payments.create')
-->name('fee-payments.get-bill-sheet-items');
+    )->name('fee-payments.get-bill-sheet-items');
 
     // Resource routes MUST come after the specific GET routes above.
     Route::resource('fee-payments', FeePaymentController::class)
@@ -430,25 +409,21 @@ Route::middleware(['auth:web'])->group(function () {
     Route::get(
         '/fee-payments/{id}/receipt',
         [FeePaymentController::class, 'printReceipt']
-    )->middleware('permission:payments.receipts')
-->name('fee-payments.receipt');
+    )->name('fee-payments.receipt');
 
     Route::get(
         '/fee-payments/{id}/receipt/pdf',
         [FeePaymentController::class, 'receiptPdf']
-    )->middleware('permission:payments.receipts')
-->name('fee-payments.receipt.pdf');
+    )->name('fee-payments.receipt.pdf');
 
     Route::get(
         '/fee-payments/{id}/receipt/download',
         [FeePaymentController::class, 'downloadReceipt']
-    )->middleware('permission:payments.receipts')
-->name('fee-payments.receipt.download');
+    )->name('fee-payments.receipt.download');
 
     Route::get('/fee-payment-reports/school-overview',
     [FeePaymentReportController::class, 'schoolOverview']
-    )->middleware('permission:fees.reports')
-->name('fee.payment.reports.school-overview');
+    )->name('fee.payment.reports.school-overview');
 
 
 
@@ -465,31 +440,24 @@ Route::middleware(['auth:web'])->group(function () {
         ->middlewareFor('destroy', 'permission:announcements.delete');
 
     Route::post('/announcements/bulk-delete', [AnnouncementController::class, 'bulkDelete'])
-        ->middleware('permission:announcements.delete')
         ->name('announcements.bulk-delete');
 
     Route::post('/announcements/bulk-expire', [AnnouncementController::class, 'bulkExpire'])
-        ->middleware('permission:announcements.edit')
         ->name('announcements.bulk-expire');
 
     Route::patch('/announcements/{announcement}/toggle-status', [AnnouncementController::class, 'toggleStatus'])
-        ->middleware('permission:announcements.edit')
         ->name('announcements.toggle-status');
 
     Route::patch('/announcements/{announcement}/toggle-featured', [AnnouncementController::class, 'toggleFeatured'])
-        ->middleware('permission:announcements.edit')
         ->name('announcements.toggle-featured');
 
     Route::put('/announcements/{announcement}/expire', [AnnouncementController::class, 'expire'])
-        ->middleware('permission:announcements.publish')
         ->name('announcements.expire');
 
     Route::put('/announcements/{announcement}/restore', [AnnouncementController::class, 'restore'])
-        ->middleware('permission:announcements.edit')
         ->name('announcements.restore');
 
     Route::get('/api/announcements', [AnnouncementController::class, 'getAnnouncements'])
-        ->middleware('permission:announcements.view')
         ->name('announcements.api');
 
     /*
@@ -557,7 +525,7 @@ Route::middleware(['auth:web'])->group(function () {
         ->name('bill-sheets.duplicate');
 
     Route::get('/bill-sheets/{id}/export', [BillSheetController::class, 'export'])
-        ->middleware('permission:fees.export')
+        ->middleware('permission:bill-sheets.view')
         ->name('bill-sheets.export');
 
     Route::post('/bill-sheets/{billSheet}/regenerate', [BillSheetController::class, 'regenerate'])
@@ -572,33 +540,26 @@ Route::middleware(['auth:web'])->group(function () {
 
     Route::prefix('classes')->name('classes.')->group(function () {
         Route::post('/{class}/subjects', [StudentClassController::class, 'attachSubject'])
-            ->middleware('permission:classes.assign-subject')
             ->name('subject.attach');
 
         Route::delete('/{class}/subjects/{subject}', [StudentClassController::class, 'detachSubject'])
-            ->middleware('permission:classes.assign-subject')
             ->name('subject.detach');
 
         Route::get('/{class}/attendance-dashboard', [StudentClassController::class, 'attendanceDashboard'])
-            ->middleware('permission:attendance.view')
             ->name('attendance.dashboard');
     });
 
     Route::prefix('student-classes')->name('student-classes.')->group(function () {
         Route::post('/{studentClass}/assign-subject-teacher', [StudentClassController::class, 'assignSubjectTeacher'])
-            ->middleware('permission:classes.assign-staff')
             ->name('assign-subject-teacher');
 
         Route::delete('/{studentClass}/remove-subject-teacher/{subject}', [StudentClassController::class, 'removeSubjectTeacher'])
-            ->middleware('permission:classes.assign-staff')
             ->name('remove-subject-teacher');
 
         Route::post('/{studentClass}/assign-prefect', [StudentClassController::class, 'assignPrefect'])
-            ->middleware('permission:classes.assign-prefect')
             ->name('assign-prefect');
 
         Route::get('/{class}/attendance-data', [StudentClassController::class, 'getAttendanceData'])
-            ->middleware('permission:attendance.view')
             ->name('attendance-data');
     });
 
@@ -613,11 +574,7 @@ Route::middleware(['auth:web'])->group(function () {
         ->middlewareFor(['create', 'store'], 'permission:attendance.create')
         ->middlewareFor(['edit', 'update'], 'permission:attendance.edit')
         ->middlewareFor('destroy', 'permission:attendance.delete');
-        Route::resource('attendance-settings', AttendanceSettingController::class)
-        ->middlewareFor(['index', 'show'], 'permission:attendance-settings.view')
-        ->middlewareFor(['create', 'store'], 'permission:attendance-settings.create')
-        ->middlewareFor(['edit', 'update'], 'permission:attendance-settings.edit')
-        ->middlewareFor('destroy', 'permission:attendance-settings.delete')
+    Route::resource('attendance-settings', AttendanceSettingController::class)
         ->middlewareFor(['index', 'show'], 'permission:attendance.view')
         ->middlewareFor(['create', 'store'], 'permission:attendance.create')
         ->middlewareFor(['edit', 'update'], 'permission:attendance.edit')
@@ -625,39 +582,30 @@ Route::middleware(['auth:web'])->group(function () {
 
     Route::prefix('attendance')->name('attendance.')->group(function () {
         Route::get('/create-for-class/{studentClassId}', [AttendanceSessionController::class, 'createForClass'])
-            ->middleware('permission:attendance.create')
             ->name('create-for-class');
 
         Route::get('/check-exists', [AttendanceSessionController::class, 'checkExists'])
-            ->middleware('permission:attendance.view')
             ->name('check-exists');
 
         Route::get('/class/{classId}/students', [AttendanceSessionController::class, 'getStudents'])
-            ->middleware('permission:attendance.view')
             ->name('class.students');
 
         Route::get('/session/ajax', [AttendanceSessionController::class, 'ajax'])
-            ->middleware('permission:attendance.view')
             ->name('session.ajax');
 
         Route::get('/{classId}/load', [AttendanceSessionController::class, 'loadAttendance'])
-            ->middleware('permission:attendance.view')
             ->name('session.load');
 
         Route::post('/ajax/{classId}', [AttendanceSessionController::class, 'getAttendanceData'])
-            ->middleware('permission:attendance.view')
             ->name('ajax');
 
         Route::post('/store/{classId}', [AttendanceSessionController::class, 'storeForClass'])
-            ->middleware('permission:attendance.create')
             ->name('store.class');
 
         Route::get('/monthly-report', [AttendanceSessionController::class, 'monthlyReport'])
-            ->middleware('permission:attendance.reports')
             ->name('monthly-report');
 
         Route::get('/export-monthly', [AttendanceSessionController::class, 'exportMonthlyReport'])
-            ->middleware('permission:attendance.export')
             ->name('export-monthly');
     });
 
@@ -712,24 +660,15 @@ Route::middleware(['auth:web'])->group(function () {
     Route::prefix('fee-payment-reports')
         ->name('fee.payment.reports.')
         ->group(function () {
-            Route::get('/', [FeePaymentReportController::class, 'index'])->middleware('permission:fees.reports')
-->name('index');
-            Route::get('/{id}', [FeePaymentReportController::class, 'show'])->middleware('permission:fees.reports')
-->name('show');
-            Route::get('/export/pdf', [FeePaymentReportController::class, 'exportPdf'])->middleware('permission:fees.export')
-->name('export.pdf');
-            Route::get('/export/excel', [FeePaymentReportController::class, 'exportExcel'])->middleware('permission:fees.export')
-->name('export.excel');
-            Route::get('/payment-history', [FeePaymentReportController::class, 'paymentHistory'])->middleware('permission:payments.reports')
-->name('payment-history');
-            Route::get('/receipt/{paymentId}', [FeePaymentReportController::class, 'generateReceipt'])->middleware('permission:payments.receipts')
-->name('receipt');
-            Route::get('/outstanding', [FeePaymentReportController::class, 'outstandingFees'])->middleware('permission:fees.reports')
-->name('outstanding');
-            Route::get('/api/summary-stats', [FeePaymentReportController::class, 'getSummaryStats'])->middleware('permission:fees.reports')
-->name('api.summary');
-            Route::get('/api/chart-data', [FeePaymentReportController::class, 'getChartData'])->middleware('permission:fees.reports')
-->name('api.chart');
+            Route::get('/', [FeePaymentReportController::class, 'index'])->name('index');
+            Route::get('/{id}', [FeePaymentReportController::class, 'show'])->name('show');
+            Route::get('/export/pdf', [FeePaymentReportController::class, 'exportPdf'])->name('export.pdf');
+            Route::get('/export/excel', [FeePaymentReportController::class, 'exportExcel'])->name('export.excel');
+            Route::get('/payment-history', [FeePaymentReportController::class, 'paymentHistory'])->name('payment-history');
+            Route::get('/receipt/{paymentId}', [FeePaymentReportController::class, 'generateReceipt'])->name('receipt');
+            Route::get('/outstanding', [FeePaymentReportController::class, 'outstandingFees'])->name('outstanding');
+            Route::get('/api/summary-stats', [FeePaymentReportController::class, 'getSummaryStats'])->name('api.summary');
+            Route::get('/api/chart-data', [FeePaymentReportController::class, 'getChartData'])->name('api.chart');
         });
         
 
@@ -740,20 +679,13 @@ Route::middleware(['auth:web'])->group(function () {
     */
 
     Route::prefix('fee-structures')->name('fee-structures.')->group(function () {
-        Route::get('/', [FeeStructureController::class, 'index'])->middleware('permission:fee-structures.view')
-->name('index');
-        Route::get('/create', [FeeStructureController::class, 'create'])->middleware('permission:fee-structures.create')
-->name('create');
-        Route::post('/', [FeeStructureController::class, 'store'])->middleware('permission:fee-structures.create')
-->name('store');
-        Route::get('/{id}', [FeeStructureController::class, 'show'])->middleware('permission:fee-structures.view')
-->name('show');
-        Route::get('/{id}/edit', [FeeStructureController::class, 'edit'])->middleware('permission:fee-structures.edit')
-->name('edit');
-        Route::put('/{id}', [FeeStructureController::class, 'update'])->middleware('permission:fee-structures.edit')
-->name('update');
-        Route::delete('/{id}', [FeeStructureController::class, 'destroy'])->middleware('permission:fee-structures.delete')
-->name('destroy');
+        Route::get('/', [FeeStructureController::class, 'index'])->name('index');
+        Route::get('/create', [FeeStructureController::class, 'create'])->name('create');
+        Route::post('/', [FeeStructureController::class, 'store'])->name('store');
+        Route::get('/{id}', [FeeStructureController::class, 'show'])->name('show');
+        Route::get('/{id}/edit', [FeeStructureController::class, 'edit'])->name('edit');
+        Route::put('/{id}', [FeeStructureController::class, 'update'])->name('update');
+        Route::delete('/{id}', [FeeStructureController::class, 'destroy'])->name('destroy');
     });
 
     /*
@@ -763,12 +695,9 @@ Route::middleware(['auth:web'])->group(function () {
     */
 
     Route::prefix('student-progressions')->name('student-progressions.')->group(function () {
-        Route::get('/', [StudentProgressionController::class, 'index'])->middleware('permission:progression.view')
-->name('index');
-        Route::post('/process', [StudentProgressionController::class, 'process'])->middleware('permission:progression.process')
-->name('process');
-        Route::post('/bulk-promote', [StudentProgressionController::class, 'bulkPromote'])->middleware('permission:progression.bulk-promote')
-->name('bulk-promote');
+        Route::get('/', [StudentProgressionController::class, 'index'])->name('index');
+        Route::post('/process', [StudentProgressionController::class, 'process'])->name('process');
+        Route::post('/bulk-promote', [StudentProgressionController::class, 'bulkPromote'])->name('bulk-promote');
     });
 
     /*
@@ -777,12 +706,9 @@ Route::middleware(['auth:web'])->group(function () {
     |--------------------------------------------------------------------------
     */
 
-    Route::get('/payslips', [PayslipController::class, 'index'])->middleware('permission:payslips.view')
-->name('payslips.index');
-    Route::get('/payslips/create', [PayslipController::class, 'create'])->middleware('permission:payslips.create')
-->name('payslips.create');
-    Route::post('/payslips', [PayslipController::class, 'store'])->middleware('permission:payslips.create')
-->name('payslips.store');
+    Route::get('/payslips', [PayslipController::class, 'index'])->name('payslips.index');
+    Route::get('/payslips/create', [PayslipController::class, 'create'])->name('payslips.create');
+    Route::post('/payslips', [PayslipController::class, 'store'])->name('payslips.store');
 
     Route::get('/payslips/staff-salary-data', [PayslipController::class, 'getStaffSalaryData'])
         ->middleware('permission:salary-structures.view')
@@ -801,7 +727,7 @@ Route::middleware(['auth:web'])->group(function () {
         ->name('payslips.show');
 
     Route::delete('/payslips/{payslip}', [PayslipController::class, 'destroy'])
-        ->middleware('permission:payslips.create')
+        ->middleware('permission:payslips.delete')
         ->name('payslips.destroy');
 
     Route::get('/payslips/{payslip}/export-pdf', [PayslipController::class, 'exportPdf'])
@@ -839,13 +765,10 @@ Route::middleware(['auth:web'])->group(function () {
     */
 
     Route::prefix('scores')->name('scores.')->group(function () {
-        Route::get('/', [ScoreController::class, 'index'])->middleware('permission:results.view')
-->name('index');
+        Route::get('/', [ScoreController::class, 'index'])->name('index');
         Route::match(['get', 'post'], '/load-students', [ScoreController::class, 'loadStudents'])
-            ->middleware('permission:results.view')
             ->name('load-students');
-        Route::post('/save', [ScoreController::class, 'save'])->middleware('permission:results.create')
-->name('save');
+        Route::post('/save', [ScoreController::class, 'save'])->name('save');
     });
 
     Route::get('/subject-results', [SubjectResultController::class, 'index'])
@@ -859,14 +782,10 @@ Route::middleware(['auth:web'])->group(function () {
     */
 
     Route::prefix('broadsheet')->name('broadsheet.')->group(function () {
-        Route::get('/', [BroadsheetController::class, 'index'])->middleware('permission:broadsheet.view')
-->name('index');
-        Route::post('/generate', [BroadsheetController::class, 'generate'])->middleware('permission:broadsheet.generate')
-->name('generate');
-        Route::post('/pdf', [BroadsheetController::class, 'pdf'])->middleware('permission:broadsheet.export')
-->name('pdf');
-        Route::post('/ajax', [BroadsheetController::class, 'ajaxLoad'])->middleware('permission:broadsheet.view')
-->name('ajax');
+        Route::get('/', [BroadsheetController::class, 'index'])->name('index');
+        Route::post('/generate', [BroadsheetController::class, 'generate'])->name('generate');
+        Route::post('/pdf', [BroadsheetController::class, 'pdf'])->name('pdf');
+        Route::post('/ajax', [BroadsheetController::class, 'ajaxLoad'])->name('ajax');
     });
 
     /*
@@ -882,11 +801,9 @@ Route::middleware(['auth:web'])->group(function () {
         ->middlewareFor('destroy', 'permission:timetables.delete');
 
     Route::get('/timetables/{timetable}/preview', [TimetableController::class, 'preview'])
-        ->middleware('permission:timetables.view')
         ->name('timetables.preview');
     
     Route::get('/timetables/{timetable}/download', [TimetableController::class, 'download'])
-        ->middleware('permission:timetables.download')
         ->name('timetables.download');
 
     /*
@@ -896,15 +813,11 @@ Route::middleware(['auth:web'])->group(function () {
     */
 
     Route::prefix('report-cards')->name('report-cards.')->group(function () {
-        Route::get('/', [ReportCardController::class, 'index'])->middleware('permission:report-cards.view')
-->name('index');
-        Route::post('/show', [ReportCardController::class, 'show'])->middleware('permission:report-cards.view')
-->name('show');
+        Route::get('/', [ReportCardController::class, 'index'])->name('index');
+        Route::post('/show', [ReportCardController::class, 'show'])->name('show');
         Route::get('/get-students-by-class', [ReportCardController::class, 'getStudentsByClass'])
-            ->middleware('permission:report-cards.view')
             ->name('get-students-by-class');
         Route::get('/{student}', [ReportCardController::class, 'reportCard'])
-            ->middleware('permission:report-cards.view')
             ->name('show-single');
     });
 
@@ -919,20 +832,13 @@ Route::middleware(['auth:web'])->group(function () {
     */
 
     Route::prefix('graduated-students')->name('graduates.')->group(function () {
-        Route::get('/', [GraduationController::class, 'index'])->middleware('permission:graduation.view')
-->name('index');
-        Route::get('/export', [GraduationController::class, 'export'])->middleware('permission:graduation.export')
-->name('export');
-        Route::get('/print', [GraduationController::class, 'printView'])->middleware('permission:graduation.view')
-->name('print');
-        Route::get('/{id}', [GraduationController::class, 'show'])->middleware('permission:graduation.view')
-->name('show');
-        Route::get('/{id}/certificate', [GraduationController::class, 'certificate'])->middleware('permission:graduation.view')
-->name('certificate');
-        Route::delete('/{id}', [GraduationController::class, 'destroy'])->middleware('permission:graduation.process')
-->name('destroy');
-        Route::post('/{id}/restore', [GraduationController::class, 'restore'])->middleware('permission:graduation.restore')
-->name('restore');
+        Route::get('/', [GraduationController::class, 'index'])->name('index');
+        Route::get('/export', [GraduationController::class, 'export'])->name('export');
+        Route::get('/print', [GraduationController::class, 'printView'])->name('print');
+        Route::get('/{id}', [GraduationController::class, 'show'])->name('show');
+        Route::get('/{id}/certificate', [GraduationController::class, 'certificate'])->name('certificate');
+        Route::delete('/{id}', [GraduationController::class, 'destroy'])->name('destroy');
+        Route::post('/{id}/restore', [GraduationController::class, 'restore'])->name('restore');
     });
 
     /*
@@ -948,19 +854,15 @@ Route::middleware(['auth:web'])->group(function () {
         ->middlewareFor('destroy', 'permission:lesson-notes.delete');
 
     Route::post('/lesson-notes/{id}/clone', [LessonNoteController::class, 'clone'])
-        ->middleware('permission:lesson-notes.clone')
         ->name('lesson-notes.clone');
 
     Route::post('/lesson-notes/{id}/comments', [LessonNoteController::class, 'storeComment'])
-        ->middleware('permission:lesson-notes.comment')
         ->name('lesson-notes.comments.store');
 
     Route::get('/lesson-notes/{id}/download', [LessonNoteController::class, 'download'])
-        ->middleware('permission:lesson-notes.download')
         ->name('lesson-notes.download');
 
     Route::get('/lesson-notes/{lessonNote}/download-attachment/{file}', [LessonNoteController::class, 'downloadAttachment'])
-        ->middleware('permission:lesson-notes.download')
         ->name('lesson-notes.download-attachment');
 
     /*
@@ -996,26 +898,16 @@ Route::middleware(['auth:web'])->group(function () {
     */
 
     Route::prefix('assessment-forms')->name('assessment-forms.')->group(function () {
-        Route::get('/', [AssessmentFormController::class, 'index'])->middleware('permission:assessment-forms.view')
-->name('index');
-        Route::get('/create', [AssessmentFormController::class, 'create'])->middleware('permission:assessment-forms.create')
-->name('create');
-        Route::post('/', [AssessmentFormController::class, 'store'])->middleware('permission:assessment-forms.create')
-->name('store');
-        Route::get('/{id}', [AssessmentFormController::class, 'show'])->middleware('permission:assessment-forms.view')
-->name('show');
-        Route::get('/{id}/edit', [AssessmentFormController::class, 'edit'])->middleware('permission:assessment-forms.edit')
-->name('edit');
-        Route::put('/{id}', [AssessmentFormController::class, 'update'])->middleware('permission:assessment-forms.edit')
-->name('update');
-        Route::delete('/{id}', [AssessmentFormController::class, 'destroy'])->middleware('permission:assessment-forms.delete')
-->name('destroy');
-        Route::get('/{id}/download', [AssessmentFormController::class, 'download'])->middleware('permission:assessment-forms.download')
-->name('download');
-        Route::get('/{id}/view', [AssessmentFormController::class, 'view'])->middleware('permission:assessment-forms.view')
-->name('view');
-        Route::post('/{id}/toggle-status', [AssessmentFormController::class, 'toggleStatus'])->middleware('permission:assessment-forms.change-status')
-->name('toggle-status');
+        Route::get('/', [AssessmentFormController::class, 'index'])->name('index');
+        Route::get('/create', [AssessmentFormController::class, 'create'])->name('create');
+        Route::post('/', [AssessmentFormController::class, 'store'])->name('store');
+        Route::get('/{id}', [AssessmentFormController::class, 'show'])->name('show');
+        Route::get('/{id}/edit', [AssessmentFormController::class, 'edit'])->name('edit');
+        Route::put('/{id}', [AssessmentFormController::class, 'update'])->name('update');
+        Route::delete('/{id}', [AssessmentFormController::class, 'destroy'])->name('destroy');
+        Route::get('/{id}/download', [AssessmentFormController::class, 'download'])->name('download');
+        Route::get('/{id}/view', [AssessmentFormController::class, 'view'])->name('view');
+        Route::post('/{id}/toggle-status', [AssessmentFormController::class, 'toggleStatus'])->name('toggle-status');
     });
 
     /*
@@ -1025,29 +917,18 @@ Route::middleware(['auth:web'])->group(function () {
     */
 
     Route::prefix('assets')->name('assets.')->group(function () {
-        Route::get('/', [AssetController::class, 'index'])->middleware('permission:assets.view')
-->name('index');
-        Route::get('/create', [AssetController::class, 'create'])->middleware('permission:assets.create')
-->name('create');
-        Route::post('/', [AssetController::class, 'store'])->middleware('permission:assets.create')
-->name('store');
-        Route::get('/{id}', [AssetController::class, 'show'])->middleware('permission:assets.view')
-->name('show');
-        Route::get('/{id}/edit', [AssetController::class, 'edit'])->middleware('permission:assets.edit')
-->name('edit');
-        Route::put('/{id}', [AssetController::class, 'update'])->middleware('permission:assets.edit')
-->name('update');
-        Route::delete('/{id}', [AssetController::class, 'destroy'])->middleware('permission:assets.delete')
-->name('destroy');
-        Route::post('/{id}/assign', [AssetController::class, 'assign'])->middleware('permission:assets.assign')
-->name('assign');
-        Route::post('/{id}/return', [AssetController::class, 'returnAsset'])->middleware('permission:assets.return')
-->name('return');
+        Route::get('/', [AssetController::class, 'index'])->name('index');
+        Route::get('/create', [AssetController::class, 'create'])->name('create');
+        Route::post('/', [AssetController::class, 'store'])->name('store');
+        Route::get('/{id}', [AssetController::class, 'show'])->name('show');
+        Route::get('/{id}/edit', [AssetController::class, 'edit'])->name('edit');
+        Route::put('/{id}', [AssetController::class, 'update'])->name('update');
+        Route::delete('/{id}', [AssetController::class, 'destroy'])->name('destroy');
+        Route::post('/{id}/assign', [AssetController::class, 'assign'])->name('assign');
+        Route::post('/{id}/return', [AssetController::class, 'returnAsset'])->name('return');
         Route::get('/{id}/download-document', [AssetController::class, 'downloadDocument'])
-            ->middleware('permission:assets.view')
             ->name('download.document');
         Route::get('/{id}/download-image', [AssetController::class, 'downloadImage'])
-            ->middleware('permission:assets.view')
             ->name('download.image');
     });
 
@@ -1058,30 +939,18 @@ Route::middleware(['auth:web'])->group(function () {
     */
 
     Route::prefix('leaves')->name('leaves.')->group(function () {
-        Route::get('/', [LeavesController::class, 'index'])->middleware('permission:leaves.view')
-->name('index');
-        Route::get('/create', [LeavesController::class, 'create'])->middleware('permission:leaves.create')
-->name('create');
-        Route::post('/', [LeavesController::class, 'store'])->middleware('permission:leaves.create')
-->name('store');
-        Route::get('/{id}/edit', [LeavesController::class, 'edit'])->middleware('permission:leaves.edit')
-->name('edit');
-        Route::put('/{id}', [LeavesController::class, 'update'])->middleware('permission:leaves.edit')
-->name('update');
-        Route::delete('/{id}', [LeavesController::class, 'destroy'])->middleware('permission:leaves.delete')
-->name('destroy');
-        Route::get('/{id}/watch', [LeavesController::class, 'watch'])->middleware('permission:leaves.view')
-->name('watch');
-        Route::get('/{id}/download-pdf', [LeavesController::class, 'downloadPDF'])->middleware('permission:leaves.view')
-->name('download.pdf');
-        Route::get('/{id}/download-word', [LeavesController::class, 'downloadWord'])->middleware('permission:leaves.view')
-->name('download.word');
-        Route::post('/{id}/approve', [LeavesController::class, 'approve'])->middleware('permission:leaves.approve')
-->name('approve');
-        Route::post('/{id}/reject', [LeavesController::class, 'reject'])->middleware('permission:leaves.reject')
-->name('reject');
-        Route::post('/{id}/submit', [LeavesController::class, 'submit'])->middleware('permission:leaves.create')
-->name('leaves.submit');
+        Route::get('/', [LeavesController::class, 'index'])->name('index');
+        Route::get('/create', [LeavesController::class, 'create'])->name('create');
+        Route::post('/', [LeavesController::class, 'store'])->name('store');
+        Route::get('/{id}/edit', [LeavesController::class, 'edit'])->name('edit');
+        Route::put('/{id}', [LeavesController::class, 'update'])->name('update');
+        Route::delete('/{id}', [LeavesController::class, 'destroy'])->name('destroy');
+        Route::get('/{id}/watch', [LeavesController::class, 'watch'])->name('watch');
+        Route::get('/{id}/download-pdf', [LeavesController::class, 'downloadPDF'])->name('download.pdf');
+        Route::get('/{id}/download-word', [LeavesController::class, 'downloadWord'])->name('download.word');
+        Route::post('/{id}/approve', [LeavesController::class, 'approve'])->name('approve');
+        Route::post('/{id}/reject', [LeavesController::class, 'reject'])->name('reject');
+        Route::post('/{id}/submit', [LeavesController::class, 'submit'])->name('leaves.submit');
     });
 
     /*
@@ -1093,16 +962,11 @@ Route::middleware(['auth:web'])->group(function () {
     Route::prefix('leave-approvals')
         ->name('leave-approvals.')
         ->group(function () {
-            Route::get('/', [LeaveApprovalController::class, 'index'])->middleware('permission:leaves.approve')
-->name('index');
-            Route::get('/{leave}', [LeaveApprovalController::class, 'show'])->middleware('permission:leaves.approve')
-->name('show');
-            Route::post('/{leave}/approve', [LeaveApprovalController::class, 'approve'])->middleware('permission:leaves.approve')
-->name('approve');
-            Route::post('/{leave}/reject', [LeaveApprovalController::class, 'reject'])->middleware('permission:leaves.reject')
-->name('reject');
+            Route::get('/', [LeaveApprovalController::class, 'index'])->name('index');
+            Route::get('/{leave}', [LeaveApprovalController::class, 'show'])->name('show');
+            Route::post('/{leave}/approve', [LeaveApprovalController::class, 'approve'])->name('approve');
+            Route::post('/{leave}/reject', [LeaveApprovalController::class, 'reject'])->name('reject');
             Route::post('/{leave}/modify-approve', [LeaveApprovalController::class, 'modifyAndApprove'])
-                ->middleware('permission:leaves.approve')
                 ->name('modify-approve');
         });
 
@@ -1113,28 +977,17 @@ Route::middleware(['auth:web'])->group(function () {
     */
 
     Route::prefix('staff-appraisals')->name('staff-appraisals.')->group(function () {
-        Route::get('/', [StaffAppraisalController::class, 'index'])->middleware('permission:appraisals.view')
-->name('index');
-        Route::get('/create', [StaffAppraisalController::class, 'create'])->middleware('permission:appraisals.create')
-->name('create');
-        Route::post('/', [StaffAppraisalController::class, 'store'])->middleware('permission:appraisals.create')
-->name('store');
-        Route::get('/{id}', [StaffAppraisalController::class, 'show'])->middleware('permission:appraisals.view')
-->name('show');
-        Route::get('/{id}/edit', [StaffAppraisalController::class, 'edit'])->middleware('permission:appraisals.edit')
-->name('edit');
-        Route::put('/{id}', [StaffAppraisalController::class, 'update'])->middleware('permission:appraisals.edit')
-->name('update');
-        Route::delete('/{id}', [StaffAppraisalController::class, 'destroy'])->middleware('permission:appraisals.delete')
-->name('destroy');
-        Route::get('/{id}/download', [StaffAppraisalController::class, 'download'])->middleware('permission:appraisals.view')
-->name('download');
-        Route::get('/{id}/view', [StaffAppraisalController::class, 'view'])->middleware('permission:appraisals.view')
-->name('view');
-        Route::post('/{id}/toggle-status', [StaffAppraisalController::class, 'toggleStatus'])->middleware('permission:appraisals.edit')
-->name('toggle-status');
-        Route::post('/{id}/review', [StaffAppraisalController::class, 'review'])->middleware('permission:appraisals.review')
-->name('review');
+        Route::get('/', [StaffAppraisalController::class, 'index'])->name('index');
+        Route::get('/create', [StaffAppraisalController::class, 'create'])->name('create');
+        Route::post('/', [StaffAppraisalController::class, 'store'])->name('store');
+        Route::get('/{id}', [StaffAppraisalController::class, 'show'])->name('show');
+        Route::get('/{id}/edit', [StaffAppraisalController::class, 'edit'])->name('edit');
+        Route::put('/{id}', [StaffAppraisalController::class, 'update'])->name('update');
+        Route::delete('/{id}', [StaffAppraisalController::class, 'destroy'])->name('destroy');
+        Route::get('/{id}/download', [StaffAppraisalController::class, 'download'])->name('download');
+        Route::get('/{id}/view', [StaffAppraisalController::class, 'view'])->name('view');
+        Route::post('/{id}/toggle-status', [StaffAppraisalController::class, 'toggleStatus'])->name('toggle-status');
+        Route::post('/{id}/review', [StaffAppraisalController::class, 'review'])->name('review');
     });
 
     /*
@@ -1144,27 +997,17 @@ Route::middleware(['auth:web'])->group(function () {
     */
 
     Route::prefix('discussions')->name('discussions.')->group(function () {
-        Route::get('/', [DiscussionController::class, 'index'])->middleware('permission:discussions.view')
-->name('index');
-        Route::get('/create', [DiscussionController::class, 'create'])->middleware('permission:discussions.create')
-->name('create');
-        Route::post('/', [DiscussionController::class, 'store'])->middleware('permission:discussions.create')
-->name('store');
-        Route::get('/{slug}', [DiscussionController::class, 'show'])->middleware('permission:discussions.view')
-->name('show');
-        Route::post('/{slug}/message', [DiscussionController::class, 'sendMessage'])->middleware('permission:discussions.participate')
-->name('message.send');
-        Route::put('/message/{id}', [DiscussionController::class, 'editMessage'])->middleware('permission:discussions.edit')
-->name('message.edit');
-        Route::delete('/message/{id}', [DiscussionController::class, 'deleteMessage'])->middleware('permission:discussions.delete')
-->name('message.delete');
-        Route::post('/{slug}/participant', [DiscussionController::class, 'addParticipant'])->middleware('permission:discussions.participate')
-->name('participant.add');
+        Route::get('/', [DiscussionController::class, 'index'])->name('index');
+        Route::get('/create', [DiscussionController::class, 'create'])->name('create');
+        Route::post('/', [DiscussionController::class, 'store'])->name('store');
+        Route::get('/{slug}', [DiscussionController::class, 'show'])->name('show');
+        Route::post('/{slug}/message', [DiscussionController::class, 'sendMessage'])->name('message.send');
+        Route::put('/message/{id}', [DiscussionController::class, 'editMessage'])->name('message.edit');
+        Route::delete('/message/{id}', [DiscussionController::class, 'deleteMessage'])->name('message.delete');
+        Route::post('/{slug}/participant', [DiscussionController::class, 'addParticipant'])->name('participant.add');
         Route::delete('/{slug}/participant/{staffId}', [DiscussionController::class, 'removeParticipant'])
-            ->middleware('permission:discussions.participate')
             ->name('participant.remove');
         Route::get('/attachment/{id}/download', [DiscussionController::class, 'downloadAttachment'])
-            ->middleware('permission:discussions.view')
             ->name('attachment.download');
     });
 
@@ -1175,32 +1018,19 @@ Route::middleware(['auth:web'])->group(function () {
     */
 
     Route::prefix('grievance')->name('grievance.')->group(function () {
-        Route::get('/', [GrievanceController::class, 'index'])->middleware('permission:grievances.view')
-->name('index');
-        Route::get('/create', [GrievanceController::class, 'create'])->middleware('permission:grievances.create')
-->name('create');
-        Route::post('/', [GrievanceController::class, 'store'])->middleware('permission:grievances.create')
-->name('store');
-        Route::get('/{id}', [GrievanceController::class, 'show'])->middleware('permission:grievances.view')
-->name('show');
-        Route::get('/{id}/edit', [GrievanceController::class, 'edit'])->middleware('permission:grievances.edit')
-->name('edit');
-        Route::put('/{id}', [GrievanceController::class, 'update'])->middleware('permission:grievances.edit')
-->name('update');
-        Route::delete('/{id}', [GrievanceController::class, 'destroy'])->middleware('permission:grievances.delete')
-->name('destroy');
-        Route::post('/{id}/assign', [GrievanceController::class, 'assign'])->middleware('permission:grievances.assign')
-->name('assign');
-        Route::post('/{id}/status', [GrievanceController::class, 'updateStatus'])->middleware('permission:grievances.status')
-->name('update-status');
-        Route::post('/{id}/comments', [GrievanceController::class, 'addComment'])->middleware('permission:grievances.view')
-->name('add-comment');
-        Route::post('/{id}/escalate', [GrievanceController::class, 'escalate'])->middleware('permission:grievances.escalate')
-->name('escalate');
-        Route::post('/{id}/appeal', [GrievanceController::class, 'appeal'])->middleware('permission:grievances.appeal')
-->name('appeal');
-        Route::get('/statistics', [GrievanceController::class, 'statistics'])->middleware('permission:grievances.view')
-->name('statistics');
+        Route::get('/', [GrievanceController::class, 'index'])->name('index');
+        Route::get('/create', [GrievanceController::class, 'create'])->name('create');
+        Route::post('/', [GrievanceController::class, 'store'])->name('store');
+        Route::get('/{id}', [GrievanceController::class, 'show'])->name('show');
+        Route::get('/{id}/edit', [GrievanceController::class, 'edit'])->name('edit');
+        Route::put('/{id}', [GrievanceController::class, 'update'])->name('update');
+        Route::delete('/{id}', [GrievanceController::class, 'destroy'])->name('destroy');
+        Route::post('/{id}/assign', [GrievanceController::class, 'assign'])->name('assign');
+        Route::post('/{id}/status', [GrievanceController::class, 'updateStatus'])->name('update-status');
+        Route::post('/{id}/comments', [GrievanceController::class, 'addComment'])->name('add-comment');
+        Route::post('/{id}/escalate', [GrievanceController::class, 'escalate'])->name('escalate');
+        Route::post('/{id}/appeal', [GrievanceController::class, 'appeal'])->name('appeal');
+        Route::get('/statistics', [GrievanceController::class, 'statistics'])->name('statistics');
     });
 });
 
