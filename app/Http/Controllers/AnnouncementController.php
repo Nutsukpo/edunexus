@@ -60,7 +60,7 @@ class AnnouncementController extends Controller
         // Get types for filter
         $types = Announcement::select('type')->distinct()->pluck('type');
 
-        return view('announcements.index', compact('announcements', 'counts', 'types'));
+        return view('Announcements.index', compact('announcements', 'counts', 'types'));
     }
 
     /**
@@ -68,7 +68,7 @@ class AnnouncementController extends Controller
      */
     public function create()
     {
-        return view('announcements.create');
+        return view('Announcements.create');
     }
 
     /**
@@ -128,7 +128,7 @@ class AnnouncementController extends Controller
      */
     public function show(Announcement $announcement)
     {
-        return view('announcements.show', compact('announcement'));
+        return view('Announcements.show', compact('announcement'));
     }
 
     /**
@@ -136,7 +136,7 @@ class AnnouncementController extends Controller
      */
     public function edit(Announcement $announcement)
     {
-        return view('announcements.edit', compact('announcement'));
+        return view('Announcements.edit', compact('announcement'));
     }
 
     /**
@@ -190,7 +190,7 @@ class AnnouncementController extends Controller
             ]);
 
             return redirect()
-                ->route('announcements.index')
+                ->route('Announcements.index')
                 ->with('success', 'Announcement updated successfully!');
 
         } catch (\Exception $e) {
@@ -268,7 +268,7 @@ class AnnouncementController extends Controller
             ]);
 
             return redirect()
-                ->route('announcements.index')
+                ->route('Announcements.index')
                 ->with('success', "Announcement {$status} successfully!");
 
         } catch (\Exception $e) {
@@ -295,7 +295,7 @@ class AnnouncementController extends Controller
             ]);
 
             return redirect()
-                ->route('announcements.index')
+                ->route('Announcements.index')
                 ->with('success', "Announcement {$status}!");
 
         } catch (\Exception $e) {
@@ -328,7 +328,7 @@ class AnnouncementController extends Controller
             ]);
 
             return redirect()
-                ->route('announcements.index')
+                ->route('Announcements.index')
                 ->with('success', 'Announcement expired successfully!');
 
         } catch (\Exception $e) {
@@ -407,7 +407,7 @@ class AnnouncementController extends Controller
         // Get types for filter
         $types = Announcement::select('type')->distinct()->pluck('type');
 
-        return view('announcements.public', compact('featured', 'recent', 'types'));
+        return view('Announcements.public', compact('featured', 'recent', 'types'));
     }
 
     /**
@@ -510,7 +510,7 @@ class AnnouncementController extends Controller
         try {
             if (!$announcement->isExpired()) {
                 return redirect()
-                    ->route('announcements.index')
+                    ->route('Announcements.index')
                     ->with('info', 'Announcement is not expired.');
             }
 
