@@ -40,4 +40,9 @@ return [
         'maps_api_key' => env('GOOGLE_MAPS_API_KEY'),
     ],
 
+    'paystack' => [
+        'public_key' => env('PAYSTACK_PUBLIC_KEY'),
+        'secret_key' => env('PAYSTACK_SECRET_KEY'),
+        'currency' => env('PAYSTACK_CURRENCY', 'GHS'),
+    ],
 ];

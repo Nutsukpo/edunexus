@@ -172,4 +172,24 @@ class StudentFeeAccount extends Model
         
         return 'pending';
     }
+
+    public function getCalculatedPaidAmountAttribute(): float
+    {
+        return (float) $this->payments()
+            ->where('status', 'completed')
+            ->sum('net_amount');
+    }
+    
+    public function getCalculatedBalanceAttribute(): float
+    {
+        return max(
+            0,
+            (float) $this->total_fees - $this->calculated_paid_amount
+        );
+    }
+    
+    public function isPaid(): bool
+    {
+        return $this->calculated_balance <= 0;
+    }
 }

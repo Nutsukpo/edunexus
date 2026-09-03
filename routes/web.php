@@ -49,7 +49,9 @@ use App\Http\Controllers\PayslipController;
 use App\Http\Controllers\FeePaymentReportController;
 use App\Http\Controllers\LeaveApprovalController;
 use App\Http\Controllers\PayrollPeriodApprovalController;
+use App\Http\Controllers\StudentFeesController;
 use App\Http\Controllers\RolePermissionController;
+use App\Http\Controllers\PaystackWebhookController;
 
 /*
 |--------------------------------------------------------------------------
@@ -1291,6 +1293,43 @@ Route::middleware(['auth:student'])->group(function () {
         Route::post('/switch', [StudentDashboardController::class, 'switchTimetable'])
             ->name('switch');
     });
+
+    Route::middleware('auth:student')
+    ->prefix('student')
+    ->group(function () {
+
+        Route::get(
+            '/fees',
+            [StudentFeesController::class, 'index']
+        )->name('students.fees');
+
+        Route::get(
+            '/fees/payment',
+            [StudentFeesController::class, 'payment']
+        )->name('students.fees.payment');
+
+        Route::post(
+            '/fees/payment',
+            [StudentFeesController::class, 'initiatePayment']
+        )->name('students.fees.payment.initiate');
+
+        Route::get(
+            '/fees/receipt/{id}',
+            [StudentFeesController::class, 'receipt']
+        )->name('students.fees.receipt');
+
+        Route::get(
+            '/fees/receipt/{id}/pdf',
+            [StudentFeesController::class, 'receiptPdf']
+        )->name('students.fees.receipt.pdf');
+    });
+
+    Route::get(
+        '/student/fees/payment/callback',
+        [StudentFeesController::class, 'paymentCallback']
+    )
+        ->middleware('auth:student')
+        ->name('students.fees.payment.callback');
 });
 
 /*
@@ -1314,3 +1353,8 @@ Route::middleware(['auth:web'])->group(function () {
             ->name('roles.permissions.update');
     });
 });
+
+Route::post(
+    '/paystack/webhook',
+    [PaystackWebhookController::class, 'handle']
+)->name('paystack.webhook');

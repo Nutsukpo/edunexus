@@ -230,7 +230,7 @@
                     <i class="fas fa-money-bill-wave text-info fa-2x"></i>
                 </div>
                 <h6 class="fw-bold mb-0" style="color: #01579b;">Fee Balance</h6>
-                <small class="text-muted" style="color: #0288d1 !important;">₦{{ number_format($feeBalance ?? 0, 2) }}</small>
+                <small class="text-muted" style="color: #0288d1 !important;">GHS {{ number_format($feeBalance ?? 0, 2) }}</small>
             </div>
         </div>
     </div>

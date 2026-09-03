@@ -11,6 +11,28 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
+
+        /*
+        |--------------------------------------------------------------------------
+        | CSRF Exceptions
+        |--------------------------------------------------------------------------
+        |
+        | Paystack webhooks are server-to-server requests and cannot provide
+        | a Laravel CSRF token. The webhook is instead protected using
+        | Paystack's x-paystack-signature.
+        |
+        */
+    
+        $middleware->validateCsrfTokens(except: [
+            'paystack/webhook',
+        ]);
+    
+        /*
+        |--------------------------------------------------------------------------
+        | Middleware Aliases
+        |--------------------------------------------------------------------------
+        */
+    
         $middleware->alias([
             'role' => \Spatie\Permission\Middleware\RoleMiddleware::class,
             'permission' => \Spatie\Permission\Middleware\PermissionMiddleware::class,

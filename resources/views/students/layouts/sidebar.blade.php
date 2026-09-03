@@ -73,7 +73,7 @@
 
         <!-- Academic History -->
         <li class="nav-item">
-            <a href="/class-history" 
+            <a href="/student/class-history" 
                class="nav-link text-white {{ request()->is('class-history*') ? 'active' : '' }}">
                 <i class="fas fa-file-alt me-3"></i>
                 <span>Academic History</span>
@@ -91,7 +91,7 @@
 
         <!-- School Fees -->
         <li class="nav-item">
-            <a href="#" 
+            <a href="/student/fees" 
                class="nav-link text-white">
                 <i class="fas fa-money-bill-wave me-3"></i>
                 <span>School Fees</span>

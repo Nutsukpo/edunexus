@@ -9,74 +9,140 @@ use App\Models\StudentClassAssignment;
 use App\Models\StudentInvoice;
 use App\Models\StudentResult;
 use App\Models\Term;
-use App\Models\TimetablePdf;
-use Illuminate\Support\Facades\Auth;
+use App\Models\Timetable;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 
 class StudentDashboardController extends Controller
 {
-    /**
-     * Student Dashboard
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | STUDENT DASHBOARD
+    |--------------------------------------------------------------------------
+    */
+
     public function index()
     {
         $student = Auth::guard('student')->user();
 
-        // Current Class Assignment - Use is_current instead of is_active
-        $assignment = StudentClassAssignment::with('studentClass')
-                        ->where('student_id', $student->id)
-                        ->where('is_current', true)
-                        ->first();
+        /*
+        |--------------------------------------------------------------------------
+        | Current Assignment
+        |--------------------------------------------------------------------------
+        */
 
-        // Academic Year & Term - Check if columns exist first
-        $academicYear = null;
-        $term = null;
-        
-        // Check if is_active column exists in academic_years table
-        if (Schema::hasColumn('academic_years', 'is_active')) {
-            $academicYear = AcademicYear::where('is_active', true)->first();
-        } else {
-            $academicYear = AcademicYear::latest()->first();
+        $assignment = $this->getCurrentAssignment($student);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Academic Year
+        |--------------------------------------------------------------------------
+        */
+
+        $academicYear = $this->getCurrentAcademicYear();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Current Term
+        |--------------------------------------------------------------------------
+        */
+
+        $term = $this->getCurrentTerm();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Attendance
+        |--------------------------------------------------------------------------
+        */
+
+        $attendanceQuery = AttendanceRecord::where(
+            'student_id',
+            $student->id
+        );
+
+        $present = (clone $attendanceQuery)
+            ->where('status', 'present')
+            ->count();
+
+        $absent = (clone $attendanceQuery)
+            ->where('status', 'absent')
+            ->count();
+
+        $late = (clone $attendanceQuery)
+            ->where('status', 'late')
+            ->count();
+
+        $excused = (clone $attendanceQuery)
+            ->where('status', 'excused')
+            ->count();
+
+        $totalAttendance = (clone $attendanceQuery)->count();
+
+        $attendanceRate = $totalAttendance > 0
+            ? round(($present / $totalAttendance) * 100)
+            : 0;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Fees
+        |--------------------------------------------------------------------------
+        */
+
+        $feeBalance = StudentInvoice::where(
+            'student_id',
+            $student->id
+        )->sum('balance');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Subjects
+        |--------------------------------------------------------------------------
+        */
+
+        $subjects = 0;
+
+        if ($assignment && $assignment->studentClass) {
+            $subjects = $assignment->studentClass
+                ->subjects()
+                ->count();
         }
-      
 
-        // Attendance
-        $attendance = AttendanceRecord::where('student_id', $student->id);
-        $present = (clone $attendance)->where('status', 'present')->count();
-        $absent = (clone $attendance)->where('status', 'absent')->count();
-        $late = (clone $attendance)->where('status', 'late')->count();
-        $excused = (clone $attendance)->where('status', 'excused')->count();
-        $totalAttendance = (clone $attendance)->count();
-        $attendanceRate = $totalAttendance > 0 ? round(($present / $totalAttendance) * 100) : 0;
+        /*
+        |--------------------------------------------------------------------------
+        | Recent Results
+        |--------------------------------------------------------------------------
+        */
 
-        // Fee Balance
-        $feeBalance = StudentInvoice::where('student_id', $student->id)->sum('balance');
+        $recentResults = StudentResult::where(
+            'student_id',
+            $student->id
+        )
+            ->latest()
+            ->take(5)
+            ->get();
 
-        // Subjects Count
-        $subjects = $assignment ? $assignment->studentClass->subjects()->count() : 0;
+        /*
+        |--------------------------------------------------------------------------
+        | Announcements
+        |--------------------------------------------------------------------------
+        */
 
-        // Recent Results
-        $recentResults = StudentResult::where('student_id', $student->id)
-                            ->latest()
-                            ->take(5)
-                            ->get();
-
-        // Get announcements
         $announcements = Announcement::published()
-            ->where(function($query) {
+            ->where(function ($query) {
                 $query->where('audience', 'all')
-                      ->orWhere('audience', 'students');
+                    ->orWhere('audience', 'students');
             })
-            ->orderBy('created_at', 'desc')
+            ->orderByDesc('created_at')
             ->take(4)
             ->get();
 
         $featuredAnnouncement = Announcement::published()
             ->featured()
-            ->where(function($query) {
+            ->where(function ($query) {
                 $query->where('audience', 'all')
-                      ->orWhere('audience', 'students');
+                    ->orWhere('audience', 'students');
             })
             ->first();
 
@@ -99,514 +165,1070 @@ class StudentDashboardController extends Controller
         ));
     }
 
-    /**
-     * Student Timetable - Display PDF Timetable
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | STUDENT TIMETABLE
+    |--------------------------------------------------------------------------
+    |
+    | IMPORTANT:
+    |
+    | The timetable is determined ONLY from the student's CURRENT class.
+    |
+    | Student
+    |     ↓
+    | StudentClassAssignment
+    |     ↓
+    | is_current = true
+    |     ↓
+    | student_class_id
+    |     ↓
+    | Timetable.student_class_id
+    |
+    |--------------------------------------------------------------------------
+    */
+
     public function timetable()
     {
         $student = Auth::guard('student')->user();
-        
-        // Get the student's class ID
-        $classId = $student->class_id ?? null;
-        
-        if (!$classId) {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Get Current Assignment
+        |--------------------------------------------------------------------------
+        */
+
+        $assignment = $this->getCurrentAssignment($student);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Student Has No Current Class
+        |--------------------------------------------------------------------------
+        */
+
+        if (!$assignment || !$assignment->studentClass) {
             return view('students.timetable', [
                 'student' => $student,
-                'timetable' => null,
-                'availableTimetables' => collect(),
+                'assignment' => null,
+                'currentClass' => null,
                 'classId' => null,
                 'academicYear' => null,
-                'term' => null,
-                'message' => 'You are not assigned to any class yet. Please contact your administrator.'
+                'timetable' => null,
+                'availableTimetables' => collect(),
+                'message' => 'You are not currently assigned to a class. Please contact the school administrator.',
             ]);
         }
-        
-        // Get current academic year and term safely
-        $academicYear = null;
-        $academicYearId = null;
-        
-        // Check if is_active column exists
-        if (Schema::hasColumn('academic_years', 'is_active')) {
-            $academicYear = AcademicYear::where('is_active', true)->first();
-        } else {
-            $academicYear = AcademicYear::latest()->first();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Current Class
+        |--------------------------------------------------------------------------
+        */
+
+        $currentClass = $assignment->studentClass;
+
+        $classId = (int) $assignment->student_class_id;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Academic Year
+        |--------------------------------------------------------------------------
+        |
+        | Prefer the academic year attached to the student's current
+        | assignment.
+        |
+        |--------------------------------------------------------------------------
+        */
+
+        $academicYear = $assignment->academicYear;
+
+        if (!$academicYear) {
+            $academicYear = $this->getCurrentAcademicYear();
         }
-        $academicYearId = $academicYear ? $academicYear->id : null;
-        
-        $term = null;
-        $termId = null;
-        
-        // Check if is_active column exists in terms
-        if (Schema::hasColumn('terms', 'is_active')) {
-            $term = Term::where('is_active', true)->where('is_current', true)->first();
-        } else {
-            $term = Term::where('is_current', true)->first();
-        }
-        $termId = $term ? $term->id : null;
-        
-        // Get the timetable PDF for the student's class
+
+        /*
+        |--------------------------------------------------------------------------
+        | Find Current Class Timetable
+        |--------------------------------------------------------------------------
+        |
+        | Priority:
+        |
+        | 1. Current class + current academic year + active
+        | 2. Current class + active
+        |
+        |--------------------------------------------------------------------------
+        */
+
         $timetable = null;
-        
-        try {
-            // Check if TimetablePdf model exists
-            if (class_exists('App\Models\TimetablePdf')) {
-                $query = TimetablePdf::where('class_id', $classId);
-                
-                // Check if is_active column exists in timetable_pdfs table
-                if (Schema::hasColumn('timetable_pdfs', 'is_active')) {
-                    $query->where('is_active', true);
-                }
-                
-                if ($academicYearId) {
-                    $query->where('academic_year_id', $academicYearId);
-                }
-                
-                if ($termId) {
-                    $query->where('term_id', $termId);
-                }
-                
-                $timetable = $query->first();
-                
-                // If no timetable found for current term, try to get any active timetable for the class
-                if (!$timetable) {
-                    $fallbackQuery = TimetablePdf::where('class_id', $classId);
-                    if (Schema::hasColumn('timetable_pdfs', 'is_active')) {
-                        $fallbackQuery->where('is_active', true);
-                    }
-                    $timetable = $fallbackQuery->first();
-                }
-            }
-        } catch (\Exception $e) {
-            // If there's an error, try a simpler query
-            try {
-                $query = TimetablePdf::where('class_id', $classId);
-                if (Schema::hasColumn('timetable_pdfs', 'is_active')) {
-                    $query->where('is_active', true);
-                }
-                $timetable = $query->first();
-            } catch (\Exception $ex) {
-                $timetable = null;
-            }
-        }
-        
-        // Get all available timetables for this class (for dropdown/switch)
-        $availableTimetables = collect();
-        try {
-            if (class_exists('App\Models\TimetablePdf')) {
-                $query = TimetablePdf::where('class_id', $classId);
-                if (Schema::hasColumn('timetable_pdfs', 'is_active')) {
-                    $query->where('is_active', true);
-                }
-                $availableTimetables = $query->orderBy('created_at', 'desc')->get();
-            }
-        } catch (\Exception $e) {
-            $availableTimetables = collect();
-        }
-        
-        return view('students.timetable', compact(
-            'student',
-            'timetable',
-            'availableTimetables',
-            'classId',
+
+        $baseQuery = Timetable::with([
+            'studentClass',
             'academicYear',
-            'term'
-        ));
+        ])
+            ->where('student_class_id', $classId)
+            ->where('status', 'active');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Priority 1:
+        | Current Class + Assignment Academic Year
+        |--------------------------------------------------------------------------
+        */
+
+        if ($academicYear) {
+            $timetable = (clone $baseQuery)
+                ->where(
+                    'academic_year_id',
+                    $academicYear->id
+                )
+                ->latest('created_at')
+                ->first();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Priority 2:
+        | Any Active Timetable For Current Class
+        |--------------------------------------------------------------------------
+        */
+
+        if (!$timetable) {
+            $timetable = (clone $baseQuery)
+                ->latest('created_at')
+                ->first();
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Available Timetable Versions
+        |--------------------------------------------------------------------------
+        |
+        | These belong ONLY to the student's current class.
+        |
+        |--------------------------------------------------------------------------
+        */
+
+        $availableTimetables = Timetable::with([
+            'studentClass',
+            'academicYear',
+        ])
+            ->where('student_class_id', $classId)
+            ->where('status', 'active')
+            ->orderByDesc('created_at')
+            ->get();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Return View
+        |--------------------------------------------------------------------------
+        */
+
+        return view('students.timetable', [
+            'student' => $student,
+            'assignment' => $assignment,
+            'currentClass' => $currentClass,
+            'classId' => $classId,
+            'academicYear' => $academicYear,
+            'timetable' => $timetable,
+            'availableTimetables' => $availableTimetables,
+        ]);
     }
 
-    /**
-     * View a specific timetable PDF via AJAX
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | VIEW TIMETABLE
+    |--------------------------------------------------------------------------
+    */
+
     public function viewTimetable($id)
     {
-        try {
-            $student = Auth::guard('student')->user();
-            $timetable = TimetablePdf::with(['class', 'academicYear', 'term'])
-                ->findOrFail($id);
-            
-            // Verify the student belongs to the class
-            if ($timetable->class_id != $student->class_id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You do not have permission to view this timetable.'
-                ], 403);
-            }
-            
-            return response()->json([
-                'success' => true,
-                'timetable' => $timetable,
-                'url' => $timetable->full_url ?? null,
-                'file_name' => $timetable->file_name,
-                'formatted_size' => $timetable->formatted_file_size ?? 'N/A',
-                'is_current' => $timetable->isCurrent()
-            ]);
-        } catch (\Exception $e) {
+        $student = Auth::guard('student')->user();
+
+        $currentClassId = $this->getStudentCurrentClassId($student);
+
+        if (!$currentClassId) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to load timetable: ' . $e->getMessage()
-            ], 500);
+                'message' => 'You are not currently assigned to a class.',
+            ], 403);
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Load Timetable
+        |--------------------------------------------------------------------------
+        */
+
+        $timetable = Timetable::with([
+            'studentClass',
+            'academicYear',
+        ])->findOrFail($id);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Security
+        |--------------------------------------------------------------------------
+        |
+        | A student can ONLY view a timetable belonging to their
+        | current class.
+        |
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            (int) $timetable->student_class_id !==
+            (int) $currentClassId
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You do not have permission to view this timetable.',
+            ], 403);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | File URL
+        |--------------------------------------------------------------------------
+        */
+
+        $url = null;
+
+        if ($timetable->file_path) {
+            $url = Storage::disk('public')
+                ->url($timetable->file_path);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Response
+        |--------------------------------------------------------------------------
+        */
+
+        return response()->json([
+            'success' => true,
+
+            'timetable' => $timetable,
+
+            'url' => $url,
+
+            'file_name' => $timetable->file_name,
+
+            'file_type' => $timetable->file_type,
+
+            'file_size' => $timetable->file_size,
+
+            'status' => $timetable->status,
+        ]);
     }
 
-    /**
-     * Download the timetable PDF
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | DOWNLOAD TIMETABLE
+    |--------------------------------------------------------------------------
+    */
+
     public function downloadTimetable($id)
     {
-        try {
-            $student = Auth::guard('student')->user();
-            $timetable = TimetablePdf::findOrFail($id);
-            
-            // Verify permission
-            if ($timetable->class_id != $student->class_id) {
-                abort(403, 'You do not have permission to download this timetable.');
-            }
-            
-            $filePath = storage_path('app/public/' . $timetable->file_path);
-            
-            if (!file_exists($filePath)) {
-                abort(404, 'Timetable file not found.');
-            }
-            
-            return response()->download($filePath, $timetable->file_name);
-        } catch (\Exception $e) {
-            return redirect()->back()->with('error', 'Failed to download timetable: ' . $e->getMessage());
+        $student = Auth::guard('student')->user();
+
+        $currentClassId = $this->getStudentCurrentClassId($student);
+
+        if (!$currentClassId) {
+            abort(
+                403,
+                'You are not currently assigned to a class.'
+            );
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Find Timetable
+        |--------------------------------------------------------------------------
+        */
+
+        $timetable = Timetable::findOrFail($id);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Security
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            (int) $timetable->student_class_id !==
+            (int) $currentClassId
+        ) {
+            abort(
+                403,
+                'You do not have permission to download this timetable.'
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | File
+        |--------------------------------------------------------------------------
+        */
+
+        if (!$timetable->file_path) {
+            abort(
+                404,
+                'Timetable file path is missing.'
+            );
+        }
+
+        $disk = Storage::disk('public');
+
+        if (!$disk->exists($timetable->file_path)) {
+            abort(
+                404,
+                'Timetable file not found.'
+            );
+        }
+
+        return $disk->download(
+            $timetable->file_path,
+            $timetable->file_name
+        );
     }
 
-    /**
-     * Stream the PDF for viewing inline
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | STREAM TIMETABLE
+    |--------------------------------------------------------------------------
+    */
+
     public function streamTimetable($id)
     {
-        try {
-            $student = Auth::guard('student')->user();
-            $timetable = TimetablePdf::findOrFail($id);
-            
-            // Verify permission
-            if ($timetable->class_id != $student->class_id) {
-                abort(403, 'You do not have permission to view this timetable.');
-            }
-            
-            $filePath = storage_path('app/public/' . $timetable->file_path);
-            
-            if (!file_exists($filePath)) {
-                abort(404, 'Timetable file not found.');
-            }
-            
-            return response()->file($filePath, [
-                'Content-Type' => 'application/pdf',
-                'Content-Disposition' => 'inline; filename="' . $timetable->file_name . '"'
-            ]);
-        } catch (\Exception $e) {
-            abort(404, 'Timetable not found: ' . $e->getMessage());
+        $student = Auth::guard('student')->user();
+
+        $currentClassId = $this->getStudentCurrentClassId($student);
+
+        if (!$currentClassId) {
+            abort(
+                403,
+                'You are not currently assigned to a class.'
+            );
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Find Timetable
+        |--------------------------------------------------------------------------
+        */
+
+        $timetable = Timetable::findOrFail($id);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Security
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            (int) $timetable->student_class_id !==
+            (int) $currentClassId
+        ) {
+            abort(
+                403,
+                'You do not have permission to view this timetable.'
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | File
+        |--------------------------------------------------------------------------
+        */
+
+        if (!$timetable->file_path) {
+            abort(
+                404,
+                'Timetable file path is missing.'
+            );
+        }
+
+        $disk = Storage::disk('public');
+
+        if (!$disk->exists($timetable->file_path)) {
+            abort(
+                404,
+                'Timetable file not found.'
+            );
+        }
+
+        $path = $disk->path(
+            $timetable->file_path
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | MIME Type
+        |--------------------------------------------------------------------------
+        */
+
+        $extension = strtolower(
+            $timetable->file_type
+                ?: pathinfo(
+                    $timetable->file_path,
+                    PATHINFO_EXTENSION
+                )
+        );
+
+        $mimeType = match ($extension) {
+
+            'pdf' =>
+                'application/pdf',
+
+            'jpg',
+            'jpeg' =>
+                'image/jpeg',
+
+            'png' =>
+                'image/png',
+
+            'xls' =>
+                'application/vnd.ms-excel',
+
+            'xlsx' =>
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+
+            default =>
+                mime_content_type($path)
+                    ?: 'application/octet-stream',
+        };
+
+        /*
+        |--------------------------------------------------------------------------
+        | Stream
+        |--------------------------------------------------------------------------
+        */
+
+        return response()->file(
+            $path,
+            [
+                'Content-Type' => $mimeType,
+
+                'Content-Disposition' =>
+                    'inline; filename="' .
+                    addslashes(
+                        $timetable->file_name
+                    ) .
+                    '"',
+            ]
+        );
     }
 
-    /**
-     * Get timetable information for AJAX
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | TIMETABLE INFORMATION
+    |--------------------------------------------------------------------------
+    */
+
     public function getTimetableInfo($id)
     {
-        try {
-            $student = Auth::guard('student')->user();
-            $timetable = TimetablePdf::findOrFail($id);
-            
-            if ($timetable->class_id != $student->class_id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Unauthorized'
-                ], 403);
-            }
-            
-            return response()->json([
-                'success' => true,
-                'id' => $timetable->id,
-                'file_name' => $timetable->file_name,
-                'file_size' => $timetable->formatted_file_size ?? 'N/A',
-                'upload_date' => $timetable->created_at ? $timetable->created_at->format('M d, Y') : 'N/A',
-                'description' => $timetable->description,
-                'is_current' => $timetable->isCurrent(),
-                'effective_from' => $timetable->effective_from ? $timetable->effective_from->format('M d, Y') : null,
-                'effective_to' => $timetable->effective_to ? $timetable->effective_to->format('M d, Y') : null,
-                'class_name' => $timetable->class->name ?? 'N/A',
-                'term_name' => $timetable->term->name ?? 'N/A',
-                'academic_year' => $timetable->academicYear->name ?? 'N/A'
-            ]);
-        } catch (\Exception $e) {
+        $student = Auth::guard('student')->user();
+
+        $currentClassId = $this->getStudentCurrentClassId($student);
+
+        if (!$currentClassId) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to get timetable info: ' . $e->getMessage()
-            ], 500);
+                'message' => 'You are not currently assigned to a class.',
+            ], 403);
         }
+
+        $timetable = Timetable::with([
+            'studentClass',
+            'academicYear',
+        ])->findOrFail($id);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Security
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            (int) $timetable->student_class_id !==
+            (int) $currentClassId
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Unauthorized timetable.',
+            ], 403);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | File URL
+        |--------------------------------------------------------------------------
+        */
+
+        $url = null;
+
+        if ($timetable->file_path) {
+            $url = Storage::disk('public')
+                ->url($timetable->file_path);
+        }
+
+        return response()->json([
+            'success' => true,
+
+            'timetable' => $timetable,
+
+            'url' => $url,
+
+            'file_name' => $timetable->file_name,
+
+            'file_type' => $timetable->file_type,
+
+            'file_size' => $timetable->file_size,
+
+            'status' => $timetable->status,
+        ]);
     }
 
-    /**
-     * Switch between different timetable versions
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | SWITCH TIMETABLE
+    |--------------------------------------------------------------------------
+    |
+    | This does not change the student's class.
+    |
+    | It only verifies that the selected timetable belongs to the
+    | student's current class.
+    |
+    |--------------------------------------------------------------------------
+    */
+
     public function switchTimetable(Request $request)
     {
-        try {
-            $student = Auth::guard('student')->user();
-            $timetableId = $request->timetable_id;
-            
-            $timetable = TimetablePdf::findOrFail($timetableId);
-            
-            // Verify permission
-            if ($timetable->class_id != $student->class_id) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'You do not have permission to view this timetable.'
-                ], 403);
-            }
-            
-            return response()->json([
-                'success' => true,
-                'timetable' => $timetable,
-                'url' => $timetable->full_url ?? null,
-                'file_name' => $timetable->file_name
-            ]);
-        } catch (\Exception $e) {
+        $student = Auth::guard('student')->user();
+
+        $currentClassId = $this->getStudentCurrentClassId($student);
+
+        if (!$currentClassId) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to switch timetable: ' . $e->getMessage()
-            ], 500);
+                'message' => 'You are not currently assigned to a class.',
+            ], 403);
         }
+
+        $validated = $request->validate([
+            'timetable_id' => [
+                'required',
+                'integer',
+                'exists:timetables,id',
+            ],
+        ]);
+
+        $timetable = Timetable::with([
+            'studentClass',
+            'academicYear',
+        ])->findOrFail(
+            $validated['timetable_id']
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Security
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            (int) $timetable->student_class_id !==
+            (int) $currentClassId
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You cannot access a timetable for another class.',
+            ], 403);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Only Active Timetables
+        |--------------------------------------------------------------------------
+        */
+
+        if ($timetable->status !== 'active') {
+            return response()->json([
+                'success' => false,
+                'message' => 'This timetable is no longer active.',
+            ], 404);
+        }
+
+        $url = Storage::disk('public')
+            ->url($timetable->file_path);
+
+        return response()->json([
+            'success' => true,
+
+            'message' => 'Timetable selected successfully.',
+
+            'timetable' => $timetable,
+
+            'url' => $url,
+        ]);
     }
 
-    /**
-     * Student Profile
-     */
-    public function profile()
-    {
-        $student = Auth::guard('student')->user();
-        return view('students.profile', compact('student'));
-    }
 
-    /**
-     * Student Attendance
-     */
-    public function attendance()
-    {
-        $student = Auth::guard('student')->user();
-        
-        $attendanceRecords = AttendanceRecord::where('student_id', $student->id)
-                            ->latest()
-                            ->paginate(20);
-        
-        $summary = [
-            'present' => AttendanceRecord::where('student_id', $student->id)->where('status', 'present')->count(),
-            'absent' => AttendanceRecord::where('student_id', $student->id)->where('status', 'absent')->count(),
-            'late' => AttendanceRecord::where('student_id', $student->id)->where('status', 'late')->count(),
-            'excused' => AttendanceRecord::where('student_id', $student->id)->where('status', 'excused')->count(),
-        ];
-        
-        return view('students.attendance', compact('student', 'attendanceRecords', 'summary'));
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | CLASS HISTORY
+    |--------------------------------------------------------------------------
+    */
 
-    /**
-     * Student Results
-     */
-    public function results()
-    {
-        $student = Auth::guard('student')->user();
-        
-        $results = StudentResult::where('student_id', $student->id)
-                    ->with(['subject', 'term', 'academicYear'])
-                    ->latest()
-                    ->paginate(20);
-        
-        $summary = [
-            'average_score' => StudentResult::where('student_id', $student->id)->avg('total_score') ?? 0,
-            'highest_score' => StudentResult::where('student_id', $student->id)->max('total_score') ?? 0,
-            'lowest_score' => StudentResult::where('student_id', $student->id)->min('total_score') ?? 0,
-            'total_subjects' => StudentResult::where('student_id', $student->id)
-                ->distinct('subject_id')
-                ->count('subject_id'),
-        ];
-        
-        return view('students.results', compact('student', 'results', 'summary'));
-    }
-
-    /**
-     * Student Academic History
-     */
-    public function academicHistory()
-    {
-        $student = Auth::guard('student')->user();
-        
-        $history = StudentResult::where('student_id', $student->id)
-                    ->with(['subject', 'term', 'academicYear'])
-                    ->orderBy('created_at', 'desc')
-                    ->paginate(20);
-        
-        return view('students.academic-history', compact('student', 'history'));
-    }
-
-    /**
-     * Student Class History
-     */
     public function classHistory()
     {
         $student = Auth::guard('student')->user();
-        
-        $classHistory = StudentClassAssignment::with(['studentClass', 'academicYear'])
-                        ->where('student_id', $student->id)
-                        ->orderBy('created_at', 'desc')
-                        ->paginate(15);
-        
-        // Check which columns exist
-        $hasEndDate = Schema::hasColumn('student_class_assignments', 'end_date');
-        $hasStartDate = Schema::hasColumn('student_class_assignments', 'start_date');
-        $hasAcademicYear = Schema::hasColumn('student_class_assignments', 'academic_year_id');
-        $hasIsCurrent = Schema::hasColumn('student_class_assignments', 'is_current');
-        
-        $totalClasses = StudentClassAssignment::where('student_id', $student->id)->count();
-        
-        $currentClasses = 0;
-        if ($hasIsCurrent) {
-            $currentClasses = StudentClassAssignment::where('student_id', $student->id)
-                                ->where('is_current', true)
-                                ->count();
-        }
-        
-        $completedClasses = 0;
-        if ($hasEndDate) {
-            $completedClasses = StudentClassAssignment::where('student_id', $student->id)
-                                ->whereNotNull('end_date')
-                                ->where('end_date', '<', now())
-                                ->count();
-        }
-        
-        $totalYears = 0;
-        if ($hasAcademicYear) {
-            $totalYears = StudentClassAssignment::where('student_id', $student->id)
-                            ->distinct('academic_year_id')
-                            ->count('academic_year_id');
-        }
-        
+
+        /*
+        |--------------------------------------------------------------------------
+        | All Class Assignments
+        |--------------------------------------------------------------------------
+        */
+
+        $classHistory = StudentClassAssignment::with([
+            'studentClass',
+            'academicYear',
+        ])
+            ->where('student_id', $student->id)
+            ->orderByDesc('is_current')
+            ->orderByDesc('created_at')
+            ->paginate(15);
+
+        /*
+        |--------------------------------------------------------------------------
+        | Summary Query
+        |--------------------------------------------------------------------------
+        */
+
+        $assignmentQuery = StudentClassAssignment::where(
+            'student_id',
+            $student->id
+        );
+
+        $totalClasses = (clone $assignmentQuery)
+            ->count();
+
+        $currentClasses = (clone $assignmentQuery)
+            ->where('is_current', true)
+            ->count();
+
+        $completedClasses = (clone $assignmentQuery)
+            ->where(function ($query) {
+                $query->where('is_current', false)
+                    ->orWhereNull('is_current');
+            })
+            ->count();
+
+        $totalYears = (clone $assignmentQuery)
+            ->whereNotNull('academic_year_id')
+            ->distinct()
+            ->count('academic_year_id');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Current Assignment
+        |--------------------------------------------------------------------------
+        */
+
+        $currentAssignment = $this->getCurrentAssignment(
+            $student
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Summary
+        |--------------------------------------------------------------------------
+        */
+
         $summary = [
             'total_classes' => $totalClasses,
+
             'current_class' => $currentClasses,
+
             'completed_classes' => $completedClasses,
+
             'total_years' => $totalYears,
-            'has_dates' => $hasStartDate && $hasEndDate,
         ];
-        
-        return view('students.class-history', compact('student', 'classHistory', 'summary'));
+
+        return view(
+            'students.class-history',
+            compact(
+                'student',
+                'classHistory',
+                'summary',
+                'currentAssignment'
+            )
+        );
     }
 
-    /**
-     * Student Fees
-     */
-    public function fees()
-    {
-        $student = Auth::guard('student')->user();
-        
-        $invoices = StudentInvoice::where('student_id', $student->id)
-                    ->latest()
-                    ->paginate(20);
-        
-        $summary = [
-            'total_amount' => StudentInvoice::where('student_id', $student->id)->sum('amount'),
-            'total_paid' => StudentInvoice::where('student_id', $student->id)->sum('paid'),
-            'total_balance' => StudentInvoice::where('student_id', $student->id)->sum('balance'),
-            'total_invoices' => StudentInvoice::where('student_id', $student->id)->count(),
-            'paid_invoices' => StudentInvoice::where('student_id', $student->id)->where('balance', 0)->count(),
-        ];
-        
-        return view('students.fees', compact('student', 'invoices', 'summary'));
-    }
 
-    /**
-     * Student Settings
-     */
-    public function settings()
-    {
-        $student = Auth::guard('student')->user();
-        return view('students.settings', compact('student'));
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | CLASS HISTORY API
+    |--------------------------------------------------------------------------
+    */
 
-    /**
-     * Update Student Profile
-     */
-    public function updateProfile(Request $request)
-    {
-        $student = Auth::guard('student')->user();
-        
-        $validated = $request->validate([
-            'phone' => 'nullable|string|max:20',
-            'address' => 'nullable|string|max:255',
-            'email' => 'nullable|email|unique:students,email,' . $student->id,
-            'photo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
-        ]);
-        
-        if ($request->hasFile('photo')) {
-            $path = $request->file('photo')->store('student_photos', 'public');
-            $validated['photo'] = $path;
-        }
-        
-        $student->update($validated);
-        
-        return redirect()->route('students.profile')
-                ->with('success', 'Profile updated successfully!');
-    }
-
-    /**
-     * Get class history API
-     */
     public function getClassHistoryApi()
     {
         $student = Auth::guard('student')->user();
-        
-        $history = StudentClassAssignment::with(['studentClass', 'academicYear'])
-                    ->where('student_id', $student->id)
-                    ->orderBy('created_at', 'desc')
-                    ->get()
-                    ->map(function ($assignment) {
-                        return [
-                            'class_name' => $assignment->studentClass->name ?? 'N/A',
-                            'academic_year' => $assignment->academicYear->name ?? 'N/A',
-                            'status' => $assignment->is_current ? 'Current' : 'Completed',
-                            'start_date' => $assignment->start_date ? $assignment->start_date->format('M d, Y') : 'N/A',
-                            'end_date' => $assignment->end_date ? $assignment->end_date->format('M d, Y') : 'N/A',
-                        ];
-                    });
-        
+
+        $history = StudentClassAssignment::with([
+            'studentClass',
+            'academicYear',
+        ])
+            ->where('student_id', $student->id)
+            ->orderByDesc('is_current')
+            ->orderByDesc('created_at')
+            ->get();
+
         return response()->json([
             'success' => true,
             'data' => $history,
         ]);
     }
 
-    /**
-     * Get class performance API
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | CLASS PERFORMANCE API
+    |--------------------------------------------------------------------------
+    */
+
     public function getClassPerformanceApi()
     {
         $student = Auth::guard('student')->user();
-        
-        $assignments = StudentClassAssignment::with(['studentClass'])
-                        ->where('student_id', $student->id)
-                        ->get();
-        
-        $performance = [];
-        
-        foreach ($assignments as $assignment) {
-            $results = StudentResult::where('student_id', $student->id)
-                        ->where('student_class_id', $assignment->student_class_id)
-                        ->get();
-            
-            $performance[] = [
-                'class_name' => $assignment->studentClass->name ?? 'N/A',
-                'average_score' => $results->avg('total_score') ?? 0,
-                'total_subjects' => $assignment->studentClass->subjects()->count() ?? 0,
-                'status' => $assignment->is_current ? 'Current' : 'Completed',
-            ];
-        }
-        
+
+        $results = StudentResult::where(
+            'student_id',
+            $student->id
+        )
+            ->latest()
+            ->get();
+
         return response()->json([
             'success' => true,
-            'data' => $performance,
+            'data' => $results,
         ]);
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | PROFILE
+    |--------------------------------------------------------------------------
+    */
+
+    public function profile()
+    {
+        $student = Auth::guard('student')->user();
+
+        $assignment = $this->getCurrentAssignment($student);
+
+        return view(
+            'students.profile',
+            compact(
+                'student',
+                'assignment'
+            )
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ATTENDANCE
+    |--------------------------------------------------------------------------
+    */
+
+    public function attendance()
+    {
+        $student = Auth::guard('student')->user();
+
+        $attendance = AttendanceRecord::where(
+            'student_id',
+            $student->id
+        )
+            ->latest()
+            ->paginate(20);
+
+        return view(
+            'students.attendance',
+            compact(
+                'student',
+                'attendance'
+            )
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | RESULTS
+    |--------------------------------------------------------------------------
+    */
+
+    public function results()
+    {
+        $student = Auth::guard('student')->user();
+
+        $results = StudentResult::where(
+            'student_id',
+            $student->id
+        )
+            ->latest()
+            ->get();
+
+        return view(
+            'students.results',
+            compact(
+                'student',
+                'results'
+            )
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ACADEMIC HISTORY
+    |--------------------------------------------------------------------------
+    */
+
+    public function academicHistory()
+    {
+        $student = Auth::guard('student')->user();
+
+        $results = StudentResult::where(
+            'student_id',
+            $student->id
+        )
+            ->latest()
+            ->get();
+
+        return view(
+            'students.academic-history',
+            compact(
+                'student',
+                'results'
+            )
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | FEES
+    |--------------------------------------------------------------------------
+    */
+
+    public function fees()
+    {
+        $student = Auth::guard('student')->user();
+
+        $invoices = StudentInvoice::where(
+            'student_id',
+            $student->id
+        )
+            ->latest()
+            ->paginate(15);
+
+        $balance = StudentInvoice::where(
+            'student_id',
+            $student->id
+        )->sum('balance');
+
+        return view(
+            'students.fees',
+            compact(
+                'student',
+                'invoices',
+                'balance'
+            )
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | SETTINGS
+    |--------------------------------------------------------------------------
+    */
+
+    public function settings()
+    {
+        $student = Auth::guard('student')->user();
+
+        return view(
+            'students.settings',
+            compact('student')
+        );
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | PRIVATE: CURRENT ASSIGNMENT
+    |--------------------------------------------------------------------------
+    |
+    | This is the single source of truth for the student's current class.
+    |
+    |--------------------------------------------------------------------------
+    */
+
+    private function getCurrentAssignment($student)
+    {
+        return StudentClassAssignment::with([
+            'studentClass',
+            'academicYear',
+        ])
+            ->where(
+                'student_id',
+                $student->id
+            )
+            ->where(
+                'is_current',
+                true
+            )
+            ->first();
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | PRIVATE: CURRENT CLASS ID
+    |--------------------------------------------------------------------------
+    */
+
+    private function getStudentCurrentClassId($student): ?int
+    {
+        $assignment = $this->getCurrentAssignment($student);
+
+        if (!$assignment) {
+            return null;
+        }
+
+        return $assignment->student_class_id
+            ? (int) $assignment->student_class_id
+            : null;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | PRIVATE: CURRENT ACADEMIC YEAR
+    |--------------------------------------------------------------------------
+    */
+
+    private function getCurrentAcademicYear()
+    {
+        $query = AcademicYear::query();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Prefer Active Academic Year
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            Schema::hasColumn(
+                'academic_years',
+                'is_active'
+            )
+        ) {
+            $active = (clone $query)
+                ->where('is_active', true)
+                ->latest('created_at')
+                ->first();
+
+            if ($active) {
+                return $active;
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Fallback
+        |--------------------------------------------------------------------------
+        */
+
+        return $query
+            ->latest('created_at')
+            ->first();
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | PRIVATE: CURRENT TERM
+    |--------------------------------------------------------------------------
+    */
+
+    private function getCurrentTerm()
+    {
+        $query = Term::query();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Prefer Current Term
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            Schema::hasColumn(
+                'terms',
+                'is_current'
+            )
+        ) {
+            $current = (clone $query)
+                ->where('is_current', true)
+                ->latest('created_at')
+                ->first();
+
+            if ($current) {
+                return $current;
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Fallback: Active Term
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            Schema::hasColumn(
+                'terms',
+                'is_active'
+            )
+        ) {
+            $active = (clone $query)
+                ->where('is_active', true)
+                ->latest('created_at')
+                ->first();
+
+            if ($active) {
+                return $active;
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Final Fallback
+        |--------------------------------------------------------------------------
+        */
+
+        return $query
+            ->latest('created_at')
+            ->first();
     }
 }
