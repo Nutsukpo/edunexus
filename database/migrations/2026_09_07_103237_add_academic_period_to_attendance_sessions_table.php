@@ -47,18 +47,54 @@ return new class extends Migration
 
         /*
         |--------------------------------------------------------------------------
-        | Remove original uniqueness constraint
+        | Ensure student_class_id has its own index
         |--------------------------------------------------------------------------
+        |
+        | The original unique index also satisfied the existing foreign key
+        | on student_class_id. MySQL therefore will not allow that unique
+        | index to be dropped until a separate index exists.
+        |
         */
 
         $indexes = collect(
             Schema::getIndexes('attendance_sessions')
         );
 
-        if ($indexes->contains(function ($index) {
+        $hasStudentClassIndex = $indexes->contains(function ($index) {
+            return $index['name'] ===
+                'attendance_sessions_student_class_id_index';
+        });
+
+        if (!$hasStudentClassIndex) {
+            Schema::table('attendance_sessions', function (Blueprint $table) {
+                $table->index(
+                    'student_class_id',
+                    'attendance_sessions_student_class_id_index'
+                );
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Remove original uniqueness constraint
+        |--------------------------------------------------------------------------
+        |
+        | Original:
+        |
+        | student_class_id + attendance_date
+        |
+        */
+
+        $indexes = collect(
+            Schema::getIndexes('attendance_sessions')
+        );
+
+        $hasOldUniqueIndex = $indexes->contains(function ($index) {
             return $index['name'] ===
                 'attendance_sessions_student_class_id_attendance_date_unique';
-        })) {
+        });
+
+        if ($hasOldUniqueIndex) {
             Schema::table('attendance_sessions', function (Blueprint $table) {
                 $table->dropUnique(
                     'attendance_sessions_student_class_id_attendance_date_unique'
@@ -70,16 +106,23 @@ return new class extends Migration
         |--------------------------------------------------------------------------
         | Add period-aware uniqueness
         |--------------------------------------------------------------------------
+        |
+        | New:
+        |
+        | student_class_id + academic_year_id + term_id + attendance_date
+        |
         */
 
         $indexes = collect(
             Schema::getIndexes('attendance_sessions')
         );
 
-        if (!$indexes->contains(function ($index) {
+        $hasPeriodUniqueIndex = $indexes->contains(function ($index) {
             return $index['name'] ===
                 'attendance_sessions_period_date_unique';
-        })) {
+        });
+
+        if (!$hasPeriodUniqueIndex) {
             Schema::table('attendance_sessions', function (Blueprint $table) {
                 $table->unique(
                     [
@@ -101,7 +144,7 @@ return new class extends Migration
     {
         /*
         |--------------------------------------------------------------------------
-        | Remove period-aware unique index
+        | Remove period-aware unique constraint
         |--------------------------------------------------------------------------
         */
 
@@ -122,7 +165,7 @@ return new class extends Migration
 
         /*
         |--------------------------------------------------------------------------
-        | Restore original unique index
+        | Restore original unique constraint
         |--------------------------------------------------------------------------
         */
 
@@ -130,10 +173,12 @@ return new class extends Migration
             Schema::getIndexes('attendance_sessions')
         );
 
-        if (!$indexes->contains(function ($index) {
+        $hasOldUniqueIndex = $indexes->contains(function ($index) {
             return $index['name'] ===
                 'attendance_sessions_student_class_id_attendance_date_unique';
-        })) {
+        });
+
+        if (!$hasOldUniqueIndex) {
             Schema::table('attendance_sessions', function (Blueprint $table) {
                 $table->unique(
                     [
@@ -147,31 +192,47 @@ return new class extends Migration
 
         /*
         |--------------------------------------------------------------------------
+        | Remove standalone student class index
+        |--------------------------------------------------------------------------
+        |
+        | Only remove it if the original unique index now exists again.
+        |
+        */
+
+        $indexes = collect(
+            Schema::getIndexes('attendance_sessions')
+        );
+
+        $hasStudentClassIndex = $indexes->contains(function ($index) {
+            return $index['name'] ===
+                'attendance_sessions_student_class_id_index';
+        });
+
+        if ($hasStudentClassIndex) {
+            Schema::table('attendance_sessions', function (Blueprint $table) {
+                $table->dropIndex(
+                    'attendance_sessions_student_class_id_index'
+                );
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
         | Remove academic-period columns
         |--------------------------------------------------------------------------
         */
 
-        if (
-            Schema::hasColumn('attendance_sessions', 'term_id') ||
-            Schema::hasColumn('attendance_sessions', 'academic_year_id')
-        ) {
+        if (Schema::hasColumn('attendance_sessions', 'term_id')) {
             Schema::table('attendance_sessions', function (Blueprint $table) {
+                $table->dropForeign(['term_id']);
+                $table->dropColumn('term_id');
+            });
+        }
 
-                if (Schema::hasColumn('attendance_sessions', 'term_id')) {
-                    $table->dropForeign(['term_id']);
-                }
-
-                if (Schema::hasColumn('attendance_sessions', 'academic_year_id')) {
-                    $table->dropForeign(['academic_year_id']);
-                }
-
-                if (Schema::hasColumn('attendance_sessions', 'term_id')) {
-                    $table->dropColumn('term_id');
-                }
-
-                if (Schema::hasColumn('attendance_sessions', 'academic_year_id')) {
-                    $table->dropColumn('academic_year_id');
-                }
+        if (Schema::hasColumn('attendance_sessions', 'academic_year_id')) {
+            Schema::table('attendance_sessions', function (Blueprint $table) {
+                $table->dropForeign(['academic_year_id']);
+                $table->dropColumn('academic_year_id');
             });
         }
     }
