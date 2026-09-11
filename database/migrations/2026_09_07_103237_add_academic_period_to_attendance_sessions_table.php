@@ -1,87 +1,178 @@
 <?php
 
 use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
+    /**
+     * Add academic year and term to attendance sessions.
+     *
+     * Existing attendance records are preserved.
+     */
     public function up(): void
     {
         /*
         |--------------------------------------------------------------------------
-        | Attendance Sessions Academic Period
+        | Add academic year
         |--------------------------------------------------------------------------
-        |
-        | This migration is intentionally idempotent because the database
-        | already contains the required academic_year_id, term_id,
-        | foreign keys and period-aware unique index.
-        |
         */
 
         if (!Schema::hasColumn('attendance_sessions', 'academic_year_id')) {
-            throw new RuntimeException(
-                'attendance_sessions.academic_year_id is missing.'
-            );
+            Schema::table('attendance_sessions', function (Blueprint $table) {
+                $table->foreignId('academic_year_id')
+                    ->nullable()
+                    ->after('student_class_id')
+                    ->constrained('academic_years')
+                    ->nullOnDelete();
+            });
         }
 
+        /*
+        |--------------------------------------------------------------------------
+        | Add term
+        |--------------------------------------------------------------------------
+        */
+
         if (!Schema::hasColumn('attendance_sessions', 'term_id')) {
-            throw new RuntimeException(
-                'attendance_sessions.term_id is missing.'
-            );
+            Schema::table('attendance_sessions', function (Blueprint $table) {
+                $table->foreignId('term_id')
+                    ->nullable()
+                    ->after('academic_year_id')
+                    ->constrained('terms')
+                    ->nullOnDelete();
+            });
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Remove original uniqueness constraint
+        |--------------------------------------------------------------------------
+        */
+
+        $indexes = collect(
+            Schema::getIndexes('attendance_sessions')
+        );
+
+        if ($indexes->contains(function ($index) {
+            return $index['name'] ===
+                'attendance_sessions_student_class_id_attendance_date_unique';
+        })) {
+            Schema::table('attendance_sessions', function (Blueprint $table) {
+                $table->dropUnique(
+                    'attendance_sessions_student_class_id_attendance_date_unique'
+                );
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Add period-aware uniqueness
+        |--------------------------------------------------------------------------
+        */
 
         $indexes = collect(
             Schema::getIndexes('attendance_sessions')
         );
 
         if (!$indexes->contains(function ($index) {
-            return $index['name'] === 'attendance_sessions_period_date_unique';
+            return $index['name'] ===
+                'attendance_sessions_period_date_unique';
         })) {
-            throw new RuntimeException(
-                'attendance_sessions_period_date_unique is missing.'
-            );
-        }
-
-        $foreignKeys = collect(
-            Schema::getForeignKeys('attendance_sessions')
-        );
-
-        if (!$foreignKeys->contains(function ($foreignKey) {
-            return $foreignKey['name'] === 'attendance_sessions_academic_year_id_foreign';
-        })) {
-            throw new RuntimeException(
-                'Academic year foreign key is missing.'
-            );
-        }
-
-        if (!$foreignKeys->contains(function ($foreignKey) {
-            return $foreignKey['name'] === 'attendance_sessions_term_id_foreign';
-        })) {
-            throw new RuntimeException(
-                'Term foreign key is missing.'
-            );
-        }
-
-        if (!$foreignKeys->contains(function ($foreignKey) {
-            return $foreignKey['name'] === 'attendance_sessions_student_class_id_foreign';
-        })) {
-            throw new RuntimeException(
-                'Student class foreign key is missing.'
-            );
+            Schema::table('attendance_sessions', function (Blueprint $table) {
+                $table->unique(
+                    [
+                        'student_class_id',
+                        'academic_year_id',
+                        'term_id',
+                        'attendance_date',
+                    ],
+                    'attendance_sessions_period_date_unique'
+                );
+            });
         }
     }
 
+    /**
+     * Reverse the migration.
+     */
     public function down(): void
     {
         /*
         |--------------------------------------------------------------------------
-        | Intentionally left empty
+        | Remove period-aware unique index
         |--------------------------------------------------------------------------
-        |
-        | The academic-period structure was already established before this
-        | migration was recorded. We must not remove existing production/local
-        | attendance data or structural constraints during rollback.
-        |
         */
+
+        $indexes = collect(
+            Schema::getIndexes('attendance_sessions')
+        );
+
+        if ($indexes->contains(function ($index) {
+            return $index['name'] ===
+                'attendance_sessions_period_date_unique';
+        })) {
+            Schema::table('attendance_sessions', function (Blueprint $table) {
+                $table->dropUnique(
+                    'attendance_sessions_period_date_unique'
+                );
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Restore original unique index
+        |--------------------------------------------------------------------------
+        */
+
+        $indexes = collect(
+            Schema::getIndexes('attendance_sessions')
+        );
+
+        if (!$indexes->contains(function ($index) {
+            return $index['name'] ===
+                'attendance_sessions_student_class_id_attendance_date_unique';
+        })) {
+            Schema::table('attendance_sessions', function (Blueprint $table) {
+                $table->unique(
+                    [
+                        'student_class_id',
+                        'attendance_date',
+                    ],
+                    'attendance_sessions_student_class_id_attendance_date_unique'
+                );
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Remove academic-period columns
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            Schema::hasColumn('attendance_sessions', 'term_id') ||
+            Schema::hasColumn('attendance_sessions', 'academic_year_id')
+        ) {
+            Schema::table('attendance_sessions', function (Blueprint $table) {
+
+                if (Schema::hasColumn('attendance_sessions', 'term_id')) {
+                    $table->dropForeign(['term_id']);
+                }
+
+                if (Schema::hasColumn('attendance_sessions', 'academic_year_id')) {
+                    $table->dropForeign(['academic_year_id']);
+                }
+
+                if (Schema::hasColumn('attendance_sessions', 'term_id')) {
+                    $table->dropColumn('term_id');
+                }
+
+                if (Schema::hasColumn('attendance_sessions', 'academic_year_id')) {
+                    $table->dropColumn('academic_year_id');
+                }
+            });
+        }
     }
 };
