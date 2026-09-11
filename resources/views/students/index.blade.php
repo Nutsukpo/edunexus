@@ -22,13 +22,27 @@
             </small>
         </div>
 
+        <div class="d-flex gap-2 flex-wrap">
+
+        <a href="{{ route('students.import') }}"
+        class="btn btn-success shadow-sm">
+
+            <i class="fas fa-file-import me-1"></i>
+
+            Import Students
+
+        </a>
+
         <a href="{{ route('students.create') }}"
-           class="btn btn-primary shadow-sm">
+        class="btn btn-primary shadow-sm">
 
             <i class="fas fa-plus me-1"></i>
+
             Add Student
 
         </a>
+
+    </div>
 
     </div>
 

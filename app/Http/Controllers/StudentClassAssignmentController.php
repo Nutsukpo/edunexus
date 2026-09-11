@@ -2,157 +2,445 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Student;
-use App\Models\StudentClass;
 use App\Models\AcademicYear;
-use App\Models\StudentClassAssignment;
 use App\Models\Attendance;
 use App\Models\AttendanceSession;
+use App\Models\Student;
+use App\Models\StudentClass;
+use App\Models\StudentClassAssignment;
+use App\Models\SystemSetting;
+use App\Models\Term;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class StudentClassAssignmentController extends Controller
 {
     /*
     |--------------------------------------------------------------------------
-    | INDEX - SHOW ALL ASSIGNMENTS
+    | INDEX
     |--------------------------------------------------------------------------
     */
-    public function index()
+    public function index(Request $request)
     {
-        $assignments = StudentClassAssignment::with([
+        $settings = SystemSetting::instance();
+
+        $query = StudentClassAssignment::with([
             'student',
             'studentClass',
-            'academicYear'
-        ])->latest()->paginate(15);
+            'academicYear',
+            'term',
+        ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | SEARCH
+        |--------------------------------------------------------------------------
+        */
+        if ($request->filled('search')) {
+            $search = trim($request->search);
+
+            $query->whereHas('student', function ($q) use ($search) {
+                $q->where('student_id', 'like', "%{$search}%")
+                    ->orWhere('first_name', 'like', "%{$search}%")
+                    ->orWhere('middle_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%");
+            });
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | ACADEMIC YEAR FILTER
+        |--------------------------------------------------------------------------
+        */
+        if ($request->filled('academic_year_id')) {
+            $query->where(
+                'academic_year_id',
+                $request->academic_year_id
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | TERM FILTER
+        |--------------------------------------------------------------------------
+        */
+        if ($request->filled('term_id')) {
+            $query->where(
+                'term_id',
+                $request->term_id
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | STATUS FILTER
+        |--------------------------------------------------------------------------
+        */
+        if ($request->filled('status')) {
+            $query->where(
+                'status',
+                $request->status
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | CURRENT FILTER
+        |--------------------------------------------------------------------------
+        */
+        if ($request->filled('is_current')) {
+            $query->where(
+                'is_current',
+                $request->is_current
+            );
+        }
+
+        $assignments = $query
+            ->orderByDesc('is_current')
+            ->orderByDesc('created_at')
+            ->paginate(25)
+            ->withQueryString();
+
+        $academicYears = AcademicYear::orderByDesc('start_date')->get();
+
+        $terms = Term::query()
+            ->when(
+                $request->filled('academic_year_id'),
+                fn ($q) => $q->where(
+                    'academic_year_id',
+                    $request->academic_year_id
+                )
+            )
+            ->orderBy('start_date')
+            ->get();
 
         return view(
             'student_class_assignments.index',
-            compact('assignments')
+            compact(
+                'assignments',
+                'academicYears',
+                'terms',
+                'settings'
+            )
         );
     }
 
+
     /*
     |--------------------------------------------------------------------------
-    | CREATE FORM
+    | CREATE
     |--------------------------------------------------------------------------
     */
     public function create()
     {
-        // Simplified: Only exclude graduated students
-        $graduatedStudentIds = StudentClassAssignment::where('status', 'graduated')
-            ->pluck('student_id')
-            ->toArray();
-    
-        // Get students who are not graduated
-        $students = Student::whereNotIn('id', $graduatedStudentIds)
+        $settings = SystemSetting::instance();
+
+        $currentAcademicYear =
+            $settings->currentAcademicYear;
+
+        $currentTerm =
+            $settings->currentTerm;
+
+        $students = Student::query()
+            ->whereNotIn(
+                'id',
+                StudentClassAssignment::where(
+                    'status',
+                    'graduated'
+                )->pluck('student_id')
+            )
             ->orderBy('first_name')
+            ->orderBy('last_name')
             ->get();
-            
-        $classes = StudentClass::orderBy('name')->get();
-        $academicYears = AcademicYear::orderBy('name', 'desc')->get();
-    
-        return view('student_class_assignments.create', compact('students', 'classes', 'academicYears'));
+
+        $classes = StudentClass::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+        $academicYears = AcademicYear::query()
+            ->where('is_active', true)
+            ->orderByDesc('start_date')
+            ->get();
+
+        $terms = collect();
+
+        if ($currentAcademicYear) {
+            $terms = Term::query()
+                ->where(
+                    'academic_year_id',
+                    $currentAcademicYear->id
+                )
+                ->where('is_active', true)
+                ->orderBy('start_date')
+                ->get();
+        }
+
+        return view(
+            'student_class_assignments.create',
+            compact(
+                'students',
+                'classes',
+                'academicYears',
+                'terms',
+                'settings',
+                'currentAcademicYear',
+                'currentTerm'
+            )
+        );
     }
+
 
     /*
     |--------------------------------------------------------------------------
-    | STORE ASSIGNMENT
+    | STORE
+    |--------------------------------------------------------------------------
+    |
+    | Academic year and term come from System Settings.
+    | The form only needs student + class.
     |--------------------------------------------------------------------------
     */
     public function store(Request $request)
     {
-        $request->validate([
-            'student_id'        => 'required|exists:students,id',
-            'student_class_id'  => 'required|exists:student_classes,id',
-            'academic_year_id'  => 'nullable|exists:academic_years,id',
+        $validated = $request->validate([
+            'student_id' => [
+                'required',
+                'exists:students,id',
+            ],
+
+            'student_class_id' => [
+                'required',
+                'exists:student_classes,id',
+            ],
+
+            'status' => [
+                'nullable',
+                'in:active,repeated',
+            ],
+
+            'assigned_date' => [
+                'nullable',
+                'date',
+            ],
         ]);
 
-        // Check if student is graduated
-        $isGraduated = StudentClassAssignment::where('student_id', $request->student_id)
-            ->where('status', 'graduated')
-            ->exists();
+        $settings = SystemSetting::instance();
+
+        $academicYear =
+            $settings->currentAcademicYear;
+
+        $term =
+            $settings->currentTerm;
+
+        /*
+        |--------------------------------------------------------------------------
+        | SYSTEM PERIOD MUST BE CONFIGURED
+        |--------------------------------------------------------------------------
+        */
+        if (!$academicYear || !$term) {
+            return back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'The current academic year and term have not been configured in System Settings.'
+                );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | VALIDATE TERM/YEAR RELATIONSHIP
+        |--------------------------------------------------------------------------
+        */
+        if (
+            $term->academic_year_id !==
+            $academicYear->id
+        ) {
+            return back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'The current term does not belong to the current academic year.'
+                );
+        }
+
+        if (!$academicYear->is_active) {
+            return back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'The current academic year is not active.'
+                );
+        }
+
+        if (!$term->is_active) {
+            return back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'The current term is not active.'
+                );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | STUDENT
+        |--------------------------------------------------------------------------
+        */
+        $student = Student::findOrFail(
+            $validated['student_id']
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | GRADUATED STUDENT CHECK
+        |--------------------------------------------------------------------------
+        */
+        $isGraduated =
+            StudentClassAssignment::where(
+                'student_id',
+                $student->id
+            )
+                ->where('status', 'graduated')
+                ->exists();
 
         if ($isGraduated) {
-            return redirect()
-                ->back()
+            return back()
                 ->withInput()
-                ->with('error', 'This student has already graduated and cannot be assigned to a class.');
+                ->with(
+                    'error',
+                    'A graduated student cannot be assigned to a class.'
+                );
         }
 
-        // Check if student already has an active assignment
-        $existingAssignment = StudentClassAssignment::where('student_id', $request->student_id)
-            ->where('is_current', true)
-            ->where('status', 'active')
-            ->first();
+        /*
+        |--------------------------------------------------------------------------
+        | DUPLICATE CURRENT PERIOD CHECK
+        |--------------------------------------------------------------------------
+        */
+        $duplicate =
+            StudentClassAssignment::where(
+                'student_id',
+                $student->id
+            )
+                ->where(
+                    'student_class_id',
+                    $validated['student_class_id']
+                )
+                ->where(
+                    'academic_year_id',
+                    $academicYear->id
+                )
+                ->where(
+                    'term_id',
+                    $term->id
+                )
+                ->whereIn(
+                    'status',
+                    ['active', 'repeated']
+                )
+                ->exists();
 
-        if ($existingAssignment) {
-            return redirect()
-                ->back()
+        if ($duplicate) {
+            return back()
                 ->withInput()
-                ->with('error', 'This student already has an active class assignment. Please deactivate the current assignment first.');
-        }
-
-        // Check if student is already assigned to the same class and academic year
-        $duplicateAssignment = StudentClassAssignment::where('student_id', $request->student_id)
-            ->where('student_class_id', $request->student_class_id)
-            ->where('academic_year_id', $request->academic_year_id)
-            ->where('status', 'active')
-            ->exists();
-
-        if ($duplicateAssignment) {
-            return redirect()
-                ->back()
-                ->withInput()
-                ->with('error', 'This student is already assigned to this class for the selected academic year.');
+                ->with(
+                    'error',
+                    'This student already has this class assignment for the current academic period.'
+                );
         }
 
         DB::beginTransaction();
 
         try {
+
             /*
-            |----------------------------------------------------------
-            | STEP 1: DEACTIVATE CURRENT ASSIGNMENT
-            |----------------------------------------------------------
+            |--------------------------------------------------------------------------
+            | RETIRE EXISTING CURRENT ASSIGNMENT
+            |--------------------------------------------------------------------------
+            |
+            | Manual reassignment is different from automatic rollover.
+            | We preserve the old record but mark it inactive.
+            |--------------------------------------------------------------------------
             */
-            StudentClassAssignment::where('student_id', $request->student_id)
+            StudentClassAssignment::where(
+                'student_id',
+                $student->id
+            )
                 ->where('is_current', true)
+                ->whereIn(
+                    'status',
+                    ['active', 'repeated']
+                )
                 ->update([
                     'is_current' => false,
-                    'status'     => 'inactive'
+                    'status' => 'inactive',
                 ]);
 
             /*
-            |----------------------------------------------------------
-            | STEP 2: CREATE NEW ASSIGNMENT
-            |----------------------------------------------------------
+            |--------------------------------------------------------------------------
+            | CREATE CURRENT ASSIGNMENT
+            |--------------------------------------------------------------------------
             */
-            $assignment = StudentClassAssignment::create([
-                'student_id'        => $request->student_id,
-                'student_class_id'  => $request->student_class_id,
-                'academic_year_id'  => $request->academic_year_id,
-                'status'            => 'active',
-                'is_current'        => true,
-                'assigned_date'     => now(),
-            ]);
+            $assignment =
+                StudentClassAssignment::create([
+                    'student_id' =>
+                        $student->id,
+
+                    'student_class_id' =>
+                        $validated['student_class_id'],
+
+                    'academic_year_id' =>
+                        $academicYear->id,
+
+                    'term_id' =>
+                        $term->id,
+
+                    'status' =>
+                        $validated['status']
+                        ?? 'active',
+
+                    'is_current' => true,
+
+                    'assigned_date' =>
+                        $validated['assigned_date']
+                        ?? now(),
+                ]);
 
             DB::commit();
 
             return redirect()
-                ->route('student-class-assignments.index')
-                ->with('success', "Student assigned to class successfully.");
+                ->route(
+                    'student-class-assignments.show',
+                    $assignment->id
+                )
+                ->with(
+                    'success',
+                    "Student assigned successfully to {$assignment->studentClass->name} for {$academicYear->name} — {$term->name}."
+                );
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            Log::error('Assignment creation error: ' . $e->getMessage());
-            
-            return redirect()
-                ->back()
+
+            Log::error(
+                'Student assignment creation error',
+                [
+                    'message' => $e->getMessage(),
+                    'student_id' => $student->id,
+                ]
+            );
+
+            return back()
                 ->withInput()
-                ->with('error', 'Error creating assignment: ' . $e->getMessage());
+                ->with(
+                    'error',
+                    'Unable to create the student assignment.'
+                );
         }
     }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -161,17 +449,26 @@ class StudentClassAssignmentController extends Controller
     */
     public function show($id)
     {
-        $assignment = StudentClassAssignment::with([
-            'student',
-            'studentClass',
-            'academicYear'
-        ])->findOrFail($id);
+        $assignment =
+            StudentClassAssignment::with([
+                'student',
+                'studentClass',
+                'academicYear',
+                'term',
+            ])->findOrFail($id);
+
+        $settings =
+            SystemSetting::instance();
 
         return view(
             'student_class_assignments.show',
-            compact('assignment')
+            compact(
+                'assignment',
+                'settings'
+            )
         );
     }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -180,216 +477,584 @@ class StudentClassAssignmentController extends Controller
     */
     public function edit($id)
     {
-        $assignment = StudentClassAssignment::findOrFail($id);
+        $assignment =
+            StudentClassAssignment::with([
+                'student',
+                'studentClass',
+                'academicYear',
+                'term',
+            ])->findOrFail($id);
 
-        // Check if student is graduated
         if ($assignment->status === 'graduated') {
             return redirect()
-                ->route('student-class-assignments.index')
-                ->with('error', 'Cannot edit a graduated student\'s assignment.');
+                ->route(
+                    'student-class-assignments.show',
+                    $assignment->id
+                )
+                ->with(
+                    'error',
+                    'Graduated assignments cannot be edited.'
+                );
         }
 
-        $classes = StudentClass::orderBy('name')->get();
-        $academicYears = AcademicYear::orderBy('name', 'desc')->get();
+        $classes = StudentClass::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+        $academicYears = AcademicYear::query()
+            ->where('is_active', true)
+            ->orderByDesc('start_date')
+            ->get();
+
+        $terms = Term::query()
+            ->where(
+                'academic_year_id',
+                $assignment->academic_year_id
+            )
+            ->where('is_active', true)
+            ->orderBy('start_date')
+            ->get();
+
+        $settings =
+            SystemSetting::instance();
 
         return view(
             'student_class_assignments.edit',
-            compact('assignment', 'classes', 'academicYears')
+            compact(
+                'assignment',
+                'classes',
+                'academicYears',
+                'terms',
+                'settings'
+            )
         );
     }
 
+
     /*
     |--------------------------------------------------------------------------
-    | UPDATE - WITH VALIDATION
+    | UPDATE
     |--------------------------------------------------------------------------
     */
     public function update(Request $request, $id)
     {
-        $request->validate([
-            'student_class_id' => 'required|exists:student_classes,id',
-            'academic_year_id' => 'nullable|exists:academic_years,id',
+        $assignment =
+            StudentClassAssignment::findOrFail($id);
+
+        if ($assignment->status === 'graduated') {
+            return back()
+                ->with(
+                    'error',
+                    'Cannot update a graduated student\'s assignment.'
+                );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | IMPORTANT
+        |--------------------------------------------------------------------------
+        | Historical assignments may need to remain historical.
+        | Therefore editing an old record is allowed, but the period
+        | itself must remain valid.
+        |--------------------------------------------------------------------------
+        */
+        $validated = $request->validate([
+            'student_class_id' => [
+                'required',
+                'exists:student_classes,id',
+            ],
+
+            'academic_year_id' => [
+                'required',
+                'exists:academic_years,id',
+            ],
+
+            'term_id' => [
+                'required',
+                'exists:terms,id',
+            ],
+
+            'status' => [
+                'nullable',
+                'in:active,repeated',
+            ],
+
+            'assigned_date' => [
+                'nullable',
+                'date',
+            ],
         ]);
 
-        $assignment = StudentClassAssignment::findOrFail($id);
+        $academicYear =
+            AcademicYear::findOrFail(
+                $validated['academic_year_id']
+            );
 
-        // Check if student is graduated
-        if ($assignment->status === 'graduated') {
-            return redirect()
-                ->back()
+        if (!$academicYear->is_active) {
+            return back()
                 ->withInput()
-                ->with('error', 'Cannot update a graduated student\'s assignment.');
+                ->with(
+                    'error',
+                    'The selected academic year is not active.'
+                );
         }
 
-        // Check if student already has another active assignment (excluding current one)
-        $existingAssignment = StudentClassAssignment::where('student_id', $assignment->student_id)
-            ->where('is_current', true)
-            ->where('status', 'active')
-            ->where('id', '!=', $id)
+        $term = Term::query()
+            ->where(
+                'id',
+                $validated['term_id']
+            )
+            ->where(
+                'academic_year_id',
+                $validated['academic_year_id']
+            )
+            ->where('is_active', true)
             ->first();
 
-        if ($existingAssignment) {
-            return redirect()
-                ->back()
+        if (!$term) {
+            return back()
                 ->withInput()
-                ->with('error', 'This student already has another active class assignment.');
+                ->with(
+                    'error',
+                    'The selected term does not belong to the selected academic year or is not active.'
+                );
         }
 
-        // Check for duplicate assignment (same class, same year)
-        $duplicateAssignment = StudentClassAssignment::where('student_id', $assignment->student_id)
-            ->where('student_class_id', $request->student_class_id)
-            ->where('academic_year_id', $request->academic_year_id)
-            ->where('status', 'active')
-            ->where('id', '!=', $id)
-            ->exists();
+        /*
+        |--------------------------------------------------------------------------
+        | DUPLICATE CHECK
+        |--------------------------------------------------------------------------
+        */
+        $duplicate =
+            StudentClassAssignment::where(
+                'student_id',
+                $assignment->student_id
+            )
+                ->where(
+                    'student_class_id',
+                    $validated['student_class_id']
+                )
+                ->where(
+                    'academic_year_id',
+                    $validated['academic_year_id']
+                )
+                ->where(
+                    'term_id',
+                    $validated['term_id']
+                )
+                ->whereIn(
+                    'status',
+                    ['active', 'repeated']
+                )
+                ->where(
+                    'id',
+                    '!=',
+                    $assignment->id
+                )
+                ->exists();
 
-        if ($duplicateAssignment) {
-            return redirect()
-                ->back()
+        if ($duplicate) {
+            return back()
                 ->withInput()
-                ->with('error', 'This student is already assigned to this class for the selected academic year.');
+                ->with(
+                    'error',
+                    'This student already has an active assignment for this class, academic year and term.'
+                );
         }
 
         DB::beginTransaction();
 
         try {
+
+            /*
+            |--------------------------------------------------------------------------
+            | IF THIS IS CURRENT
+            |--------------------------------------------------------------------------
+            */
+            if ($assignment->is_current) {
+
+                StudentClassAssignment::where(
+                    'student_id',
+                    $assignment->student_id
+                )
+                    ->where(
+                        'is_current',
+                        true
+                    )
+                    ->where(
+                        'id',
+                        '!=',
+                        $assignment->id
+                    )
+                    ->whereIn(
+                        'status',
+                        ['active', 'repeated']
+                    )
+                    ->update([
+                        'is_current' => false,
+                        'status' => 'inactive',
+                    ]);
+            }
+
             $assignment->update([
-                'student_class_id' => $request->student_class_id,
-                'academic_year_id' => $request->academic_year_id ?? $assignment->academic_year_id,
-                'status' => 'active'
+                'student_class_id' =>
+                    $validated['student_class_id'],
+
+                'academic_year_id' =>
+                    $validated['academic_year_id'],
+
+                'term_id' =>
+                    $validated['term_id'],
+
+                'status' =>
+                    $validated['status']
+                    ?? $assignment->status,
+
+                'assigned_date' =>
+                    $validated['assigned_date']
+                    ?? $assignment->assigned_date,
             ]);
 
             DB::commit();
 
             return redirect()
-                ->route('student-class-assignments.index')
-                ->with('success', 'Assignment updated successfully.');
+                ->route(
+                    'student-class-assignments.show',
+                    $assignment->id
+                )
+                ->with(
+                    'success',
+                    'Assignment updated successfully.'
+                );
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            Log::error('Assignment update error: ' . $e->getMessage());
-            
-            return redirect()
-                ->back()
+
+            Log::error(
+                'Assignment update error',
+                [
+                    'message' => $e->getMessage(),
+                    'assignment_id' => $assignment->id,
+                ]
+            );
+
+            return back()
                 ->withInput()
-                ->with('error', 'Error updating assignment: ' . $e->getMessage());
+                ->with(
+                    'error',
+                    'Unable to update the assignment.'
+                );
         }
     }
 
+
     /*
     |--------------------------------------------------------------------------
-    | DESTROY - SOFT DELETE
+    | DESTROY
     |--------------------------------------------------------------------------
     */
     public function destroy($id)
     {
-        $assignment = StudentClassAssignment::findOrFail($id);
+        $assignment =
+            StudentClassAssignment::findOrFail($id);
 
-        // Prevent deletion of graduated student assignments
         if ($assignment->status === 'graduated') {
-            return redirect()
-                ->back()
-                ->with('error', 'Cannot delete a graduated student\'s assignment.');
+            return back()
+                ->with(
+                    'error',
+                    'Cannot delete a graduated student\'s assignment.'
+                );
         }
 
         DB::beginTransaction();
 
         try {
+
             $assignment->delete();
 
             DB::commit();
 
             return redirect()
-                ->route('student-class-assignments.index')
-                ->with('success', 'Assignment deleted successfully.');
+                ->route(
+                    'student-class-assignments.index'
+                )
+                ->with(
+                    'success',
+                    'Assignment deleted successfully.'
+                );
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            Log::error('Assignment deletion error: ' . $e->getMessage());
-            
-            return redirect()
-                ->back()
-                ->with('error', 'Error deleting assignment: ' . $e->getMessage());
+
+            Log::error(
+                'Assignment deletion error',
+                [
+                    'message' => $e->getMessage(),
+                    'assignment_id' => $id,
+                ]
+            );
+
+            return back()
+                ->with(
+                    'error',
+                    'Unable to delete the assignment.'
+                );
         }
     }
 
+
     /*
     |--------------------------------------------------------------------------
-    | GET STUDENTS BY CLASS (AJAX)
+    | GET STUDENTS BY CLASS
     |--------------------------------------------------------------------------
     */
     public function getStudentsByClass(Request $request)
     {
-        $request->validate([
-            'class_id' => 'required|exists:student_classes,id',
-            'academic_year_id' => 'nullable|exists:academic_years,id',
+        $validated = $request->validate([
+            'class_id' => [
+                'required',
+                'exists:student_classes,id',
+            ],
+
+            'academic_year_id' => [
+                'nullable',
+                'exists:academic_years,id',
+            ],
+
+            'term_id' => [
+                'nullable',
+                'exists:terms,id',
+            ],
         ]);
 
-        $query = StudentClassAssignment::with(['student'])
-            ->where('student_class_id', $request->class_id)
-            ->where('is_current', true)
-            ->where('status', 'active');
+        $query =
+            StudentClassAssignment::with('student')
+                ->where(
+                    'student_class_id',
+                    $validated['class_id']
+                )
+                ->where(
+                    'is_current',
+                    true
+                )
+                ->whereIn(
+                    'status',
+                    ['active', 'repeated']
+                );
 
-        if ($request->academic_year_id) {
-            $query->where('academic_year_id', $request->academic_year_id);
+        if (!empty($validated['academic_year_id'])) {
+            $query->where(
+                'academic_year_id',
+                $validated['academic_year_id']
+            );
         }
 
-        $students = $query->get()->map(function($assignment) {
-            return [
-                'id' => $assignment->student->id,
-                'student_id' => $assignment->student->student_id,
-                'full_name' => $assignment->student->full_name,
-                'email' => $assignment->student->email,
-            ];
-        });
+        if (!empty($validated['term_id'])) {
+            $query->where(
+                'term_id',
+                $validated['term_id']
+            );
+        }
+
+        $students = $query
+            ->get()
+            ->map(function ($assignment) {
+
+                return [
+                    'id' =>
+                        $assignment->student->id,
+
+                    'student_id' =>
+                        $assignment->student->student_id,
+
+                    'full_name' =>
+                        $assignment->student->full_name,
+
+                    'email' =>
+                        $assignment->student->email ?? null,
+                ];
+            });
 
         return response()->json([
             'success' => true,
-            'students' => $students
+            'students' => $students,
         ]);
     }
 
+
     /*
     |--------------------------------------------------------------------------
-    | GET AVAILABLE STUDENTS FOR ASSIGNMENT (AJAX)
+    | GET AVAILABLE STUDENTS
     |--------------------------------------------------------------------------
     */
     public function getAvailableStudents(Request $request)
     {
-        // Get IDs of students with active assignments
-        $assignedStudentIds = StudentClassAssignment::where('is_current', true)
-            ->where('status', 'active')
-            ->pluck('student_id')
-            ->toArray();
+        $settings =
+            SystemSetting::instance();
 
-        // Get IDs of graduated students
-        $graduatedStudentIds = StudentClassAssignment::where('status', 'graduated')
-            ->pluck('student_id')
-            ->toArray();
+        $academicYearId =
+            $request->input(
+                'academic_year_id',
+                $settings->current_academic_year_id
+            );
 
-        // Get students who are not assigned and not graduated
-        $students = Student::whereNotIn('id', array_merge($assignedStudentIds, $graduatedStudentIds))
-            ->orderBy('first_name')
-            ->get(['id', 'student_id', 'first_name', 'last_name', 'email']);
+        $termId =
+            $request->input(
+                'term_id',
+                $settings->current_term_id
+            );
+
+        /*
+        |--------------------------------------------------------------------------
+        | GRADUATED
+        |--------------------------------------------------------------------------
+        */
+        $graduatedStudentIds =
+            StudentClassAssignment::where(
+                'status',
+                'graduated'
+            )
+                ->pluck('student_id')
+                ->unique();
+
+        /*
+        |--------------------------------------------------------------------------
+        | CURRENTLY ASSIGNED IN PERIOD
+        |--------------------------------------------------------------------------
+        */
+        $assignedStudentIds =
+            StudentClassAssignment::query()
+                ->where(
+                    'is_current',
+                    true
+                )
+                ->whereIn(
+                    'status',
+                    ['active', 'repeated']
+                )
+                ->when(
+                    $academicYearId,
+                    fn ($query) =>
+                        $query->where(
+                            'academic_year_id',
+                            $academicYearId
+                        )
+                )
+                ->when(
+                    $termId,
+                    fn ($query) =>
+                        $query->where(
+                            'term_id',
+                            $termId
+                        )
+                )
+                ->pluck('student_id')
+                ->unique();
+
+        $excludedIds =
+            $graduatedStudentIds
+                ->merge($assignedStudentIds)
+                ->unique()
+                ->values();
+
+        $students =
+            Student::query()
+                ->when(
+                    $excludedIds->isNotEmpty(),
+                    fn ($query) =>
+                        $query->whereNotIn(
+                            'id',
+                            $excludedIds
+                        )
+                )
+                ->orderBy('first_name')
+                ->orderBy('last_name')
+                ->get([
+                    'id',
+                    'student_id',
+                    'first_name',
+                    'last_name',
+                    'email',
+                ]);
 
         return response()->json([
             'success' => true,
-            'students' => $students
+            'students' => $students,
         ]);
     }
 
+
     /*
     |--------------------------------------------------------------------------
-    | BULK ASSIGN STUDENTS TO A CLASS
+    | BULK ASSIGN
+    |--------------------------------------------------------------------------
+    |
+    | Uses System Settings automatically.
     |--------------------------------------------------------------------------
     */
     public function bulkAssign(Request $request)
     {
-        $request->validate([
-            'student_ids' => 'required|array',
-            'student_ids.*' => 'exists:students,id',
-            'student_class_id' => 'required|exists:student_classes,id',
-            'academic_year_id' => 'nullable|exists:academic_years,id',
+        $validated = $request->validate([
+            'student_ids' => [
+                'required',
+                'array',
+                'min:1',
+            ],
+
+            'student_ids.*' => [
+                'exists:students,id',
+            ],
+
+            'student_class_id' => [
+                'required',
+                'exists:student_classes,id',
+            ],
         ]);
+
+        $settings =
+            SystemSetting::instance();
+
+        $academicYear =
+            $settings->currentAcademicYear;
+
+        $term =
+            $settings->currentTerm;
+
+        if (!$academicYear || !$term) {
+            return back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'The current academic year and term have not been configured in System Settings.'
+                );
+        }
+
+        if (
+            $term->academic_year_id !==
+            $academicYear->id
+        ) {
+            return back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'The current term does not belong to the current academic year.'
+                );
+        }
+
+        if (
+            !$academicYear->is_active ||
+            !$term->is_active
+        ) {
+            return back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'The current academic year or term is inactive.'
+                );
+        }
 
         $processed = 0;
         $errors = [];
@@ -398,46 +1063,132 @@ class StudentClassAssignmentController extends Controller
         DB::beginTransaction();
 
         try {
-            foreach ($request->student_ids as $studentId) {
-                // Check if student is graduated
-                $isGraduated = StudentClassAssignment::where('student_id', $studentId)
-                    ->where('status', 'graduated')
-                    ->exists();
+
+            foreach (
+                $validated['student_ids']
+                as $studentId
+            ) {
+
+                /*
+                |--------------------------------------------------------------------------
+                | GRADUATED
+                |--------------------------------------------------------------------------
+                */
+                $isGraduated =
+                    StudentClassAssignment::where(
+                        'student_id',
+                        $studentId
+                    )
+                        ->where(
+                            'status',
+                            'graduated'
+                        )
+                        ->exists();
 
                 if ($isGraduated) {
-                    $student = Student::find($studentId);
-                    $skippedGraduated[] = $student->full_name ?? $studentId;
+
+                    $student =
+                        Student::find($studentId);
+
+                    $skippedGraduated[] =
+                        $student->full_name
+                        ?? $studentId;
+
                     continue;
                 }
 
-                // Check if student already has an active assignment
-                $existing = StudentClassAssignment::where('student_id', $studentId)
-                    ->where('is_current', true)
-                    ->where('status', 'active')
-                    ->first();
+                /*
+                |--------------------------------------------------------------------------
+                | DUPLICATE
+                |--------------------------------------------------------------------------
+                */
+                $duplicate =
+                    StudentClassAssignment::where(
+                        'student_id',
+                        $studentId
+                    )
+                        ->where(
+                            'student_class_id',
+                            $validated['student_class_id']
+                        )
+                        ->where(
+                            'academic_year_id',
+                            $academicYear->id
+                        )
+                        ->where(
+                            'term_id',
+                            $term->id
+                        )
+                        ->whereIn(
+                            'status',
+                            ['active', 'repeated']
+                        )
+                        ->exists();
 
-                if ($existing) {
-                    $student = Student::find($studentId);
-                    $errors[] = "Student {$student->full_name} already has an active assignment.";
+                if ($duplicate) {
+
+                    $student =
+                        Student::find($studentId);
+
+                    $errors[] =
+                        (
+                            $student->full_name
+                            ?? $studentId
+                        )
+                        . ' already has this assignment.';
+
                     continue;
                 }
 
-                // Deactivate any old assignments
-                StudentClassAssignment::where('student_id', $studentId)
-                    ->where('is_current', true)
+                /*
+                |--------------------------------------------------------------------------
+                | RETIRE CURRENT ASSIGNMENT
+                |--------------------------------------------------------------------------
+                */
+                StudentClassAssignment::where(
+                    'student_id',
+                    $studentId
+                )
+                    ->where(
+                        'is_current',
+                        true
+                    )
+                    ->whereIn(
+                        'status',
+                        ['active', 'repeated']
+                    )
                     ->update([
                         'is_current' => false,
-                        'status' => 'inactive'
+                        'status' => 'inactive',
                     ]);
 
-                // Create new assignment
+                /*
+                |--------------------------------------------------------------------------
+                | CREATE
+                |--------------------------------------------------------------------------
+                */
                 StudentClassAssignment::create([
-                    'student_id' => $studentId,
-                    'student_class_id' => $request->student_class_id,
-                    'academic_year_id' => $request->academic_year_id,
-                    'status' => 'active',
-                    'is_current' => true,
-                    'assigned_date' => now(),
+                    'student_id' =>
+                        $studentId,
+
+                    'student_class_id' =>
+                        $validated['student_class_id'],
+
+                    'academic_year_id' =>
+                        $academicYear->id,
+
+                    'term_id' =>
+                        $term->id,
+
+                    'status' =>
+                        'active',
+
+                    'is_current' =>
+                        true,
+
+                    'assigned_date' =>
+                        $term->start_date
+                        ?? now(),
                 ]);
 
                 $processed++;
@@ -445,372 +1196,638 @@ class StudentClassAssignmentController extends Controller
 
             DB::commit();
 
-            $message = "{$processed} students assigned successfully.";
-            
+            $message =
+                "{$processed} students assigned successfully.";
+
             if (!empty($skippedGraduated)) {
-                $message .= ' Skipped ' . count($skippedGraduated) . ' graduated students: ' . implode(', ', $skippedGraduated);
+                $message .=
+                    ' Skipped '
+                    . count($skippedGraduated)
+                    . ' graduated students.';
             }
-            
+
             if (!empty($errors)) {
-                $message .= ' Errors: ' . implode(', ', $errors);
+                $message .=
+                    ' '
+                    . count($errors)
+                    . ' students were skipped because they already had the selected assignment.';
             }
 
             return redirect()
-                ->route('student-class-assignments.index')
-                ->with('success', $message);
+                ->route(
+                    'student-class-assignments.index'
+                )
+                ->with(
+                    'success',
+                    $message
+                );
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            Log::error('Bulk assignment error: ' . $e->getMessage());
-            
-            return redirect()
-                ->back()
+
+            Log::error(
+                'Bulk assignment error',
+                [
+                    'message' =>
+                        $e->getMessage(),
+                ]
+            );
+
+            return back()
                 ->withInput()
-                ->with('error', 'Error assigning students: ' . $e->getMessage());
+                ->with(
+                    'error',
+                    'Unable to complete the bulk assignment.'
+                );
         }
     }
 
+
     /*
     |--------------------------------------------------------------------------
-    | DEACTIVATE ASSIGNMENT
+    | DEACTIVATE
     |--------------------------------------------------------------------------
     */
     public function deactivate($id)
     {
-        $assignment = StudentClassAssignment::findOrFail($id);
+        $assignment =
+            StudentClassAssignment::findOrFail($id);
 
-        // Prevent deactivation of graduated students
         if ($assignment->status === 'graduated') {
-            return redirect()
-                ->back()
-                ->with('error', 'Cannot deactivate a graduated student\'s assignment.');
+            return back()
+                ->with(
+                    'error',
+                    'Cannot deactivate a graduated student\'s assignment.'
+                );
         }
 
         DB::beginTransaction();
 
         try {
+
             $assignment->update([
                 'is_current' => false,
-                'status' => 'inactive'
+                'status' => 'inactive',
             ]);
 
             DB::commit();
 
             return redirect()
-                ->route('student-class-assignments.index')
-                ->with('success', 'Assignment deactivated successfully.');
+                ->route(
+                    'student-class-assignments.index'
+                )
+                ->with(
+                    'success',
+                    'Assignment deactivated successfully.'
+                );
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            Log::error('Assignment deactivation error: ' . $e->getMessage());
-            
-            return redirect()
-                ->back()
-                ->with('error', 'Error deactivating assignment: ' . $e->getMessage());
+
+            Log::error(
+                'Assignment deactivation error',
+                [
+                    'message' =>
+                        $e->getMessage(),
+
+                    'assignment_id' =>
+                        $id,
+                ]
+            );
+
+            return back()
+                ->with(
+                    'error',
+                    'Unable to deactivate the assignment.'
+                );
         }
     }
 
+
     /*
     |--------------------------------------------------------------------------
-    | REACTIVATE ASSIGNMENT
+    | REACTIVATE
     |--------------------------------------------------------------------------
     */
     public function reactivate($id)
     {
-        $assignment = StudentClassAssignment::findOrFail($id);
+        $assignment =
+            StudentClassAssignment::findOrFail($id);
 
-        // Prevent reactivation of graduated students
         if ($assignment->status === 'graduated') {
-            return redirect()
-                ->back()
-                ->with('error', 'Cannot reactivate a graduated student\'s assignment.');
+            return back()
+                ->with(
+                    'error',
+                    'Cannot reactivate a graduated student\'s assignment.'
+                );
         }
 
-        // Check if student already has an active assignment
-        $existing = StudentClassAssignment::where('student_id', $assignment->student_id)
-            ->where('is_current', true)
-            ->where('status', 'active')
-            ->where('id', '!=', $id)
-            ->first();
-
-        if ($existing) {
-            return redirect()
-                ->back()
-                ->with('error', 'Student already has an active assignment. Please deactivate it first.');
+        if (
+            !$assignment->academic_year_id ||
+            !$assignment->term_id
+        ) {
+            return back()
+                ->with(
+                    'error',
+                    'This historical assignment has no academic term. It must be corrected before it can be reactivated.'
+                );
         }
+
+        $existing =
+            StudentClassAssignment::where(
+                'student_id',
+                $assignment->student_id
+            )
+                ->where(
+                    'is_current',
+                    true
+                )
+                ->whereIn(
+                    'status',
+                    ['active', 'repeated']
+                )
+                ->where(
+                    'id',
+                    '!=',
+                    $assignment->id
+                )
+                ->first();
 
         DB::beginTransaction();
 
         try {
+
+            if ($existing) {
+                $existing->update([
+                    'is_current' => false,
+                    'status' => 'inactive',
+                ]);
+            }
+
             $assignment->update([
                 'is_current' => true,
-                'status' => 'active'
+                'status' => 'active',
             ]);
 
             DB::commit();
 
             return redirect()
-                ->route('student-class-assignments.index')
-                ->with('success', 'Assignment reactivated successfully.');
+                ->route(
+                    'student-class-assignments.index'
+                )
+                ->with(
+                    'success',
+                    'Assignment reactivated successfully.'
+                );
 
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            Log::error('Assignment reactivation error: ' . $e->getMessage());
-            
-            return redirect()
-                ->back()
-                ->with('error', 'Error reactivating assignment: ' . $e->getMessage());
+
+            Log::error(
+                'Assignment reactivation error',
+                [
+                    'message' =>
+                        $e->getMessage(),
+
+                    'assignment_id' =>
+                        $id,
+                ]
+            );
+
+            return back()
+                ->with(
+                    'error',
+                    'Unable to reactivate the assignment.'
+                );
         }
     }
 
+
     /*
     |--------------------------------------------------------------------------
-    | GET STUDENT ASSIGNMENT HISTORY
+    | STUDENT HISTORY
     |--------------------------------------------------------------------------
     */
     public function getStudentHistory($studentId)
     {
-        $student = Student::findOrFail($studentId);
-        
-        $assignments = StudentClassAssignment::with(['studentClass', 'academicYear'])
-            ->where('student_id', $studentId)
-            ->orderBy('created_at', 'desc')
-            ->get();
+        $student =
+            Student::findOrFail($studentId);
 
-        return view('student_class_assignments.history', compact('student', 'assignments'));
+        $assignments =
+            StudentClassAssignment::with([
+                'studentClass',
+                'academicYear',
+                'term',
+            ])
+                ->where(
+                    'student_id',
+                    $studentId
+                )
+                ->orderByDesc('created_at')
+                ->get();
+
+        return view(
+            'student_class_assignments.history',
+            compact(
+                'student',
+                'assignments'
+            )
+        );
     }
+
 
     /*
     |--------------------------------------------------------------------------
-    | GET ATTENDANCE STATISTICS FOR A CLASS
+    | ATTENDANCE STATISTICS
     |--------------------------------------------------------------------------
     */
     public function getAttendanceStats($classId)
     {
         try {
-            // Get all students in the class
-            $assignments = StudentClassAssignment::with('student')
-                ->where('student_class_id', $classId)
-                ->where('is_current', true)
-                ->where('status', 'active')
-                ->get();
 
-            $studentIds = $assignments->pluck('student_id')->toArray();
-            $totalStudents = count($studentIds);
-
-            // Get attendance sessions for this class
-            $sessions = AttendanceSession::where('student_class_id', $classId)
-                ->orderBy('attendance_date', 'desc')
-                ->get();
-
-            $totalSessions = $sessions->count();
-            $attendanceData = [];
-
-            // Calculate attendance for each student
-            foreach ($assignments as $assignment) {
-                $student = $assignment->student;
-                $studentAttendance = Attendance::where('student_id', $student->id)
-                    ->whereHas('attendanceSession', function($query) use ($classId) {
-                        $query->where('student_class_id', $classId);
-                    })
+            $assignments =
+                StudentClassAssignment::with(
+                    'student'
+                )
+                    ->where(
+                        'student_class_id',
+                        $classId
+                    )
+                    ->where(
+                        'is_current',
+                        true
+                    )
+                    ->whereIn(
+                        'status',
+                        ['active', 'repeated']
+                    )
                     ->get();
 
-                $present = $studentAttendance->where('status', 'present')->count();
-                $absent = $studentAttendance->where('status', 'absent')->count();
-                $late = $studentAttendance->where('status', 'late')->count();
-                $excused = $studentAttendance->where('status', 'excused')->count();
-                $total = $studentAttendance->count();
+            $studentIds =
+                $assignments
+                    ->pluck('student_id')
+                    ->toArray();
+
+            $totalStudents =
+                count($studentIds);
+
+            $sessions =
+                AttendanceSession::where(
+                    'student_class_id',
+                    $classId
+                )
+                    ->orderByDesc(
+                        'attendance_date'
+                    )
+                    ->get();
+
+            $totalSessions =
+                $sessions->count();
+
+            $attendanceData = [];
+
+            foreach (
+                $assignments as $assignment
+            ) {
+
+                $student =
+                    $assignment->student;
+
+                $studentAttendance =
+                    Attendance::where(
+                        'student_id',
+                        $student->id
+                    )
+                        ->whereHas(
+                            'attendanceSession',
+                            function ($query) use (
+                                $classId
+                            ) {
+                                $query->where(
+                                    'student_class_id',
+                                    $classId
+                                );
+                            }
+                        )
+                        ->get();
+
+                $present =
+                    $studentAttendance
+                        ->where(
+                            'status',
+                            'present'
+                        )
+                        ->count();
+
+                $absent =
+                    $studentAttendance
+                        ->where(
+                            'status',
+                            'absent'
+                        )
+                        ->count();
+
+                $late =
+                    $studentAttendance
+                        ->where(
+                            'status',
+                            'late'
+                        )
+                        ->count();
+
+                $excused =
+                    $studentAttendance
+                        ->where(
+                            'status',
+                            'excused'
+                        )
+                        ->count();
+
+                $total =
+                    $studentAttendance->count();
 
                 $attendanceData[] = [
-                    'student_id' => $student->id,
-                    'student_name' => $student->first_name . ' ' . $student->last_name,
-                    'student_number' => $student->student_id,
-                    'present' => $present,
-                    'absent' => $absent,
-                    'late' => $late,
-                    'excused' => $excused,
-                    'total' => $total,
-                    'rate' => $total > 0 ? round(($present / $total) * 100, 1) : 0
+                    'student_id' =>
+                        $student->id,
+
+                    'student_name' =>
+                        trim(
+                            $student->first_name
+                            . ' '
+                            . $student->last_name
+                        ),
+
+                    'student_number' =>
+                        $student->student_id,
+
+                    'present' =>
+                        $present,
+
+                    'absent' =>
+                        $absent,
+
+                    'late' =>
+                        $late,
+
+                    'excused' =>
+                        $excused,
+
+                    'total' =>
+                        $total,
+
+                    'rate' =>
+                        $total > 0
+                            ? round(
+                                (
+                                    $present
+                                    / $total
+                                ) * 100,
+                                1
+                            )
+                            : 0,
                 ];
             }
 
-            // Calculate class averages
-            $classAverage = collect($attendanceData)->avg('rate') ?? 0;
-            $totalPresent = collect($attendanceData)->sum('present');
-            $totalAbsent = collect($attendanceData)->sum('absent');
-            $totalLate = collect($attendanceData)->sum('late');
-            $totalExcused = collect($attendanceData)->sum('excused');
-            $totalAttendanceRecords = collect($attendanceData)->sum('total');
+            $collection =
+                collect($attendanceData);
 
             return response()->json([
                 'success' => true,
-                'total_students' => $totalStudents,
-                'total_sessions' => $totalSessions,
-                'class_average' => round($classAverage, 1),
-                'total_present' => $totalPresent,
-                'total_absent' => $totalAbsent,
-                'total_late' => $totalLate,
-                'total_excused' => $totalExcused,
-                'total_records' => $totalAttendanceRecords,
-                'students' => $attendanceData
+
+                'total_students' =>
+                    $totalStudents,
+
+                'total_sessions' =>
+                    $totalSessions,
+
+                'class_average' =>
+                    round(
+                        $collection->avg(
+                            'rate'
+                        ) ?? 0,
+                        1
+                    ),
+
+                'total_present' =>
+                    $collection->sum(
+                        'present'
+                    ),
+
+                'total_absent' =>
+                    $collection->sum(
+                        'absent'
+                    ),
+
+                'total_late' =>
+                    $collection->sum(
+                        'late'
+                    ),
+
+                'total_excused' =>
+                    $collection->sum(
+                        'excused'
+                    ),
+
+                'total_records' =>
+                    $collection->sum(
+                        'total'
+                    ),
+
+                'students' =>
+                    $attendanceData,
             ]);
 
-        } catch (\Exception $e) {
-            Log::error('Attendance stats error: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+
+            Log::error(
+                'Attendance stats error',
+                [
+                    'message' =>
+                        $e->getMessage(),
+                ]
+            );
+
             return response()->json([
                 'success' => false,
-                'message' => 'Error fetching attendance statistics: ' . $e->getMessage()
+                'message' =>
+                    'Error fetching attendance statistics: '
+                    . $e->getMessage(),
             ], 500);
         }
     }
 
+
     /*
     |--------------------------------------------------------------------------
-    | GET STUDENT ATTENDANCE DETAILS
+    | STUDENT ATTENDANCE
     |--------------------------------------------------------------------------
     */
-    public function getStudentAttendance($studentId, $classId = null)
-    {
+    public function getStudentAttendance(
+        $studentId,
+        $classId = null
+    ) {
         try {
-            $student = Student::findOrFail($studentId);
-            
-            $query = Attendance::with(['attendanceSession.studentClass'])
-                ->where('student_id', $studentId);
+
+            $student =
+                Student::findOrFail(
+                    $studentId
+                );
+
+            $query =
+                Attendance::with([
+                    'attendanceSession.studentClass',
+                ])
+                    ->where(
+                        'student_id',
+                        $studentId
+                    );
 
             if ($classId) {
-                $query->whereHas('attendanceSession', function($q) use ($classId) {
-                    $q->where('student_class_id', $classId);
-                });
+
+                $query->whereHas(
+                    'attendanceSession',
+                    function ($q) use (
+                        $classId
+                    ) {
+                        $q->where(
+                            'student_class_id',
+                            $classId
+                        );
+                    }
+                );
             }
 
-            $records = $query->orderBy('created_at', 'desc')->get();
+            $records =
+                $query
+                    ->orderByDesc(
+                        'created_at'
+                    )
+                    ->get();
 
             $stats = [
-                'present' => $records->where('status', 'present')->count(),
-                'absent' => $records->where('status', 'absent')->count(),
-                'late' => $records->where('status', 'late')->count(),
-                'excused' => $records->where('status', 'excused')->count(),
-                'total' => $records->count(),
-                'rate' => $records->count() > 0 ? round(($records->where('status', 'present')->count() / $records->count()) * 100, 1) : 0
+                'present' =>
+                    $records
+                        ->where(
+                            'status',
+                            'present'
+                        )
+                        ->count(),
+
+                'absent' =>
+                    $records
+                        ->where(
+                            'status',
+                            'absent'
+                        )
+                        ->count(),
+
+                'late' =>
+                    $records
+                        ->where(
+                            'status',
+                            'late'
+                        )
+                        ->count(),
+
+                'excused' =>
+                    $records
+                        ->where(
+                            'status',
+                            'excused'
+                        )
+                        ->count(),
+
+                'total' =>
+                    $records->count(),
+
+                'rate' =>
+                    $records->count() > 0
+                        ? round(
+                            (
+                                $records
+                                    ->where(
+                                        'status',
+                                        'present'
+                                    )
+                                    ->count()
+                                / $records->count()
+                            ) * 100,
+                            1
+                        )
+                        : 0,
             ];
 
             return response()->json([
                 'success' => true,
+
                 'student' => [
-                    'id' => $student->id,
-                    'name' => $student->first_name . ' ' . $student->last_name,
-                    'student_id' => $student->student_id
+                    'id' =>
+                        $student->id,
+
+                    'name' =>
+                        trim(
+                            $student->first_name
+                            . ' '
+                            . $student->last_name
+                        ),
+
+                    'student_id' =>
+                        $student->student_id,
                 ],
-                'stats' => $stats,
-                'records' => $records->map(function($record) {
-                    return [
-                        'date' => $record->attendanceSession->attendance_date ?? $record->created_at,
-                        'class' => $record->attendanceSession->studentClass->name ?? 'N/A',
-                        'status' => $record->status,
-                        'remarks' => $record->remarks
-                    ];
-                })
+
+                'stats' =>
+                    $stats,
+
+                'records' =>
+                    $records->map(
+                        function ($record) {
+
+                            return [
+                                'date' =>
+                                    optional(
+                                        $record->attendanceSession
+                                    )->attendance_date
+                                    ??
+                                    $record->created_at,
+
+                                'class' =>
+                                    optional(
+                                        optional(
+                                            $record
+                                                ->attendanceSession
+                                        )->studentClass
+                                    )->name
+                                    ??
+                                    'N/A',
+
+                                'status' =>
+                                    $record->status,
+
+                                'remarks' =>
+                                    $record->remarks,
+                            ];
+                        }
+                    ),
             ]);
 
-        } catch (\Exception $e) {
-            Log::error('Student attendance error: ' . $e->getMessage());
-            return response()->json([
-                'success' => false,
-                'message' => 'Error fetching student attendance: ' . $e->getMessage()
-            ], 500);
-        }
-    }
+        } catch (\Throwable $e) {
 
-    /*
-    |--------------------------------------------------------------------------
-    | GET ATTENDANCE SUMMARY CARDS FOR CLASS
-    |--------------------------------------------------------------------------
-    */
-    public function getAttendanceSummary($classId)
-    {
-        try {
-            // Get total students in class
-            $totalStudents = StudentClassAssignment::where('student_class_id', $classId)
-                ->where('is_current', true)
-                ->where('status', 'active')
-                ->count();
-
-            // Get today's attendance
-            $today = now()->toDateString();
-            $todaySession = AttendanceSession::where('student_class_id', $classId)
-                ->whereDate('attendance_date', $today)
-                ->first();
-
-            $todayPresent = 0;
-            $todayAbsent = 0;
-            $todayLate = 0;
-            $todayExcused = 0;
-
-            if ($todaySession) {
-                $todayAttendance = Attendance::where('attendance_session_id', $todaySession->id)->get();
-                $todayPresent = $todayAttendance->where('status', 'present')->count();
-                $todayAbsent = $todayAttendance->where('status', 'absent')->count();
-                $todayLate = $todayAttendance->where('status', 'late')->count();
-                $todayExcused = $todayAttendance->where('status', 'excused')->count();
-            }
-
-            // Get overall attendance rate
-            $totalAttendance = Attendance::whereHas('attendanceSession', function($q) use ($classId) {
-                $q->where('student_class_id', $classId);
-            })->count();
-
-            $totalPresent = Attendance::whereHas('attendanceSession', function($q) use ($classId) {
-                $q->where('student_class_id', $classId);
-            })->where('status', 'present')->count();
-
-            $overallRate = $totalAttendance > 0 ? round(($totalPresent / $totalAttendance) * 100, 1) : 0;
-
-            // Get this week's attendance
-            $weekStart = now()->startOfWeek()->toDateString();
-            $weekEnd = now()->endOfWeek()->toDateString();
-
-            $weekSessions = AttendanceSession::where('student_class_id', $classId)
-                ->whereBetween('attendance_date', [$weekStart, $weekEnd])
-                ->get();
-
-            $weekTotal = 0;
-            $weekPresent = 0;
-
-            foreach ($weekSessions as $session) {
-                $attendance = Attendance::where('attendance_session_id', $session->id)->get();
-                $weekTotal += $attendance->count();
-                $weekPresent += $attendance->where('status', 'present')->count();
-            }
-
-            $weekRate = $weekTotal > 0 ? round(($weekPresent / $weekTotal) * 100, 1) : 0;
-
-            return response()->json([
-                'success' => true,
-                'total_students' => $totalStudents,
-                'today' => [
-                    'present' => $todayPresent,
-                    'absent' => $todayAbsent,
-                    'late' => $todayLate,
-                    'excused' => $todayExcused,
-                    'total' => $todayPresent + $todayAbsent + $todayLate + $todayExcused
-                ],
-                'overall' => [
-                    'rate' => $overallRate,
-                    'total' => $totalAttendance,
-                    'present' => $totalPresent
-                ],
-                'week' => [
-                    'rate' => $weekRate,
-                    'total' => $weekTotal,
-                    'present' => $weekPresent
+            Log::error(
+                'Student attendance error',
+                [
+                    'message' =>
+                        $e->getMessage(),
                 ]
-            ]);
+            );
 
-        } catch (\Exception $e) {
-            Log::error('Attendance summary error: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
-                'message' => 'Error fetching attendance summary: ' . $e->getMessage()
+                'message' =>
+                    'Error fetching student attendance: '
+                    . $e->getMessage(),
             ], 500);
         }
     }

@@ -6,471 +6,981 @@
 
 <div class="container-fluid py-4">
 
-    {{-- HEADER --}}
-    <div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-2">
+    {{-- Header --}}
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
         <div>
-            <h5 class="fw-bold mb-1">
-                <i class="fas fa-user-graduate me-2 text-primary"></i>
-                Student Class Enrolled
-            </h5>
+            <h4 class="fw-bold mb-1">
+                <i class="fas fa-users-class me-2 text-primary"></i>
+                Student Class Assignments
+            </h4>
+
+            <p class="text-muted mb-0">
+                Manage student class assignments and academic history.
+            </p>
         </div>
-        <a href="{{ route('student-class-assignments.create') }}" class="btn btn-primary text-white">
-            <i class="fas fa-plus-circle me-1"></i> Assign Student
+
+        <a href="{{ route('student-class-assignments.create') }}"
+           class="btn btn-primary">
+            <i class="fas fa-user-plus me-1"></i>
+            Assign Student
         </a>
     </div>
 
-    {{-- FLASH MESSAGES --}}
+
+    {{-- Alerts --}}
     @if(session('success'))
-        <div class="alert alert-success alert-dismissible fade show shadow-sm mb-4">
+        <div class="alert alert-success alert-dismissible fade show">
             <i class="fas fa-check-circle me-2"></i>
             {{ session('success') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert"></button>
         </div>
     @endif
 
     @if(session('error'))
-        <div class="alert alert-primary alert-dismissible fade show shadow-sm mb-4">
+        <div class="alert alert-danger alert-dismissible fade show">
             <i class="fas fa-exclamation-circle me-2"></i>
             {{ session('error') }}
-            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert"></button>
         </div>
     @endif
 
-    {{-- TABLE CARD --}}
-    <div class="card border-0 shadow-sm rounded-4">
-        <div class="card-header bg-white py-3">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2">
-                <h5 class="mb-0">
-                    <i class="fas fa-list me-2 text-primary"></i>
-                    Assignment Records
-                    <span id="visibleCount" class="badge bg-dar ms-2 text-dark">{{ $assignments->count() }}</span>
-                </h5>
-                <div class="row g-3 align-items-end">
-                <div class="card border-0 shadow-sm rounded-4 ">
-                    <input type="text" id="searchInput" class="form-control" placeholder="Search...................... ">
-                </div>
-                </div>
-                <div class="d-flex gap-2">
-                    <button onclick="exportToCSV()" class="btn btn-sm btn-success">
-                        <i class="fas fa-file-excel me-1"></i> Export
-                    </button>
-                    <button onclick="window.print()" class="btn btn-sm btn-secondary">
-                        <i class="fas fa-print me-1"></i> Print
-                    </button>
-                </div>
-            </div>
-        </div>
-        <div class="card-body p-0">
-            <div class="table-responsive">
-                <table class="table table-hover align-middle mb-0" id="assignmentsTable">
-                    <thead class="table-light">
-                        <tr>
-                            <th width="50">#</th>
-                            <th><i class="fas fa-user me-1"></i> Student</th>
-                            <th><i class="fas fa-school me-1"></i> Class</th>
-                            <th><i class="fas fa-calendar me-1"></i> Academic Year</th>
-                            <th><i class="fas fa-tag me-1"></i> Status</th>
-                            <th><i class="fas fa-flag me-1"></i> Current</th>
-                            <!-- <th width="150"><i class="fas fa-cog me-1"></i> Actions</th> -->
-                        </tr>
-                    </thead>
-                    <tbody>
-                        @forelse($assignments as $index => $assignment)
-                            @php
-                                $statusClass = match($assignment->status) {
-                                    'active' => 'success',
-                                    'promoted' => 'primary',
-                                    'graduated' => 'dark',
-                                    'repeated' => 'warning',
-                                    default => 'secondary'
-                                };
-                                $statusIcon = match($assignment->status) {
-                                    'active' => 'fa-check-circle',
-                                    'promoted' => 'fa-arrow-up',
-                                    'graduated' => 'fa-graduation-cap',
-                                    'repeated' => 'fa-undo',
-                                    default => 'fa-circle'
-                                };
-                            @endphp
-                            <tr class="assignment-row"
-                                data-id="{{ $assignment->id }}"
-                                data-student="{{ strtolower($assignment->student->first_name ?? '') }} {{ strtolower($assignment->student->last_name ?? '') }}"
-                                data-class="{{ strtolower($assignment->studentClass->name ?? '') }}"
-                                data-status="{{ $assignment->status }}"
-                                data-current="{{ $assignment->is_current ? '1' : '0' }}">
-                                <td>{{ $loop->iteration }}</td>
-                                <td>
-                                    <div class="d-flex align-items-center gap-2">
-                                        <div>
-                                            <strong>{{ $assignment->student->first_name ?? '' }} {{ $assignment->student->last_name ?? '' }}</strong>
-                                            <br>
-                                            <small class="text-muted">ID: {{ $assignment->student->student_id ?? 'N/A' }}</small>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <span class="badge bg-light text-dark border px-3 py-2">
-                                        <i class="fas fa-building me-1"></i>
-                                        {{ $assignment->studentClass->name ?? 'N/A' }}
-                                    </span>
-                                </td>
-                                <td>
-                                    {{ $assignment->academicYear->name ?? 'N/A' }}
-                                </td>
-                                <td>
-                                    <span class="badge bg-{{ $statusClass }} px-3 py-2">
-                                        <i class="fas {{ $statusIcon }} me-1"></i>
-                                        {{ ucfirst($assignment->status) }}
-                                    </span>
-                                </td>
-                                <td>
-                                @if($assignment->is_current)
 
-                                <span class="badge bg-success px-3 py-2">
-                                    <i class="fas fa-check-circle me-1"></i> Current
-                                </span>
+    {{-- Current Academic Period --}}
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
 
-                                @elseif($assignment->status == 'Graduated')
+            <div class="row align-items-center">
 
-                                <span class="badge bg-dark px-3 py-2">
-                                    <i class="fas fa-graduation-cap me-1"></i> Graduated
-                                </span>
+                <div class="col-lg-6 mb-3 mb-lg-0">
 
+                    <div class="d-flex align-items-center">
+
+                        <div class="period-icon me-3">
+                            <i class="fas fa-calendar-alt"></i>
+                        </div>
+
+                        <div>
+                            <small class="text-muted d-block">
+                                Current Academic Period
+                            </small>
+
+                            <div class="fw-bold">
+                                @if($settings->currentAcademicYear)
+                                    {{ $settings->currentAcademicYear->name }}
                                 @else
-
-                                <span class="badge bg-secondary px-3 py-2">
-                                    <i class="fas fa-history me-1"></i> Old
-                                </span>
-
+                                    <span class="text-danger">
+                                        Not configured
+                                    </span>
                                 @endif
-                                </td>
-                                <!-- <td>
-                                    <div class="btn-group btn-group-sm">
-                                        <a href="{{ route('student-class-assignments.show', $assignment->id) }}" 
-                                           class="btn btn-outline-white" title="View">
-                                            <i class="fas fa-eye"></i>
-                                        </a>
-                                        <a href="{{ route('student-class-assignments.edit', $assignment->id) }}" 
-                                           class="btn btn-outline-secondary" title="Edit">
-                                            <i class="fas fa-edit"></i>
-                                        </a>
-                                    </div>
-                                </td> -->
-                            </tr>
-                        @empty
+
+                                @if($settings->currentTerm)
+                                    <span class="text-muted mx-1">•</span>
+                                    {{ $settings->currentTerm->name }}
+                                @endif
+                            </div>
+                        </div>
+
+                    </div>
+
+                </div>
+
+                <div class="col-lg-6 text-lg-end">
+
+                    <a href="{{ route('settings.index') }}"
+                       class="btn btn-sm btn-outline-primary">
+
+                        <i class="fas fa-cog me-1"></i>
+                        System Settings
+
+                    </a>
+
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
+
+    {{-- Filters --}}
+    <div class="card border-0 shadow-sm mb-4">
+
+        <div class="card-header bg-white border-bottom py-3">
+
+            <div class="d-flex align-items-center">
+
+                <i class="fas fa-filter text-primary me-2"></i>
+
+                <h6 class="fw-bold mb-0">
+                    Filter Assignments
+                </h6>
+
+            </div>
+
+        </div>
+
+        <div class="card-body">
+
+            <form method="GET"
+                  action="{{ route('student-class-assignments.index') }}">
+
+                <div class="row g-3">
+
+                    {{-- Search --}}
+                    <div class="col-lg-3 col-md-6">
+
+                        <label class="form-label small fw-semibold">
+                            Search Student
+                        </label>
+
+                        <div class="input-group">
+
+                            <span class="input-group-text bg-white">
+                                <i class="fas fa-search text-muted"></i>
+                            </span>
+
+                            <input type="text"
+                                   name="search"
+                                   class="form-control"
+                                   placeholder="Name or student ID"
+                                   value="{{ request('search') }}">
+
+                        </div>
+
+                    </div>
+
+
+                    {{-- Academic Year --}}
+                    <div class="col-lg-2 col-md-6">
+
+                        <label class="form-label small fw-semibold">
+                            Academic Year
+                        </label>
+
+                        <select name="academic_year_id"
+                                id="filterAcademicYear"
+                                class="form-select">
+
+                            <option value="">
+                                All Years
+                            </option>
+
+                            @foreach($academicYears as $year)
+
+                                <option value="{{ $year->id }}"
+                                    {{ request('academic_year_id') == $year->id ? 'selected' : '' }}>
+
+                                    {{ $year->name }}
+
+                                </option>
+
+                            @endforeach
+
+                        </select>
+
+                    </div>
+
+
+                    {{-- Term --}}
+                    <div class="col-lg-2 col-md-6">
+
+                        <label class="form-label small fw-semibold">
+                            Term
+                        </label>
+
+                        <select name="term_id"
+                                id="filterTerm"
+                                class="form-select">
+
+                            <option value="">
+                                All Terms
+                            </option>
+
+                            @foreach($terms as $term)
+
+                                <option value="{{ $term->id }}"
+                                    {{ request('term_id') == $term->id ? 'selected' : '' }}>
+
+                                    {{ $term->name }}
+
+                                </option>
+
+                            @endforeach
+
+                        </select>
+
+                    </div>
+
+
+                    {{-- Status --}}
+                    <div class="col-lg-2 col-md-6">
+
+                        <label class="form-label small fw-semibold">
+                            Status
+                        </label>
+
+                        <select name="status"
+                                class="form-select">
+
+                            <option value="">
+                                All Statuses
+                            </option>
+
+                            <option value="active"
+                                {{ request('status') === 'active' ? 'selected' : '' }}>
+                                Active
+                            </option>
+
+                            <option value="repeated"
+                                {{ request('status') === 'repeated' ? 'selected' : '' }}>
+                                Repeated
+                            </option>
+
+                            <option value="inactive"
+                                {{ request('status') === 'inactive' ? 'selected' : '' }}>
+                                Inactive
+                            </option>
+
+                            <option value="promoted"
+                                {{ request('status') === 'promoted' ? 'selected' : '' }}>
+                                Promoted
+                            </option>
+
+                            <option value="graduated"
+                                {{ request('status') === 'graduated' ? 'selected' : '' }}>
+                                Graduated
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    {{-- Current --}}
+                    <div class="col-lg-1 col-md-6">
+
+                        <label class="form-label small fw-semibold">
+                            Current
+                        </label>
+
+                        <select name="is_current"
+                                class="form-select">
+
+                            <option value="">
+                                All
+                            </option>
+
+                            <option value="1"
+                                {{ request('is_current') === '1' ? 'selected' : '' }}>
+                                Yes
+                            </option>
+
+                            <option value="0"
+                                {{ request('is_current') === '0' ? 'selected' : '' }}>
+                                No
+                            </option>
+
+                        </select>
+
+                    </div>
+
+
+                    {{-- Buttons --}}
+                    <div class="col-lg-2 col-md-6 d-flex align-items-end gap-2">
+
+                        <button type="submit"
+                                class="btn btn-primary flex-grow-1">
+
+                            <i class="fas fa-filter me-1"></i>
+                            Apply
+
+                        </button>
+
+                        <a href="{{ route('student-class-assignments.index') }}"
+                           class="btn btn-light border"
+                           title="Clear filters">
+
+                            <i class="fas fa-times"></i>
+
+                        </a>
+
+                    </div>
+
+                </div>
+
+            </form>
+
+        </div>
+
+    </div>
+
+
+    {{-- Assignment Table --}}
+    <div class="card border-0 shadow-sm">
+
+        <div class="card-header bg-white border-bottom py-3">
+
+            <div class="d-flex flex-wrap justify-content-between align-items-center">
+
+                <h6 class="fw-bold mb-0">
+
+                    <i class="fas fa-list me-2 text-primary"></i>
+
+                    Assignments
+
+                    <span class="badge bg-primary bg-opacity-10 text-primary ms-2">
+                        {{ $assignments->total() }}
+                    </span>
+
+                </h6>
+
+                @if(request()->hasAny([
+                    'search',
+                    'academic_year_id',
+                    'term_id',
+                    'status',
+                    'is_current'
+                ]))
+
+                    <span class="small text-muted">
+                        Filtered results
+                    </span>
+
+                @endif
+
+            </div>
+
+        </div>
+
+
+        <div class="card-body p-0">
+
+            @if($assignments->count())
+
+                <div class="table-responsive">
+
+                    <table class="table table-hover align-middle mb-0">
+
+                        <thead class="table-light">
+
                             <tr>
-                                <td colspan="7" class="text-center py-5 text-muted">
-                                    <i class="fas fa-user-graduate fa-3x mb-3 d-block"></i>
-                                    No assignments found. Click "Assign Student" to create one.
-                                </td>
-                            </td>
-                        @endforelse
-                        <tr id="noResultsRow" style="display: none;">
-                            <td colspan="7" class="text-center py-5 text-muted">
-                                <i class="fas fa-search fa-3x mb-3 d-block"></i>
-                                No matching assignments found.
-                            </td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
+
+                                <th class="ps-4">
+                                    Student
+                                </th>
+
+                                <th>
+                                    Class
+                                </th>
+
+                                <th>
+                                    Academic Year
+                                </th>
+
+                                <th>
+                                    Term
+                                </th>
+
+                                <th>
+                                    Status
+                                </th>
+
+                                <th>
+                                    Current
+                                </th>
+
+                                <th>
+                                    Assigned
+                                </th>
+
+                                <th class="text-end pe-4">
+                                    Action
+                                </th>
+
+                            </tr>
+
+                        </thead>
+
+                        <tbody>
+
+                            @foreach($assignments as $assignment)
+
+                                <tr>
+
+                                    {{-- Student --}}
+                                    <td class="ps-4">
+
+                                        <div class="d-flex align-items-center">
+
+                                            <div class="student-avatar me-3">
+
+                                                {{ strtoupper(
+                                                    substr(
+                                                        $assignment->student->first_name ?? 'S',
+                                                        0,
+                                                        1
+                                                    )
+                                                ) }}
+
+                                            </div>
+
+                                            <div>
+
+                                                <div class="fw-semibold">
+
+                                                    {{ $assignment->student->first_name ?? '' }}
+                                                    {{ $assignment->student->middle_name ?? '' }}
+                                                    {{ $assignment->student->last_name ?? '' }}
+
+                                                </div>
+
+                                                <small class="text-muted">
+
+                                                    {{ $assignment->student->student_id ?? 'N/A' }}
+
+                                                </small>
+
+                                            </div>
+
+                                        </div>
+
+                                    </td>
+
+
+                                    {{-- Class --}}
+                                    <td>
+
+                                        <span class="fw-semibold">
+
+                                            {{ $assignment->studentClass->name ?? 'N/A' }}
+
+                                        </span>
+
+                                        @if(!empty($assignment->studentClass->stream))
+
+                                            <small class="text-muted d-block">
+                                                {{ $assignment->studentClass->stream }}
+                                            </small>
+
+                                        @endif
+
+                                    </td>
+
+
+                                    {{-- Academic Year --}}
+                                    <td>
+
+                                        {{ $assignment->academicYear->name ?? 'N/A' }}
+
+                                        @if(
+                                            $settings->current_academic_year_id &&
+                                            $assignment->academic_year_id == $settings->current_academic_year_id
+                                        )
+
+                                            <span class="badge bg-primary-subtle text-primary ms-1">
+                                                Current
+                                            </span>
+
+                                        @endif
+
+                                    </td>
+
+
+                                    {{-- Term --}}
+                                    <td>
+
+                                        @if($assignment->term)
+
+                                            {{ $assignment->term->name }}
+
+                                            @if(
+                                                $settings->current_term_id &&
+                                                $assignment->term_id == $settings->current_term_id
+                                            )
+
+                                                <span class="badge bg-success-subtle text-success ms-1">
+                                                    Current
+                                                </span>
+
+                                            @endif
+
+                                        @else
+
+                                            <span class="text-muted">
+                                                Not recorded
+                                            </span>
+
+                                        @endif
+
+                                    </td>
+
+
+                                    {{-- Status --}}
+                                    <td>
+
+                                        @switch($assignment->status)
+
+                                            @case('active')
+
+                                                <span class="badge bg-success">
+                                                    Active
+                                                </span>
+
+                                                @break
+
+                                            @case('repeated')
+
+                                                <span class="badge bg-warning text-dark">
+                                                    Repeated
+                                                </span>
+
+                                                @break
+
+                                            @case('inactive')
+
+                                                <span class="badge bg-secondary">
+                                                    Inactive
+                                                </span>
+
+                                                @break
+
+                                            @case('promoted')
+
+                                                <span class="badge bg-info text-dark">
+                                                    Promoted
+                                                </span>
+
+                                                @break
+
+                                            @case('graduated')
+
+                                                <span class="badge bg-dark">
+                                                    Graduated
+                                                </span>
+
+                                                @break
+
+                                            @default
+
+                                                <span class="badge bg-secondary">
+                                                    {{ ucfirst($assignment->status ?? 'Unknown') }}
+                                                </span>
+
+                                        @endswitch
+
+                                    </td>
+
+
+                                    {{-- Current --}}
+                                    <td>
+
+                                        @if($assignment->is_current)
+
+                                            <span class="badge bg-success-subtle text-success">
+
+                                                <i class="fas fa-check-circle me-1"></i>
+                                                Yes
+
+                                            </span>
+
+                                        @else
+
+                                            <span class="badge bg-light text-muted border">
+
+                                                No
+
+                                            </span>
+
+                                        @endif
+
+                                    </td>
+
+
+                                    {{-- Assigned Date --}}
+                                    <td>
+
+                                        @if($assignment->assigned_date)
+
+                                            <span title="{{ $assignment->assigned_date->format('Y-m-d H:i') }}">
+
+                                                {{ $assignment->assigned_date->format('d M Y') }}
+
+                                            </span>
+
+                                        @else
+
+                                            <span class="text-muted">
+                                                —
+                                            </span>
+
+                                        @endif
+
+                                    </td>
+
+
+                                    {{-- Action --}}
+                                    <td class="text-end pe-4">
+
+                                        <div class="dropdown">
+
+                                            <button class="btn btn-sm btn-light border"
+                                                    type="button"
+                                                    data-bs-toggle="dropdown">
+
+                                                <i class="fas fa-ellipsis-v"></i>
+
+                                            </button>
+
+                                            <ul class="dropdown-menu dropdown-menu-end">
+
+                                                <li>
+
+                                                    <a class="dropdown-item"
+                                                       href="{{ route(
+                                                           'student-class-assignments.show',
+                                                           $assignment->id
+                                                       ) }}">
+
+                                                        <i class="fas fa-eye me-2 text-primary"></i>
+                                                        View
+
+                                                    </a>
+
+                                                </li>
+
+                                                @if($assignment->status !== 'graduated')
+
+                                                    <li>
+
+                                                        <a class="dropdown-item"
+                                                           href="{{ route(
+                                                               'student-class-assignments.edit',
+                                                               $assignment->id
+                                                           ) }}">
+
+                                                            <i class="fas fa-edit me-2 text-warning"></i>
+                                                            Edit
+
+                                                        </a>
+
+                                                    </li>
+
+                                                    <li>
+                                                        <hr class="dropdown-divider">
+                                                    </li>
+
+                                                    @if($assignment->is_current)
+
+                                                        <li>
+
+                                                            <form method="POST"
+                                                                  action="{{ route(
+                                                                      'student-class-assignments.deactivate',
+                                                                      $assignment->id
+                                                                  ) }}">
+
+                                                                @csrf
+                                                                @method('PATCH')
+
+                                                                <button type="submit"
+                                                                        class="dropdown-item text-warning"
+                                                                        onclick="return confirm('Deactivate this assignment?')">
+
+                                                                    <i class="fas fa-pause-circle me-2"></i>
+                                                                    Deactivate
+
+                                                                </button>
+
+                                                            </form>
+
+                                                        </li>
+
+                                                    @else
+
+                                                        <li>
+
+                                                            <form method="POST"
+                                                                  action="{{ route(
+                                                                      'student-class-assignments.reactivate',
+                                                                      $assignment->id
+                                                                  ) }}">
+
+                                                                @csrf
+                                                                @method('PATCH')
+
+                                                                <button type="submit"
+                                                                        class="dropdown-item text-success"
+                                                                        onclick="return confirm('Reactivate this assignment?')">
+
+                                                                    <i class="fas fa-play-circle me-2"></i>
+                                                                    Reactivate
+
+                                                                </button>
+
+                                                            </form>
+
+                                                        </li>
+
+                                                    @endif
+
+                                                    <li>
+
+                                                        <form method="POST"
+                                                              action="{{ route(
+                                                                  'student-class-assignments.destroy',
+                                                                  $assignment->id
+                                                              ) }}">
+
+                                                            @csrf
+                                                            @method('DELETE')
+
+                                                            <button type="submit"
+                                                                    class="dropdown-item text-danger"
+                                                                    onclick="return confirm('Delete this assignment? This action cannot be undone.')">
+
+                                                                <i class="fas fa-trash-alt me-2"></i>
+                                                                Delete
+
+                                                            </button>
+
+                                                        </form>
+
+                                                    </li>
+
+                                                @endif
+
+                                            </ul>
+
+                                        </div>
+
+                                    </td>
+
+                                </tr>
+
+                            @endforeach
+
+                        </tbody>
+
+                    </table>
+
+                </div>
+
+            @else
+
+                <div class="text-center py-5">
+
+                    <div class="empty-icon mb-3">
+
+                        <i class="fas fa-user-graduate"></i>
+
+                    </div>
+
+                    <h6 class="fw-bold">
+                        No assignments found
+                    </h6>
+
+                    <p class="text-muted mb-3">
+                        No student class assignments match your current filters.
+                    </p>
+
+                    <a href="{{ route('student-class-assignments.create') }}"
+                       class="btn btn-primary">
+
+                        <i class="fas fa-user-plus me-1"></i>
+                        Assign Student
+
+                    </a>
+
+                </div>
+
+            @endif
+
         </div>
-        <div class="card-footer bg-white py-3">
-            <div class="text-muted small">
-                Showing <span id="showingCount">{{ $assignments->count() }}</span> of <span id="totalRecords">{{ $assignments->count() }}</span> assignments
+
+
+        {{-- Pagination --}}
+        @if($assignments->hasPages())
+
+            <div class="card-footer bg-white border-top py-3">
+
+                {{ $assignments->links() }}
+
             </div>
-        </div>
+
+        @endif
+
     </div>
+
 </div>
 
-{{-- Delete Confirmation Modal --}}
-<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title">
-                    <i class="fas fa-trash me-2"></i>Confirm Delete
-                </h5>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-            <div class="modal-body">
-                <p>Are you sure you want to delete the class assignment for <strong id="deleteStudentName"></strong>?</p>
-                <p class="text-muted small mb-0">This action cannot be undone. The student will be unassigned from this class.</p>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                    <i class="fas fa-times me-1"></i> Cancel
-                </button>
-                <form id="deleteForm" method="POST" style="display: inline;">
-                    @csrf
-                    @method('DELETE')
-                    <button type="submit" class="btn btn-danger">
-                        <i class="fas fa-trash me-1"></i> Delete Assignment
-                    </button>
-                </form>
-            </div>
-        </div>
-    </div>
-</div>
+@endsection
 
-<script>
-let deleteId = null;
 
-document.addEventListener('DOMContentLoaded', function() {
-    initializeFilters();
-    updateStats();
-});
-
-function initializeFilters() {
-    const searchInput = document.getElementById('searchInput');
-    const statusFilter = document.getElementById('statusFilter');
-    const currentFilter = document.getElementById('currentFilter');
-
-    if (searchInput) searchInput.addEventListener('keyup', debounce(applyFilters, 300));
-    if (statusFilter) statusFilter.addEventListener('change', applyFilters);
-    if (currentFilter) currentFilter.addEventListener('change', applyFilters);
-}
-
-function debounce(func, wait) {
-    let timeout;
-    return function executedFunction(...args) {
-        const later = () => {
-            clearTimeout(timeout);
-            func(...args);
-        };
-        clearTimeout(timeout);
-        timeout = setTimeout(later, wait);
-    };
-}
-
-function applyFilters() {
-    const searchTerm = document.getElementById('searchInput')?.value.toLowerCase() || '';
-    const status = document.getElementById('statusFilter')?.value || '';
-    const current = document.getElementById('currentFilter')?.value || '';
-
-    const rows = document.querySelectorAll('.assignment-row');
-    let visibleCount = 0;
-    let currentCount = 0;
-    let promotedCount = 0;
-    let activeStudentsCount = 0;
-
-    rows.forEach(row => {
-        const studentName = row.dataset.student || '';
-        const className = row.dataset.class || '';
-        const rowStatus = row.dataset.status || '';
-        const rowCurrent = row.dataset.current || '';
-
-        const matchesSearch = studentName.includes(searchTerm) || className.includes(searchTerm);
-        const matchesStatus = status === '' || rowStatus === status;
-        const matchesCurrent = current === '' || rowCurrent === current;
-
-        if (matchesSearch && matchesStatus && matchesCurrent) {
-            row.style.display = '';
-            visibleCount++;
-            
-            if (rowCurrent === '1') currentCount++;
-            if (rowStatus === 'promoted') promotedCount++;
-            if (rowStatus === 'active') activeStudentsCount++;
-        } else {
-            row.style.display = 'none';
-        }
-    });
-
-    // Update counts
-    document.getElementById('totalCount').innerText = visibleCount;
-    document.getElementById('currentCount').innerText = currentCount;
-    document.getElementById('promotedCount').innerText = promotedCount;
-    document.getElementById('activeStudentsCount').innerText = activeStudentsCount;
-    document.getElementById('visibleCount').innerText = visibleCount;
-    document.getElementById('showingCount').innerText = visibleCount;
-    document.getElementById('totalRecords').innerText = visibleCount;
-
-    // Show/hide no results
-    const noResultsRow = document.getElementById('noResultsRow');
-    
-    if (visibleCount === 0 && rows.length > 0) {
-        noResultsRow.style.display = '';
-    } else {
-        noResultsRow.style.display = 'none';
-    }
-}
-
-function updateStats() {
-    const rows = document.querySelectorAll('.assignment-row');
-    let current = 0, promoted = 0, active = 0;
-    
-    rows.forEach(row => {
-        if (row.dataset.current === '1') current++;
-        if (row.dataset.status === 'promoted') promoted++;
-        if (row.dataset.status === 'active') active++;
-    });
-    
-    document.getElementById('totalCount').innerText = rows.length;
-    document.getElementById('currentCount').innerText = current;
-    document.getElementById('promotedCount').innerText = promoted;
-    document.getElementById('activeStudentsCount').innerText = active;
-}
-
-function resetFilters() {
-    document.getElementById('searchInput').value = '';
-    document.getElementById('statusFilter').value = '';
-    document.getElementById('currentFilter').value = '';
-    
-    const rows = document.querySelectorAll('.assignment-row');
-    rows.forEach(row => row.style.display = '');
-    document.getElementById('noResultsRow').style.display = 'none';
-    
-    applyFilters();
-    showToast('Filters reset successfully', 'info');
-}
-
-function confirmDelete(id, studentName) {
-    deleteId = id;
-    document.getElementById('deleteStudentName').innerText = studentName || 'this student';
-    new bootstrap.Modal(document.getElementById('deleteModal')).show();
-}
-
-// Handle delete form submission
-document.getElementById('deleteForm')?.addEventListener('submit', function(e) {
-    if (deleteId) {
-        this.action = `/student-class-assignments/${deleteId}`;
-    }
-});
-
-function exportToCSV() {
-    const rows = document.querySelectorAll('.assignment-row:not([style*="display: none"])');
-    if (rows.length === 0) {
-        showToast('No data to export', 'warning');
-        return;
-    }
-    
-    let csv = [["#", "Student Name", "Student ID", "Class", "Academic Year", "Status", "Current"]];
-    
-    rows.forEach((row, index) => {
-        const cells = row.querySelectorAll('td');
-        if (cells.length >= 6) {
-            // Extract student name from the cell (remove the ID part)
-            const studentCell = cells[1]?.innerText || '';
-            const studentName = studentCell.split('\n')[0]?.trim() || '';
-            
-            // Extract student ID
-            const studentIdMatch = studentCell.match(/ID:\s*(\S+)/);
-            const studentId = studentIdMatch ? studentIdMatch[1] : '';
-            
-            const className = cells[2]?.innerText?.trim() || '';
-            const academicYear = cells[3]?.innerText?.trim() || '';
-            const status = cells[4]?.innerText?.trim() || '';
-            const current = cells[5]?.innerText?.trim() || '';
-            
-            csv.push([
-                `"${index + 1}"`,
-                `"${studentName}"`,
-                `"${studentId}"`,
-                `"${className}"`,
-                `"${academicYear}"`,
-                `"${status}"`,
-                `"${current}"`
-            ].join(','));
-        }
-    });
-    
-    const csvContent = csv.join('\n');
-    const blob = new Blob(["\uFEFF" + csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `class_assignments_${new Date().toISOString().slice(0, 19)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    
-    showToast('Data exported successfully!', 'success');
-}
-
-function showToast(message, type) {
-    // Remove existing toasts
-    const existingToasts = document.querySelectorAll('.toast-notification');
-    existingToasts.forEach(toast => toast.remove());
-    
-    const toast = document.createElement('div');
-    toast.className = `toast-notification toast-${type === 'error' ? 'danger' : type}`;
-    toast.innerHTML = `
-        <i class="fas fa-${type === 'success' ? 'check-circle' : (type === 'error' ? 'exclamation-circle' : 'info-circle')} me-2"></i>
-        ${message}
-    `;
-    document.body.appendChild(toast);
-    setTimeout(() => {
-        if (toast && toast.remove) toast.remove();
-    }, 3000);
-}
-</script>
+@push('styles')
 
 <style>
-    .table th {
-        font-size: 13px;
-        font-weight: 600;
-        white-space: nowrap;
-    }
-    
-    .table td {
-        font-size: 13px;
-        vertical-align: middle;
-    }
-    
-    .avatar-sm {
-        font-weight: bold;
-    }
-    
-    .btn-group-sm .btn {
-        padding: 4px 10px;
-    }
-    
+
     .card {
         border-radius: 12px;
     }
-    
-    .table-hover tbody tr:hover {
-        background-color: rgba(13, 110, 253, 0.03);
-        cursor: pointer;
+
+    .period-icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(13, 110, 253, .10);
+        color: #0d6efd;
     }
-    
+
+    .student-avatar {
+        width: 40px;
+        height: 40px;
+        min-width: 40px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(13, 110, 253, .10);
+        color: #0d6efd;
+        font-weight: 700;
+    }
+
+    .empty-icon {
+        width: 64px;
+        height: 64px;
+        margin: auto;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(13, 110, 253, .08);
+        color: #0d6efd;
+        font-size: 26px;
+    }
+
+    .table > :not(caption) > * > * {
+        padding-top: 14px;
+        padding-bottom: 14px;
+    }
+
     .badge {
         font-weight: 500;
-        border-radius: 8px;
     }
-    
-    .toast-notification {
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 12px 20px;
-        background: white;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 10000;
-        font-size: 13px;
-        animation: slideIn 0.3s ease;
-    }
-    .toast-success { border-left: 4px solid #28a745; }
-    .toast-warning { border-left: 4px solid #ffc107; }
-    .toast-info { border-left: 4px solid #17a2b8; }
-    .toast-danger { border-left: 4px solid #dc3545; }
-    
-    @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-    }
-    
-    @media print {
-        .btn, .btn-group, .alert, .card-header .btn, #resetFilters, .toast-notification {
-            display: none !important;
-        }
-        .card {
-            box-shadow: none !important;
-        }
-        .table th, .table td {
-            border: 1px solid #ddd !important;
-        }
-    }
+
 </style>
 
-@endsection
+@endpush
+
+
+@push('scripts')
+
+<script>
+
+document.addEventListener('DOMContentLoaded', function () {
+
+    const yearSelect = document.getElementById('filterAcademicYear');
+    const termSelect = document.getElementById('filterTerm');
+
+    if (!yearSelect || !termSelect) {
+        return;
+    }
+
+    yearSelect.addEventListener('change', function () {
+
+        const yearId = this.value;
+
+        const selectedTerm =
+            "{{ request('term_id') }}";
+
+        termSelect.innerHTML =
+            '<option value="">Loading terms...</option>';
+
+        termSelect.disabled = true;
+
+        if (!yearId) {
+
+            termSelect.innerHTML =
+                '<option value="">All Terms</option>';
+
+            termSelect.disabled = false;
+
+            return;
+        }
+
+        const url =
+            "{{ route(
+                'settings.academic-years.terms',
+                ['academicYear' => '__YEAR__']
+            ) }}"
+            .replace('__YEAR__', yearId);
+
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+
+        .then(response => {
+
+            if (!response.ok) {
+                throw new Error('Unable to load terms.');
+            }
+
+            return response.json();
+
+        })
+
+        .then(terms => {
+
+            termSelect.innerHTML =
+                '<option value="">All Terms</option>';
+
+            terms.forEach(function (item) {
+
+                const option =
+                    document.createElement('option');
+
+                option.value = item.id;
+                option.textContent = item.name;
+
+                if (String(item.id) === String(selectedTerm)) {
+                    option.selected = true;
+                }
+
+                termSelect.appendChild(option);
+
+            });
+
+            termSelect.disabled = false;
+
+        })
+
+        .catch(error => {
+
+            console.error(error);
+
+            termSelect.innerHTML =
+                '<option value="">Unable to load terms</option>';
+
+            termSelect.disabled = false;
+
+        });
+
+    });
+
+});
+
+</script>
+
+@endpush

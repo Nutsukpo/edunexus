@@ -4,125 +4,285 @@
 
 @section('content')
 
-<div class="container-fluid">
+<div class="container-fluid py-4">
 
-    <div class="d-flex justify-content-between align-items-center mb-4 mt-3">
-        <h5 class="fw-bold bg-light text-dark">Terms Management</h5>
+    {{-- Header --}}
+    <div class="d-flex justify-content-between align-items-center
+                flex-wrap gap-3 mb-4">
+
+        <div>
+
+            <h4 class="fw-bold mb-1">
+                <i class="fas fa-calendar-days text-primary me-2"></i>
+                Terms Management
+            </h4>
+
+            <p class="text-muted mb-0">
+                Manage academic terms for each academic year.
+            </p>
+
+        </div>
 
         <a href="{{ route('terms.create') }}"
-           class="btn btn-primary text-white">
-            <i class="fa fa-plus"></i> Add Term
+           class="btn btn-primary">
+
+            <i class="fas fa-plus me-1"></i>
+            Add Term
+
         </a>
+
     </div>
 
+
+    {{-- Success --}}
     @if(session('success'))
-        <div class="alert alert-success">
+
+        <div class="alert alert-success alert-dismissible fade show">
+
+            <i class="fas fa-check-circle me-2"></i>
+
             {{ session('success') }}
+
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert">
+            </button>
+
         </div>
+
     @endif
 
-    <div class="card shadow-sm border-0">
 
-        <div class="card-body">
+    {{-- Error --}}
+    @if(session('error'))
 
-            <table class="table table-bordered table-hover">
+        <div class="alert alert-danger alert-dismissible fade show">
 
-                <thead class="table-white text-dark">
-                    <tr>
-                        <th>#</th>
-                        <th>Academic Year</th>
-                        <th>Term Name</th>
-                        <th>Start Date</th>
-                        <th>End Date</th>
-                        <th>Status</th>
-                        <th width="180">Actions</th>
-                    </tr>
-                </thead>
+            <i class="fas fa-exclamation-circle me-2"></i>
 
-                <tbody>
+            {{ session('error') }}
 
-                    @forelse($terms as $term)
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert">
+            </button>
 
-                    <tr>
+        </div>
 
-                        <td>{{ $loop->iteration }}</td>
+    @endif
 
-                        <td>
-                            {{ $term->academicYear->name ?? 'N/A' }}
-                        </td>
 
-                        <td>{{ $term->name }}</td>
+    {{-- Validation --}}
+    @if($errors->any())
 
-                        <td>
-                            {{ $term->start_date ? $term->start_date->format('d M Y') : '-' }}
-                        </td>
+        <div class="alert alert-danger">
 
-                        <td>
-                            {{ $term->end_date ? $term->end_date->format('d M Y') : '-' }}
-                        </td>
+            <strong>Please correct the following:</strong>
 
-                        <td>
+            <ul class="mb-0 mt-2">
 
-                            @if($term->is_active)
+                @foreach($errors->all() as $error)
 
-                                <span class="badge bg-success">
-                                    Active
-                                </span>
+                    <li>{{ $error }}</li>
 
-                            @else
+                @endforeach
 
-                                <span class="badge bg-secondary">
-                                    Inactive
-                                </span>
+            </ul>
 
-                            @endif
+        </div>
 
-                        </td>
+    @endif
 
-                        <td>
 
-                            <a href="{{ route('terms.show', $term->id) }}"
-                               class="btn btn-light btn-sm">
-                                View
-                            </a>
+    {{-- Terms --}}
+    <div class="card border-0 shadow-sm rounded-4">
 
-                            <a href="{{ route('terms.edit', $term->id) }}"
-                               class="btn btn-light btn-sm">
-                                Edit
-                            </a>
+        <div class="card-body p-0">
 
-                            <form action="{{ route('terms.destroy', $term->id) }}"
-                                  method="POST"
-                                  class="d-inline">
+            <div class="table-responsive">
 
-                                @csrf
-                                @method('DELETE')
+                <table class="table table-hover align-middle mb-0">
 
-                                <button type="submit"
-                                        class="btn btn-light btn-sm"
-                                        onclick="return confirm('Delete this term?')">
-                                    Delete
-                                </button>
+                    <thead class="table-light">
 
-                            </form>
+                        <tr>
 
-                        </td>
+                            <th class="ps-4">#</th>
+                            <th>Academic Year</th>
+                            <th>Term</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Status</th>
+                            <th class="text-end pe-4">Actions</th>
 
-                    </tr>
+                        </tr>
 
-                    @empty
+                    </thead>
 
-                    <tr>
-                        <td colspan="7" class="text-center">
-                            No Terms Found
-                        </td>
-                    </tr>
 
-                    @endforelse
+                    <tbody>
 
-                </tbody>
+                        @forelse($terms as $term)
 
-            </table>
+                            <tr>
+
+                                <td class="ps-4 text-muted">
+                                    {{ $loop->iteration }}
+                                </td>
+
+
+                                <td>
+
+                                    <span class="fw-semibold">
+
+                                        {{ $term->academicYear->name ?? 'N/A' }}
+
+                                    </span>
+
+                                </td>
+
+
+                                <td>
+
+                                    @php
+                                        $termClass = match(
+                                            strtolower(trim($term->name))
+                                        ) {
+                                            'first term' => 'bg-primary',
+                                            'second term' => 'bg-info text-dark',
+                                            'third term' => 'bg-warning text-dark',
+                                            default => 'bg-secondary',
+                                        };
+                                    @endphp
+
+                                    <span class="badge {{ $termClass }}">
+
+                                        {{ $term->name }}
+
+                                    </span>
+
+                                </td>
+
+
+                                <td>
+
+                                    {{ $term->start_date
+                                        ? $term->start_date->format('d M Y')
+                                        : '—'
+                                    }}
+
+                                </td>
+
+
+                                <td>
+
+                                    {{ $term->end_date
+                                        ? $term->end_date->format('d M Y')
+                                        : '—'
+                                    }}
+
+                                </td>
+
+
+                                <td>
+
+                                    @if($term->is_active)
+
+                                        <span class="badge bg-success">
+
+                                            <i class="fas fa-check me-1"></i>
+                                            Active
+
+                                        </span>
+
+                                    @else
+
+                                        <span class="badge bg-secondary">
+
+                                            Inactive
+
+                                        </span>
+
+                                    @endif
+
+                                </td>
+
+
+                                <td class="text-end pe-4">
+
+                                    <a href="{{ route('terms.show', $term->id) }}"
+                                       class="btn btn-sm btn-outline-primary">
+
+                                        <i class="fas fa-eye"></i>
+
+                                    </a>
+
+
+                                    <a href="{{ route('terms.edit', $term->id) }}"
+                                       class="btn btn-sm btn-outline-secondary">
+
+                                        <i class="fas fa-edit"></i>
+
+                                    </a>
+
+
+                                    <form action="{{ route('terms.destroy', $term->id) }}"
+                                          method="POST"
+                                          class="d-inline"
+                                          onsubmit="return confirm('Are you sure you want to delete this term?');">
+
+                                        @csrf
+                                        @method('DELETE')
+
+                                        <button type="submit"
+                                                class="btn btn-sm btn-outline-danger">
+
+                                            <i class="fas fa-trash"></i>
+
+                                        </button>
+
+                                    </form>
+
+                                </td>
+
+                            </tr>
+
+                        @empty
+
+                            <tr>
+
+                                <td colspan="7"
+                                    class="text-center py-5">
+
+                                    <i class="fas fa-calendar-xmark text-muted fs-1 mb-3"></i>
+
+                                    <h6 class="fw-bold">
+                                        No Terms Found
+                                    </h6>
+
+                                    <p class="text-muted mb-3">
+                                        No academic terms have been configured yet.
+                                    </p>
+
+                                    <a href="{{ route('terms.create') }}"
+                                       class="btn btn-primary">
+
+                                        <i class="fas fa-plus me-1"></i>
+                                        Create First Term
+
+                                    </a>
+
+                                </td>
+
+                            </tr>
+
+                        @endforelse
+
+                    </tbody>
+
+                </table>
+
+            </div>
 
         </div>
 

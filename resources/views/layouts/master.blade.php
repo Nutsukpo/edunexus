@@ -1049,10 +1049,10 @@
                             <span>Fee Categories</span>
                         </a> -->
 
-                        <!-- <a href="/class-fee-structures" class="nav-link-child">
+                        <a href="/student-fee-allocations" class="nav-link-child">
                             <i class="fas fa-refresh"></i>
-                            <span>Fee Structure</span>
-                        </a> -->
+                            <span>S-Fee Structure</span>
+                        </a>
 
                         @can('bill-sheets.view')
 
@@ -1329,7 +1329,7 @@
 
                         <a href="/settings" class="nav-link-child">
                             <i class="fas fa-tools"></i>
-                            <span>System Settings</span>
+                            <span>Academic Settings</span>
                         </a>
                     </div>
                 </div>

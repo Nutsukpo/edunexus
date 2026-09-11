@@ -12,12 +12,13 @@
     |--------------------------------------------------------------------------
     */
 
-    $selectedYear = request('academic_year_id');
-    $selectedClass = request('class_id');
-    $selectedStatus = request('status');
-    $selectedReport = request('report_type', 'summary');
-    $selectedStudent = request('student_id');
-    $selectedMethod = request('payment_method');
+    $selectedYear = $academic_year_id ?? null;
+    $selectedTerm = $term_id ?? null;
+    $selectedClass = $class_id ?? null;
+    $selectedStatus = $status ?? null;
+    $selectedReport = $report_type ?? 'summary';
+    $selectedStudent = $student_id ?? null;
+    $selectedMethod = $payment_method ?? null;
 
     $reportLabels = [
         'summary' => 'Summary',
@@ -32,6 +33,10 @@
     $yearLabel = $selectedYear
         ? ($academicYears[$selectedYear] ?? 'Selected Academic Year')
         : 'All Academic Years';
+
+    $termLabel = $selectedTerm
+        ? (($terms->firstWhere('id', $selectedTerm)?->name) ?? 'Selected Term')
+        : 'All Terms';
 
     $classLabel = $selectedClass
         ? ($classes[$selectedClass] ?? 'Selected Class')
@@ -567,6 +572,10 @@
 
         <span class="badge rounded-pill bg-light text-dark border">
             {{ $yearLabel }}
+        </span>
+
+        <span class="badge rounded-pill bg-light text-dark border">
+            {{ $termLabel }}
         </span>
 
         <span class="badge rounded-pill bg-light text-dark border">
@@ -1150,6 +1159,32 @@
 
                     </div>
 
+                    <div class="col-xl-3 col-md-6">
+                        <label for="term_id" class="form-label">
+                            Term
+                        </label>
+
+                        <select
+                            name="term_id"
+                            id="term_id"
+                            class="form-select"
+                            {{ empty($selectedYear) ? 'disabled' : '' }}>
+                            <option value="">All Terms</option>
+
+                            @foreach($terms as $term)
+                                <option
+                                    value="{{ $term->id }}"
+                                    {{ (string) $selectedTerm === (string) $term->id ? 'selected' : '' }}>
+                                    {{ $term->name }}
+                                </option>
+                            @endforeach
+                        </select>
+
+                        <div class="form-text">
+                            Terms belong to the selected academic year.
+                        </div>
+                    </div>
+
 
                     <div class="col-xl-3 col-md-6">
 
@@ -1610,6 +1645,7 @@
                                 <th>Student</th>
                                 <th>Class</th>
                                 <th>Academic Year</th>
+                                <th>Term</th>
                                 <th class="text-end">Total Fees</th>
                                 <th class="text-end">Paid</th>
                                 <th class="text-end">Balance</th>
@@ -1690,6 +1726,10 @@
                                     {{ $yearName }}
                                 </td>
 
+                                <td>
+                                    {{ $report->report_term_name ?? $termLabel }}
+                                </td>
+
                                 <td class="text-end">
                                     GHS {{ number_format($report->total_fees ?? 0, 2) }}
                                 </td>
@@ -1737,15 +1777,14 @@
 
                                         @if(isset($report->payments) && $report->payments->isNotEmpty())
 
-                                            <a
-                                                href="{{ route('fee-payments.receipt', $report->payments->first()->id) }}"
-                                                class="btn btn-outline-secondary"
-                                                title="View receipt">
+                                        <a
+                                            href="{{ route('fee.payment.reports.receipt', $report->payments->first()->id) }}"
+                                            class="btn btn-outline-secondary"
+                                            title="Download receipt">
 
-                                                <i class="fas fa-receipt"></i>
+                                            <i class="fas fa-file-pdf"></i>
 
-                                            </a>
-
+                                        </a>
                                         @endif
 
                                     </div>
@@ -1758,7 +1797,7 @@
 
                             <tr>
 
-                                <td colspan="11">
+                                <td colspan="12">
 
                                     <div class="empty-report">
 
@@ -1789,7 +1828,7 @@
 
                             <tr class="fw-bold">
 
-                                <th colspan="4" class="text-end">
+                                <th colspan="5" class="text-end">
                                     Totals
                                 </th>
 
@@ -1991,6 +2030,7 @@
                                 <th>#</th>
                                 <th>Class</th>
                                 <th>Academic Year</th>
+                                <th>Term</th>
                                 <th class="text-end">Students</th>
                                 <th class="text-end">Total Fees</th>
                                 <th class="text-end">Paid</th>
@@ -2028,6 +2068,10 @@
                                         ?? $report->academicYear->year_name
                                         ?? 'N/A' }}
 
+                                </td>
+
+                                <td>
+                                    {{ $report->termName ?? $termLabel }}
                                 </td>
 
                                 <td class="text-end">
@@ -2248,7 +2292,7 @@
             <div class="d-flex flex-wrap gap-2">
 
                 <a
-                    href="{{ route('fee.payment.reports.outstanding') }}"
+                    href="{{ route('fee.payment.reports.outstanding', request()->only(['academic_year_id', 'term_id', 'class_id'])) }}"
                     class="btn btn-outline-danger">
 
                     <i class="fas fa-triangle-exclamation me-1"></i>
@@ -2257,7 +2301,7 @@
                 </a>
 
                 <a
-                    href="{{ route('fee.payment.reports.payment-history') }}"
+                    href="{{ route('fee.payment.reports.payment-history', request()->only(['academic_year_id', 'term_id', 'class_id'])) }}"
                     class="btn btn-outline-info">
 
                     <i class="fas fa-clock-rotate-left me-1"></i>
@@ -2312,6 +2356,77 @@
      CHARTS
      Chart.js is already loaded by layouts.master.
 ========================================================= --}}
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const academicYear = document.getElementById('academic_year_id');
+    const term = document.getElementById('term_id');
+
+    if (academicYear && term) {
+        const selectedTerm = @json($selectedTerm);
+        const termsUrlTemplate = @json(route('settings.academic-years.terms', ['academicYear' => '__YEAR__']));
+
+        const loadTerms = async (yearId, preferredTerm = null) => {
+            term.disabled = true;
+            term.innerHTML = '<option value="">Loading terms...</option>';
+
+            if (!yearId) {
+                term.innerHTML = '<option value="">All Terms</option>';
+                term.disabled = true;
+                return;
+            }
+
+            try {
+                const response = await fetch(
+                    termsUrlTemplate.replace('__YEAR__', yearId),
+                    {
+                        headers: {
+                            'Accept': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    }
+                );
+
+                if (!response.ok) {
+                    throw new Error('Unable to load terms.');
+                }
+
+                const terms = await response.json();
+
+                term.innerHTML = '<option value="">All Terms</option>';
+
+                terms.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = item.id;
+                    option.textContent = item.name;
+
+                    if (preferredTerm && String(preferredTerm) === String(item.id)) {
+                        option.selected = true;
+                    }
+
+                    term.appendChild(option);
+                });
+
+                term.disabled = false;
+            } catch (error) {
+                console.error(error);
+                term.innerHTML = '<option value="">Unable to load terms</option>';
+                term.disabled = true;
+            }
+        };
+
+        academicYear.addEventListener('change', function () {
+            loadTerms(this.value, null);
+        });
+
+        if (academicYear.value) {
+            loadTerms(academicYear.value, selectedTerm);
+        }
+    }
+});
+</script>
+@endpush
+
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', function () {

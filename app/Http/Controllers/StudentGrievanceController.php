@@ -2,670 +2,2053 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Student;
+use App\Models\StudentClass;
 use App\Models\StudentGrievance;
 use App\Models\StudentGrievanceCategory;
 use App\Models\StudentGrievanceComment;
-use App\Models\Student;
 use App\Models\Staff;
-use App\Models\StudentClass;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 
 class StudentGrievanceController extends Controller
 {
     /**
-     * Display a listing of grievances.
+     * ============================================================
+     * INDEX
+     * ============================================================
+     *
+     * Display grievances.
+     *
+     * Students only see their own grievances.
+     * Staff/admin users can see all grievances.
      */
     public function index(Request $request)
     {
-        $query = StudentGrievance::with(['student', 'category', 'assignedTo']);
+        $isStudent = $this->isStudent();
 
-        // Filters
-        if ($request->has('status') && $request->status) {
-            $query->where('status', $request->status);
+        if ($isStudent) {
+            $student = $this->student();
+
+            $query = StudentGrievance::query()
+                ->with(['category', 'class', 'assignedTo'])
+                ->where('student_id', $student->id);
+        } else {
+            $query = StudentGrievance::query()
+                ->with(['student', 'category', 'class', 'assignedTo']);
         }
 
-        if ($request->has('priority') && $request->priority) {
-            $query->where('priority', $request->priority);
-        }
+        /*
+         * Search
+         */
+        if ($request->filled('search')) {
 
-        if ($request->has('category_id') && $request->category_id) {
-            $query->where('category_id', $request->category_id);
-        }
+            $search = trim($request->input('search'));
 
-        // If student user, show only their grievances
-     
-
-        // If admin/staff, show all or assigned to them
-       
-
-        if ($request->has('search') && $request->search) {
-            $search = $request->search;
             $query->where(function ($q) use ($search) {
-                $q->where('title', 'LIKE', "%{$search}%")
-                  ->orWhere('grievance_code', 'LIKE', "%{$search}%")
-                  ->orWhere('description', 'LIKE', "%{$search}%");
+
+                $q->where('grievance_code', 'like', "%{$search}%")
+                    ->orWhere('title', 'like', "%{$search}%")
+                    ->orWhere('description', 'like', "%{$search}%");
+
+                if (!$this->isStudent()) {
+
+                    $q->orWhereHas('student', function ($studentQuery) use ($search) {
+
+                        $studentQuery
+                            ->where('student_id', 'like', "%{$search}%")
+                            ->orWhere('first_name', 'like', "%{$search}%")
+                            ->orWhere('middle_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%");
+                    });
+                }
             });
         }
 
-        $grievances = $query->orderBy('created_at', 'desc')->paginate(15);
-        
-        $categories = StudentGrievanceCategory::active()->get();
-        $statuses = [
-            'draft', 'submitted', 'under_review', 'investigation',
-            'resolution_proposed', 'resolved', 'closed', 'rejected', 'appealed'
-        ];
-        $priorities = ['low', 'medium', 'high', 'urgent'];
 
-        return view('student-grievance.index', compact('grievances', 'categories', 'statuses', 'priorities'));
+        /*
+         * Status filter
+         */
+        if ($request->filled('status')) {
+            $query->where('status', $request->status);
+        }
+
+
+        /*
+         * Priority filter
+         */
+        if ($request->filled('priority')) {
+            $query->where('priority', $request->priority);
+        }
+
+
+        /*
+         * Category filter
+         */
+        if ($request->filled('category_id')) {
+            $query->where('category_id', $request->category_id);
+        }
+
+
+        /*
+         * Ordering
+         */
+        $query->orderByDesc('created_at');
+
+
+        $grievances = $query->paginate(15)->withQueryString();
+
+        $categories = StudentGrievanceCategory::active()->get();
+
+        $statuses = [
+            'draft',
+            'submitted',
+            'under_review',
+            'investigation',
+            'resolution_proposed',
+            'resolved',
+            'closed',
+            'rejected',
+            'appealed',
+        ];
+
+        $priorities = [
+            'low',
+            'medium',
+            'high',
+            'urgent',
+        ];
+
+
+        return view(
+            'student-grievance.index',
+            compact(
+                'grievances',
+                'categories',
+                'statuses',
+                'priorities'
+            )
+        );
     }
 
+
     /**
-     * Show the form for creating a new grievance.
+     * ============================================================
+     * CREATE
+     * ============================================================
      */
     public function create()
     {
+        /*
+         * Only authenticated students should create
+         * grievances from the student portal.
+         */
+        $student = $this->student();
+
+        if (!$student) {
+            abort(403, 'Student authentication required.');
+        }
+
+
         $categories = StudentGrievanceCategory::active()->get();
-        $students = Student::all();
-        $staff = Staff::all();
-        $classes = StudentClass::all(); // FIX: Changed from Classes::all() to StudentClass::all()
-        
-        return view('student-grievance.create', compact('categories', 'students', 'staff', 'classes'));
+
+        /*
+         * The student only needs the classes available
+         * for selection. We do not expose every student
+         * or every staff member here.
+         */
+        $classes = StudentClass::query()
+            ->where('is_active', true)
+            ->orderBy('name')
+            ->get();
+
+
+        return view(
+            'student-grievance.create',
+            compact(
+                'categories',
+                'classes'
+            )
+        );
     }
 
+
     /**
-     * Store a newly created grievance.
+     * ============================================================
+     * STORE
+     * ============================================================
+     *
+     * Create a new grievance.
      */
-   /**
- * Store a newly created grievance.
- */
     public function store(Request $request)
     {
-        $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
-            'description' => 'required|string',
-            'category_id' => 'nullable|exists:students_grievance_categories,id',
-            'priority' => 'required|in:low,medium,high,urgent',
-            'is_confidential' => 'boolean',
-            'is_anonymous' => 'boolean',
-            'attachment' => 'nullable|file|max:10240',
-            'attachments.*' => 'nullable|file|max:10240',
-        ]);
+        /*
+         * Get authenticated student using the correct guard.
+         */
+        $student = $this->student();
+
+        if (!$student) {
+
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'Your student session has expired. Please log in again.'
+                );
+        }
+
+
+        /*
+         * Validate request.
+         */
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'title' => [
+                    'required',
+                    'string',
+                    'max:255',
+                ],
+
+                'description' => [
+                    'required',
+                    'string',
+                ],
+
+                'category_id' => [
+                    'nullable',
+                    'exists:students_grievance_categories,id',
+                ],
+
+                'class_id' => [
+                    'nullable',
+                    'exists:student_classes,id',
+                ],
+
+                'priority' => [
+                    'required',
+                    'in:low,medium,high,urgent',
+                ],
+
+                'is_confidential' => [
+                    'nullable',
+                    'boolean',
+                ],
+
+                'is_anonymous' => [
+                    'nullable',
+                    'boolean',
+                ],
+
+                'attachment' => [
+                    'nullable',
+                    'file',
+                    'max:10240',
+                ],
+
+                'attachments' => [
+                    'nullable',
+                    'array',
+                ],
+
+                'attachments.*' => [
+                    'nullable',
+                    'file',
+                    'max:10240',
+                ],
+            ]
+        );
+
 
         if ($validator->fails()) {
-            return redirect()->back()
+
+            return redirect()
+                ->back()
                 ->withErrors($validator)
                 ->withInput();
         }
 
+
+        $storedFiles = [];
+
+
         try {
+
             DB::beginTransaction();
 
-            // Get student_id from authenticated user
-            $studentId = auth()->user()->student_id;
-            
-            // If student_id is not set, try to find it by checking the students table
-            if (empty($studentId)) {
-                // Check if the user has a student record
-                $student = Student::where('user_id', auth()->id())->first();
-                
-                // If not found by user_id, try to find by email
-                if (!$student) {
-                    // Check if students table has email column
-                    try {
-                        $student = Student::where('email', auth()->user()->email)->first();
-                    } catch (\Exception $e) {
-                        // If email column doesn't exist, try other columns
-                        $student = Student::where('user_id', auth()->id())->first();
-                    }
-                }
-                
-                if ($student) {
-                    $studentId = $student->id;
-                    // Update the user's student_id for future use
-                    auth()->user()->update(['student_id' => $studentId]);
-                } else {
-                    // If no student record exists, you might want to create one or throw an error
-                    throw new \Exception('Student record not found. Please contact administrator.');
-                }
+
+            /*
+             * Determine status.
+             */
+            $isDraft = $request->boolean('is_draft');
+
+            $status = $isDraft
+                ? 'draft'
+                : 'submitted';
+
+
+            /*
+             * Create grievance.
+             */
+            $grievance = new StudentGrievance();
+
+            $grievance->grievance_code =
+                $this->generateGrievanceCode();
+
+            $grievance->title =
+                trim($request->input('title'));
+
+            $grievance->description =
+                trim($request->input('description'));
+
+            $grievance->student_id =
+                $student->id;
+
+            $grievance->category_id =
+                $request->input('category_id');
+
+            $grievance->class_id =
+                $request->input('class_id');
+
+            $grievance->priority =
+                $request->input('priority');
+
+            $grievance->status =
+                $status;
+
+            $grievance->is_confidential =
+                $request->boolean(
+                    'is_confidential',
+                    true
+                );
+
+            $grievance->is_anonymous =
+                $request->boolean(
+                    'is_anonymous',
+                    false
+                );
+
+
+            /*
+             * Anonymous grievances should remain
+             * confidential automatically.
+             */
+            if ($grievance->is_anonymous) {
+                $grievance->is_confidential = true;
             }
 
-            $grievance = new StudentGrievance();
-            $grievance->grievance_code = $grievance->generateGrievanceCode();
-            $grievance->title = $request->title;
-            $grievance->description = $request->description;
-            $grievance->student_id = $studentId;
-            $grievance->category_id = $request->category_id;
-            $grievance->class_id = $request->class_id;
-            $grievance->priority = $request->priority;
-            $grievance->is_confidential = $request->is_confidential ?? true;
-            $grievance->is_anonymous = $request->is_anonymous ?? false;
-            
-            if ($request->has('is_draft') && $request->is_draft == 1) {
-                $grievance->status = 'draft';
-            } else {
-                $grievance->status = 'submitted';
+
+            /*
+             * Submission date only exists once the
+             * grievance is actually submitted.
+             */
+            if ($status === 'submitted') {
                 $grievance->submission_date = now();
             }
 
-            // Handle attachments
+
+            /*
+             * Single attachment.
+             */
             if ($request->hasFile('attachment')) {
-                $file = $request->file('attachment');
-                $fileName = time() . '_' . \Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) . '.' . $file->getClientOriginalExtension();
-                $path = $file->storeAs('student-grievances/attachments', $fileName, 'public');
+
+                $path = $this->storeGrievanceFile(
+                    $request->file('attachment')
+                );
+
                 $grievance->attachment = $path;
+
+                $storedFiles[] = $path;
             }
 
+
+            /*
+             * Multiple attachments.
+             */
             if ($request->hasFile('attachments')) {
+
                 $attachments = [];
-                foreach ($request->file('attachments') as $file) {
-                    $fileName = time() . '_' . \Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) . '.' . $file->getClientOriginalExtension();
-                    $path = $file->storeAs('student-grievances/attachments', $fileName, 'public');
+
+                foreach (
+                    $request->file('attachments')
+                    as $file
+                ) {
+
+                    if (!$file->isValid()) {
+                        continue;
+                    }
+
+                    $path =
+                        $this->storeGrievanceFile($file);
+
                     $attachments[] = $path;
+                    $storedFiles[] = $path;
                 }
-                $grievance->attachments = $attachments;
+
+
+                if (!empty($attachments)) {
+                    $grievance->attachments = $attachments;
+                }
             }
 
+
+            /*
+             * Save grievance.
+             */
             $grievance->save();
 
-            // Add history
-            $action = ($grievance->status === 'draft') ? 'created' : 'submitted';
-            $description = ($grievance->status === 'draft') ? 'Grievance saved as draft' : 'Grievance submitted by student';
-            $grievance->addHistory($action, $description, null, ['status' => $grievance->status], 'student');
+
+            /*
+             * Record history directly through the
+             * relationship.
+             *
+             * This requires StudentGrievanceHistory
+             * to exist. See the model below.
+             */
+            $this->recordHistory(
+                $grievance,
+                $status === 'draft'
+                    ? 'created'
+                    : 'submitted',
+                $status === 'draft'
+                    ? 'Grievance saved as draft.'
+                    : 'Grievance submitted by student.',
+                null,
+                [
+                    'status' => $status,
+                ],
+                'student',
+                $student->id
+            );
+
 
             DB::commit();
 
-            $message = ($grievance->status === 'draft') 
-                ? 'Grievance saved as draft successfully!' 
-                : 'Grievance submitted successfully! You will be notified of the progress.';
 
-            return redirect()->route('student-grievance.show', $grievance->id)
+            $message = $status === 'draft'
+                ? 'Grievance saved as draft successfully.'
+                : 'Grievance submitted successfully. You will be notified of the progress.';
+
+
+            return redirect()
+                ->route(
+                    'student-grievance.show',
+                    $grievance->id
+                )
                 ->with('success', $message);
 
-        } catch (\Exception $e) {
+
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to submit grievance: ' . $e->getMessage())
-                ->withInput();
+
+
+            /*
+             * Delete files that were already stored
+             * if the database transaction failed.
+             */
+            foreach ($storedFiles as $file) {
+
+                try {
+                    Storage::disk('public')->delete($file);
+                } catch (\Throwable $fileException) {
+                    Log::warning(
+                        'Failed to clean up grievance attachment.',
+                        [
+                            'file' => $file,
+                            'error' => $fileException->getMessage(),
+                        ]
+                    );
+                }
+            }
+
+
+            Log::error(
+                'Student grievance submission failed.',
+                [
+                    'student_id' => $student->id,
+                    'error' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]
+            );
+
+
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'Failed to submit grievance. Please try again.'
+                );
         }
     }
 
-        /**
-         * Display the specified grievance.
-         */
-        public function show($id)
-        {
-            $grievance = StudentGrievance::with([
-                'student',
-                'category',
-                'assignedTo',
-                'class',
-                'comments.staff',
-                'comments.student',
-                'histories',
-                'escalations.fromStaff',
-                'escalations.toStaff'
-            ])->findOrFail($id);
-
-            // Check permission
-            if (auth()->user()->role === 'student' && $grievance->student_id !== auth()->user()->student_id) {
-                abort(403, 'You do not have permission to view this grievance.');
-            }
-
-            $staff = Staff::all();
-            $categories = StudentGrievanceCategory::active()->get();
-            $students = Student::all();
-
-            return view('student-grievance.show', compact('grievance', 'staff', 'categories', 'students'));
-        }
 
     /**
-     * Show the form for editing the specified grievance.
+     * ============================================================
+     * SHOW
+     * ============================================================
+     */
+    public function show($id)
+    {
+        $grievance = StudentGrievance::with([
+            'student',
+            'category',
+            'assignedTo',
+            'class',
+            'comments.staff',
+            'comments.student',
+            'histories',
+            'escalations.fromStaff',
+            'escalations.toStaff',
+        ])->findOrFail($id);
+
+
+        /*
+         * Student can only view their own grievance.
+         */
+        $student = $this->student();
+
+        if ($student) {
+
+            if ((int) $grievance->student_id !== (int) $student->id) {
+                abort(
+                    403,
+                    'You do not have permission to view this grievance.'
+                );
+            }
+        }
+
+
+        /*
+         * Staff/admin can access the full record.
+         */
+        $staff = $this->isStudent()
+            ? collect()
+            : Staff::orderBy('first_name')->get();
+
+
+        $categories =
+            StudentGrievanceCategory::active()->get();
+
+
+        /*
+         * Only provide students to staff/admin views.
+         */
+        $students = $this->isStudent()
+            ? collect()
+            : Student::orderBy('first_name')->get();
+
+
+        return view(
+            'student-grievance.show',
+            compact(
+                'grievance',
+                'staff',
+                'categories',
+                'students'
+            )
+        );
+    }
+
+
+    /**
+     * ============================================================
+     * EDIT
+     * ============================================================
      */
     public function edit($id)
     {
-        $grievance = StudentGrievance::findOrFail($id);
+        $grievance =
+            StudentGrievance::findOrFail($id);
+
 
         if (!$grievance->canEdit()) {
-            return redirect()->route('student-grievance.show', $id)
-                ->with('error', 'This grievance cannot be edited as it is already being processed.');
+
+            return redirect()
+                ->route(
+                    'student-grievance.show',
+                    $id
+                )
+                ->with(
+                    'error',
+                    'This grievance cannot be edited because it is already being processed.'
+                );
         }
 
-        if (auth()->user()->role === 'student' && $grievance->student_id !== auth()->user()->student_id) {
-            abort(403, 'You do not have permission to edit this grievance.');
+
+        /*
+         * Student ownership check.
+         */
+        $student = $this->student();
+
+        if ($student) {
+
+            if ((int) $grievance->student_id !== (int) $student->id) {
+
+                abort(
+                    403,
+                    'You do not have permission to edit this grievance.'
+                );
+            }
         }
 
-        $categories = StudentGrievanceCategory::active()->get();
-        $students = Student::all();
-        $staff = Staff::all();
-        $classes = StudentClass::all(); // FIX: Changed from Classes::all() to StudentClass::all()
 
-        return view('student-grievance.edit', compact('grievance', 'categories', 'students', 'staff', 'classes'));
+        $categories =
+            StudentGrievanceCategory::active()->get();
+
+
+        $classes =
+            StudentClass::query()
+                ->where('is_active', true)
+                ->orderBy('name')
+                ->get();
+
+
+        return view(
+            'student-grievance.edit',
+            compact(
+                'grievance',
+                'categories',
+                'classes'
+            )
+        );
     }
 
+
     /**
-     * Update the specified grievance.
+     * ============================================================
+     * UPDATE
+     * ============================================================
      */
-    public function update(Request $request, $id)
-    {
-        $grievance = StudentGrievance::findOrFail($id);
+    public function update(
+        Request $request,
+        $id
+    ) {
+        $grievance =
+            StudentGrievance::findOrFail($id);
+
 
         if (!$grievance->canEdit()) {
-            return redirect()->route('student-grievance.show', $id)
-                ->with('error', 'This grievance cannot be edited.');
+
+            return redirect()
+                ->route(
+                    'student-grievance.show',
+                    $id
+                )
+                ->with(
+                    'error',
+                    'This grievance cannot be edited.'
+                );
         }
 
-        $validator = Validator::make($request->all(), [
-            'title' => 'required|string|max:255',
-            'description' => 'required|string',
-            'category_id' => 'nullable|exists:students_grievance_categories,id',
-            'priority' => 'required|in:low,medium,high,urgent',
-            'is_confidential' => 'boolean',
-            'is_anonymous' => 'boolean',
-            'attachment' => 'nullable|file|max:10240',
-            'attachments.*' => 'nullable|file|max:10240',
-        ]);
+
+        /*
+         * Student ownership.
+         */
+        $student = $this->student();
+
+        if ($student) {
+
+            if ((int) $grievance->student_id !== (int) $student->id) {
+
+                abort(
+                    403,
+                    'You do not have permission to update this grievance.'
+                );
+            }
+        }
+
+
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'title' => 'required|string|max:255',
+
+                'description' => 'required|string',
+
+                'category_id' =>
+                    'nullable|exists:students_grievance_categories,id',
+
+                'class_id' =>
+                    'nullable|exists:student_classes,id',
+
+                'priority' =>
+                    'required|in:low,medium,high,urgent',
+
+                'is_confidential' =>
+                    'nullable|boolean',
+
+                'is_anonymous' =>
+                    'nullable|boolean',
+
+                'attachment' =>
+                    'nullable|file|max:10240',
+
+                'attachments' =>
+                    'nullable|array',
+
+                'attachments.*' =>
+                    'nullable|file|max:10240',
+            ]
+        );
+
 
         if ($validator->fails()) {
-            return redirect()->back()
+
+            return redirect()
+                ->back()
                 ->withErrors($validator)
                 ->withInput();
         }
 
+
+        $newFiles = [];
+        $filesToDeleteAfterCommit = [];
+
+
         try {
+
             DB::beginTransaction();
+
 
             $oldValues = $grievance->toArray();
 
-            // Handle attachments
+
+            $grievance->title =
+                trim($request->input('title'));
+
+            $grievance->description =
+                trim($request->input('description'));
+
+            $grievance->category_id =
+                $request->input('category_id');
+
+            $grievance->class_id =
+                $request->input('class_id');
+
+            $grievance->priority =
+                $request->input('priority');
+
+            $grievance->is_confidential =
+                $request->boolean(
+                    'is_confidential',
+                    true
+                );
+
+            $grievance->is_anonymous =
+                $request->boolean(
+                    'is_anonymous',
+                    false
+                );
+
+
+            if ($grievance->is_anonymous) {
+                $grievance->is_confidential = true;
+            }
+
+
+            /*
+             * New single attachment.
+             */
             if ($request->hasFile('attachment')) {
+
+                $newPath =
+                    $this->storeGrievanceFile(
+                        $request->file('attachment')
+                    );
+
+                $newFiles[] = $newPath;
+
                 if ($grievance->attachment) {
-                    Storage::disk('public')->delete($grievance->attachment);
+                    $filesToDeleteAfterCommit[] =
+                        $grievance->attachment;
                 }
-                $file = $request->file('attachment');
-                $fileName = time() . '_' . \Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) . '.' . $file->getClientOriginalExtension();
-                $path = $file->storeAs('student-grievances/attachments', $fileName, 'public');
-                $grievance->attachment = $path;
+
+                $grievance->attachment =
+                    $newPath;
             }
 
+
+            /*
+             * Replace multiple attachments.
+             */
             if ($request->hasFile('attachments')) {
-                if ($grievance->attachments) {
-                    foreach ($grievance->attachments as $oldAttachment) {
-                        Storage::disk('public')->delete($oldAttachment);
+
+                $newAttachments = [];
+
+                foreach (
+                    $request->file('attachments')
+                    as $file
+                ) {
+
+                    if (!$file->isValid()) {
+                        continue;
                     }
+
+                    $path =
+                        $this->storeGrievanceFile($file);
+
+                    $newAttachments[] = $path;
+                    $newFiles[] = $path;
                 }
-                $attachments = [];
-                foreach ($request->file('attachments') as $file) {
-                    $fileName = time() . '_' . \Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) . '.' . $file->getClientOriginalExtension();
-                    $path = $file->storeAs('student-grievances/attachments', $fileName, 'public');
-                    $attachments[] = $path;
+
+
+                if (!empty($newAttachments)) {
+
+                    if (is_array($grievance->attachments)) {
+
+                        foreach (
+                            $grievance->attachments
+                            as $oldFile
+                        ) {
+                            $filesToDeleteAfterCommit[] =
+                                $oldFile;
+                        }
+                    }
+
+                    $grievance->attachments =
+                        $newAttachments;
                 }
-                $grievance->attachments = $attachments;
             }
 
-            $grievance->update($request->except(['attachment', 'attachments']));
 
-            // Add history
-            $newValues = $grievance->toArray();
-            $grievance->addHistory('updated', 'Grievance updated', $oldValues, $newValues, 'student');
+            $grievance->save();
+
+
+            $newValues =
+                $grievance->fresh()->toArray();
+
+
+            $this->recordHistory(
+                $grievance,
+                'updated',
+                'Grievance information updated by student.',
+                $oldValues,
+                $newValues,
+                'student',
+                $student?->id
+            );
+
 
             DB::commit();
 
-            return redirect()->route('student-grievance.show', $grievance->id)
-                ->with('success', 'Grievance updated successfully!');
 
-        } catch (\Exception $e) {
+            /*
+             * Delete old files only after successful
+             * database commit.
+             */
+            foreach (
+                $filesToDeleteAfterCommit
+                as $oldFile
+            ) {
+
+                if ($oldFile) {
+                    Storage::disk('public')->delete($oldFile);
+                }
+            }
+
+
+            return redirect()
+                ->route(
+                    'student-grievance.show',
+                    $grievance->id
+                )
+                ->with(
+                    'success',
+                    'Grievance updated successfully.'
+                );
+
+
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to update grievance: ' . $e->getMessage())
-                ->withInput();
+
+
+            foreach ($newFiles as $file) {
+
+                try {
+                    Storage::disk('public')->delete($file);
+                } catch (\Throwable $cleanupException) {
+                    Log::warning(
+                        'Failed to clean up uploaded grievance file.',
+                        [
+                            'file' => $file,
+                            'error' =>
+                                $cleanupException->getMessage(),
+                        ]
+                    );
+                }
+            }
+
+
+            Log::error(
+                'Student grievance update failed.',
+                [
+                    'grievance_id' => $id,
+                    'student_id' => $student?->id,
+                    'error' => $e->getMessage(),
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ]
+            );
+
+
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'Failed to update grievance. Please try again.'
+                );
         }
     }
 
+
     /**
-     * Remove the specified grievance.
+     * ============================================================
+     * DESTROY
+     * ============================================================
      */
     public function destroy($id)
     {
-        $grievance = StudentGrievance::findOrFail($id);
+        $grievance =
+            StudentGrievance::findOrFail($id);
+
 
         if (!$grievance->canDelete()) {
-            return redirect()->back()
-                ->with('error', 'This grievance cannot be deleted.');
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'This grievance cannot be deleted.'
+                );
         }
 
+
+        /*
+         * Students can only delete their own grievance.
+         */
+        $student = $this->student();
+
+        if ($student) {
+
+            if ((int) $grievance->student_id !== (int) $student->id) {
+
+                abort(
+                    403,
+                    'You do not have permission to delete this grievance.'
+                );
+            }
+        }
+
+
         try {
+
             DB::beginTransaction();
 
+
+            $files = [];
+
+
             if ($grievance->attachment) {
-                Storage::disk('public')->delete($grievance->attachment);
+                $files[] = $grievance->attachment;
             }
-            
-            if ($grievance->attachments) {
-                foreach ($grievance->attachments as $attachment) {
-                    Storage::disk('public')->delete($attachment);
+
+
+            if (is_array($grievance->attachments)) {
+
+                foreach (
+                    $grievance->attachments
+                    as $attachment
+                ) {
+                    $files[] = $attachment;
                 }
             }
 
+
             $grievance->delete();
 
+
             DB::commit();
 
-            return redirect()->route('student-grievance.index')
-                ->with('success', 'Grievance deleted successfully!');
 
-        } catch (\Exception $e) {
+            foreach ($files as $file) {
+
+                if ($file) {
+                    Storage::disk('public')->delete($file);
+                }
+            }
+
+
+            return redirect()
+                ->route('student-grievance.index')
+                ->with(
+                    'success',
+                    'Grievance deleted successfully.'
+                );
+
+
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to delete grievance: ' . $e->getMessage());
-        }
-    }
 
-    /**
-     * Assign grievance to a staff member.
-     */
-    public function assign(Request $request, $id)
-    {
-        $grievance = StudentGrievance::findOrFail($id);
 
-        if ($grievance->status === 'closed' || $grievance->status === 'resolved') {
-            return redirect()->back()
-                ->with('error', 'Cannot assign a closed or resolved grievance.');
-        }
-
-        $validator = Validator::make($request->all(), [
-            'assigned_to' => 'required|exists:staff,id',
-            'remarks' => 'nullable|string',
-        ]);
-
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
-
-        try {
-            DB::beginTransaction();
-
-            $oldAssignedTo = $grievance->assigned_to;
-            $grievance->assigned_to = $request->assigned_to;
-            $grievance->status = 'under_review';
-            $grievance->review_date = now();
-            $grievance->remarks = $request->remarks;
-            $grievance->save();
-
-            $assignedStaff = Staff::find($request->assigned_to);
-            $grievance->addHistory(
-                'assigned',
-                "Grievance assigned to {$assignedStaff->full_name}",
-                ['assigned_to' => $oldAssignedTo],
-                ['assigned_to' => $request->assigned_to],
-                'staff'
+            Log::error(
+                'Student grievance deletion failed.',
+                [
+                    'grievance_id' => $id,
+                    'error' => $e->getMessage(),
+                ]
             );
 
-            DB::commit();
 
-            return redirect()->route('student-grievance.show', $grievance->id)
-                ->with('success', 'Grievance assigned successfully!');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to assign grievance: ' . $e->getMessage());
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Failed to delete grievance. Please try again.'
+                );
         }
     }
 
-    /**
-     * Update grievance status.
-     */
-    public function updateStatus(Request $request, $id)
-    {
-        $grievance = StudentGrievance::findOrFail($id);
 
-        if ($grievance->status === 'closed') {
-            return redirect()->back()
-                ->with('error', 'Cannot update a closed grievance.');
+    /**
+     * ============================================================
+     * ADD COMMENT
+     * ============================================================
+     */
+    public function addComment(
+        Request $request,
+        $id
+    ) {
+        $grievance =
+            StudentGrievance::findOrFail($id);
+
+
+        $student = $this->student();
+
+
+        /*
+         * Student can only comment on their own grievance.
+         */
+        if ($student) {
+
+            if ((int) $grievance->student_id !== (int) $student->id) {
+
+                abort(
+                    403,
+                    'You do not have permission to comment on this grievance.'
+                );
+            }
         }
 
-        $validator = Validator::make($request->all(), [
-            'status' => 'required|in:under_review,investigation,resolution_proposed,resolved,closed,rejected',
-            'remarks' => 'nullable|string',
-            'staff_response' => 'nullable|string',
-        ]);
+
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'comment' =>
+                    'required|string|max:10000',
+
+                'is_internal' =>
+                    'nullable|boolean',
+
+                'attachment' =>
+                    'nullable|file|max:10240',
+            ]
+        );
+
 
         if ($validator->fails()) {
-            return redirect()->back()
+
+            return redirect()
+                ->back()
                 ->withErrors($validator)
                 ->withInput();
         }
 
-        try {
-            DB::beginTransaction();
-
-            $oldStatus = $grievance->status;
-            $newStatus = $request->status;
-
-            $grievance->status = $newStatus;
-            $grievance->remarks = $request->remarks;
-            $grievance->staff_response = $request->staff_response;
-
-            if ($newStatus === 'resolved') {
-                $grievance->resolution_date = now();
-            }
-
-            if ($newStatus === 'closed') {
-                $grievance->closure_date = now();
-            }
-
-            if ($newStatus === 'rejected') {
-                $grievance->appeal_deadline = now()->addDays(14);
-            }
-
-            $grievance->save();
-
-            $grievance->addHistory(
-                'updated',
-                "Status changed from {$oldStatus} to {$newStatus}",
-                ['status' => $oldStatus],
-                ['status' => $newStatus],
-                'staff'
-            );
-
-            DB::commit();
-
-            return redirect()->route('student-grievance.show', $grievance->id)
-                ->with('success', "Grievance status updated to " . ucwords(str_replace('_', ' ', $newStatus)) . "!");
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to update status: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * Add comment to grievance.
-     */
-    public function addComment(Request $request, $id)
-    {
-        $grievance = StudentGrievance::findOrFail($id);
-
-        $validator = Validator::make($request->all(), [
-            'comment' => 'required|string',
-            'is_internal' => 'boolean',
-            'attachment' => 'nullable|file|max:10240',
-        ]);
-
-        if ($validator->fails()) {
-            return redirect()->back()
-                ->withErrors($validator)
-                ->withInput();
-        }
 
         try {
+
             DB::beginTransaction();
 
-            $comment = new StudentGrievanceComment();
-            $comment->grievance_id = $grievance->id;
-            $comment->comment = $request->comment;
-            $comment->is_internal = $request->is_internal ?? false;
 
-            // Determine who is commenting
-            if (auth()->user()->role === 'student') {
-                $comment->student_id = auth()->user()->student_id;
+            $comment =
+                new StudentGrievanceComment();
+
+
+            $comment->grievance_id =
+                $grievance->id;
+
+            $comment->comment =
+                trim($request->input('comment'));
+
+
+            /*
+             * Students cannot create internal
+             * staff-only comments.
+             */
+            if ($student) {
+
+                $comment->student_id =
+                    $student->id;
+
+                $comment->is_internal = false;
+
                 $performerType = 'student';
+                $performedBy = $student->id;
+
             } else {
-                $comment->staff_id = auth()->user()->staff_id;
+
+                $user = auth('web')->user();
+
+                if (!$user) {
+                    throw new \RuntimeException(
+                        'Staff authentication session not found.'
+                    );
+                }
+
+                $comment->staff_id =
+                    $user->staff_id ?? $user->id;
+
+                $comment->is_internal =
+                    $request->boolean('is_internal');
+
                 $performerType = 'staff';
+                $performedBy =
+                    $user->staff_id ?? $user->id;
             }
 
+
+            /*
+             * Comment attachment.
+             */
             if ($request->hasFile('attachment')) {
-                $file = $request->file('attachment');
-                $fileName = time() . '_' . \Str::slug(pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME)) . '.' . $file->getClientOriginalExtension();
-                $path = $file->storeAs('student-grievances/comments', $fileName, 'public');
-                $comment->attachment = $path;
+
+                $comment->attachment =
+                    $this->storeCommentFile(
+                        $request->file('attachment')
+                    );
             }
+
 
             $comment->save();
 
-            $grievance->addHistory(
+
+            $this->recordHistory(
+                $grievance,
                 'commented',
-                "Comment added by " . (auth()->user()->role === 'student' ? 'Student' : 'Staff'),
+                $student
+                    ? 'Comment added by student.'
+                    : 'Comment added by staff.',
                 null,
-                ['comment' => $request->comment],
-                $performerType
+                [
+                    'comment_id' => $comment->id,
+                ],
+                $performerType,
+                $performedBy
             );
+
 
             DB::commit();
 
-            return redirect()->route('student-grievance.show', $grievance->id)
-                ->with('success', 'Comment added successfully!');
 
-        } catch (\Exception $e) {
+            return redirect()
+                ->route(
+                    'student-grievance.show',
+                    $grievance->id
+                )
+                ->with(
+                    'success',
+                    'Comment added successfully.'
+                );
+
+
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to add comment: ' . $e->getMessage());
+
+
+            Log::error(
+                'Student grievance comment failed.',
+                [
+                    'grievance_id' => $id,
+                    'error' => $e->getMessage(),
+                ]
+            );
+
+
+            return redirect()
+                ->back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'Failed to add comment. Please try again.'
+                );
         }
     }
 
-    /**
-     * Escalate grievance.
-     */
-    public function escalate(Request $request, $id)
-    {
-        $grievance = StudentGrievance::findOrFail($id);
 
-        $validator = Validator::make($request->all(), [
-            'to_staff_id' => 'required|exists:staff,id',
-            'reason' => 'required|string',
-            'level' => 'required|in:level_1,level_2,level_3,level_4',
-        ]);
+    /**
+     * ============================================================
+     * ASSIGN
+     * ============================================================
+     */
+    public function assign(
+        Request $request,
+        $id
+    ) {
+        $this->requireStaff();
+
+
+        $grievance =
+            StudentGrievance::findOrFail($id);
+
+
+        if (
+            in_array(
+                $grievance->status,
+                ['closed', 'resolved']
+            )
+        ) {
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Cannot assign a closed or resolved grievance.'
+                );
+        }
+
+
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'assigned_to' =>
+                    'required|exists:staff,id',
+
+                'remarks' =>
+                    'nullable|string|max:5000',
+            ]
+        );
+
 
         if ($validator->fails()) {
-            return redirect()->back()
+
+            return redirect()
+                ->back()
                 ->withErrors($validator)
                 ->withInput();
         }
 
+
         try {
+
             DB::beginTransaction();
 
-            $escalation = $grievance->escalations()->create([
-                'from_staff_id' => $grievance->assigned_to,
-                'to_staff_id' => $request->to_staff_id,
-                'reason' => $request->reason,
-                'level' => $request->level,
-                'escalation_date' => now(),
-                'response_deadline' => now()->addDays(7),
-                'status' => 'pending',
-            ]);
 
-            $grievance->assigned_to = $request->to_staff_id;
+            $oldAssignedTo =
+                $grievance->assigned_to;
+
+
+            $grievance->assigned_to =
+                $request->assigned_to;
+
+            $grievance->status =
+                'under_review';
+
+            if (!$grievance->review_date) {
+                $grievance->review_date = now();
+            }
+
+            $grievance->remarks =
+                $request->input('remarks');
+
+
             $grievance->save();
 
-            $toStaff = Staff::find($request->to_staff_id);
-            $grievance->addHistory(
-                'updated',
-                "Grievance escalated to {$toStaff->full_name} (Level: " . ucwords(str_replace('_', ' ', $request->level)) . ")",
-                null,
-                ['escalation' => $escalation->toArray()],
-                'staff'
+
+            $assignedStaff =
+                Staff::find(
+                    $request->assigned_to
+                );
+
+
+            $this->recordHistory(
+                $grievance,
+                'assigned',
+                'Grievance assigned to staff member.',
+                [
+                    'assigned_to' => $oldAssignedTo,
+                ],
+                [
+                    'assigned_to' =>
+                        $request->assigned_to,
+                ],
+                'staff',
+                $this->staffId()
             );
+
 
             DB::commit();
 
-            return redirect()->route('student-grievance.show', $grievance->id)
-                ->with('success', 'Grievance escalated successfully!');
 
-        } catch (\Exception $e) {
+            return redirect()
+                ->route(
+                    'student-grievance.show',
+                    $grievance->id
+                )
+                ->with(
+                    'success',
+                    'Grievance assigned successfully.'
+                );
+
+
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to escalate grievance: ' . $e->getMessage());
+
+
+            Log::error(
+                'Student grievance assignment failed.',
+                [
+                    'grievance_id' => $id,
+                    'error' => $e->getMessage(),
+                ]
+            );
+
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Failed to assign grievance.'
+                );
         }
     }
 
+
     /**
-     * Appeal a rejected grievance.
+     * ============================================================
+     * ESCALATE
+     * ============================================================
+     */
+    public function escalate(
+        Request $request,
+        $id
+    ) {
+        $this->requireStaff();
+
+
+        $grievance =
+            StudentGrievance::findOrFail($id);
+
+
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'to_staff_id' =>
+                    'required|exists:staff,id',
+
+                'reason' =>
+                    'required|string|max:5000',
+
+                'level' =>
+                    'required|in:level_1,level_2,level_3,level_4',
+            ]
+        );
+
+
+        if ($validator->fails()) {
+
+            return redirect()
+                ->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+
+        try {
+
+            DB::beginTransaction();
+
+
+            $oldAssignedTo =
+                $grievance->assigned_to;
+
+
+            $escalation =
+                $grievance->escalations()->create([
+                    'from_staff_id' =>
+                        $oldAssignedTo,
+
+                    'to_staff_id' =>
+                        $request->to_staff_id,
+
+                    'reason' =>
+                        $request->reason,
+
+                    'level' =>
+                        $request->level,
+
+                    'escalation_date' =>
+                        now(),
+
+                    'response_deadline' =>
+                        now()->addDays(7),
+
+                    'status' =>
+                        'pending',
+                ]);
+
+
+            $grievance->assigned_to =
+                $request->to_staff_id;
+
+
+            $grievance->save();
+
+
+            $toStaff =
+                Staff::find(
+                    $request->to_staff_id
+                );
+
+
+            $staffName =
+                $toStaff?->full_name
+                ?? 'staff member';
+
+
+            $this->recordHistory(
+                $grievance,
+                'escalated',
+                "Grievance escalated to {$staffName}.",
+                [
+                    'assigned_to' =>
+                        $oldAssignedTo,
+                ],
+                [
+                    'assigned_to' =>
+                        $request->to_staff_id,
+
+                    'escalation_id' =>
+                        $escalation->id,
+                ],
+                'staff',
+                $this->staffId()
+            );
+
+
+            DB::commit();
+
+
+            return redirect()
+                ->route(
+                    'student-grievance.show',
+                    $grievance->id
+                )
+                ->with(
+                    'success',
+                    'Grievance escalated successfully.'
+                );
+
+
+        } catch (\Throwable $e) {
+
+            DB::rollBack();
+
+
+            Log::error(
+                'Student grievance escalation failed.',
+                [
+                    'grievance_id' => $id,
+                    'error' => $e->getMessage(),
+                ]
+            );
+
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Failed to escalate grievance.'
+                );
+        }
+    }
+
+
+    /**
+     * ============================================================
+     * APPEAL
+     * ============================================================
      */
     public function appeal($id)
     {
-        $grievance = StudentGrievance::findOrFail($id);
+        $grievance =
+            StudentGrievance::findOrFail($id);
 
-        if (!$grievance->canAppeal()) {
-            return redirect()->back()
-                ->with('error', 'This grievance cannot be appealed.');
+
+        $student = $this->student();
+
+
+        if (!$student) {
+            abort(403, 'Student authentication required.');
         }
 
+
+        if (
+            (int) $grievance->student_id !==
+            (int) $student->id
+        ) {
+            abort(
+                403,
+                'You do not have permission to appeal this grievance.'
+            );
+        }
+
+
+        if (!$grievance->canAppeal()) {
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'This grievance cannot be appealed.'
+                );
+        }
+
+
         try {
+
             DB::beginTransaction();
 
-            $grievance->status = 'appealed';
+
+            $oldStatus =
+                $grievance->status;
+
+
+            $grievance->status =
+                'appealed';
+
+
             $grievance->save();
 
-            $grievance->addHistory('appealed', 'Grievance appealed by student', ['status' => 'rejected'], ['status' => 'appealed'], 'student');
+
+            $this->recordHistory(
+                $grievance,
+                'appealed',
+                'Grievance appealed by student.',
+                [
+                    'status' => $oldStatus,
+                ],
+                [
+                    'status' => 'appealed',
+                ],
+                'student',
+                $student->id
+            );
+
 
             DB::commit();
 
-            return redirect()->route('student-grievance.show', $grievance->id)
-                ->with('success', 'Grievance appealed successfully! It will be reviewed again.');
 
-        } catch (\Exception $e) {
+            return redirect()
+                ->route(
+                    'student-grievance.show',
+                    $grievance->id
+                )
+                ->with(
+                    'success',
+                    'Grievance appealed successfully. It will be reviewed again.'
+                );
+
+
+        } catch (\Throwable $e) {
+
             DB::rollBack();
-            return redirect()->back()
-                ->with('error', 'Failed to appeal grievance: ' . $e->getMessage());
+
+
+            Log::error(
+                'Student grievance appeal failed.',
+                [
+                    'grievance_id' => $id,
+                    'student_id' => $student->id,
+                    'error' => $e->getMessage(),
+                ]
+            );
+
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Failed to appeal grievance.'
+                );
         }
     }
 
+
     /**
-     * Get statistics for dashboard.
+     * ============================================================
+     * UPDATE STATUS
+     * ============================================================
+     */
+    public function updateStatus(
+        Request $request,
+        $id
+    ) {
+        $this->requireStaff();
+
+
+        $grievance =
+            StudentGrievance::findOrFail($id);
+
+
+        if ($grievance->status === 'closed') {
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Cannot update a closed grievance.'
+                );
+        }
+
+
+        $validator = Validator::make(
+            $request->all(),
+            [
+                'status' => [
+                    'required',
+                    'in:submitted,under_review,investigation,resolution_proposed,resolved,closed,rejected',
+                ],
+
+                'remarks' =>
+                    'nullable|string|max:5000',
+
+                'staff_response' =>
+                    'nullable|string|max:10000',
+            ]
+        );
+
+
+        if ($validator->fails()) {
+
+            return redirect()
+                ->back()
+                ->withErrors($validator)
+                ->withInput();
+        }
+
+
+        try {
+
+            DB::beginTransaction();
+
+
+            $oldStatus =
+                $grievance->status;
+
+
+            $newStatus =
+                $request->status;
+
+
+            $grievance->status =
+                $newStatus;
+
+
+            if ($newStatus === 'under_review') {
+                $grievance->review_date =
+                    $grievance->review_date ?? now();
+            }
+
+
+            if ($newStatus === 'resolved') {
+                $grievance->resolution_date =
+                    $grievance->resolution_date ?? now();
+            }
+
+
+            if ($newStatus === 'closed') {
+                $grievance->closure_date =
+                    $grievance->closure_date ?? now();
+            }
+
+
+            if ($request->filled('remarks')) {
+                $grievance->remarks =
+                    $request->remarks;
+            }
+
+
+            if ($request->filled('staff_response')) {
+                $grievance->staff_response =
+                    $request->staff_response;
+            }
+
+
+            $grievance->save();
+
+
+            $this->recordHistory(
+                $grievance,
+                'status_changed',
+                'Grievance status updated by staff.',
+                [
+                    'status' => $oldStatus,
+                ],
+                [
+                    'status' => $newStatus,
+                ],
+                'staff',
+                $this->staffId()
+            );
+
+
+            DB::commit();
+
+
+            return redirect()
+                ->route(
+                    'student-grievance.show',
+                    $grievance->id
+                )
+                ->with(
+                    'success',
+                    'Grievance status updated successfully.'
+                );
+
+
+        } catch (\Throwable $e) {
+
+            DB::rollBack();
+
+
+            Log::error(
+                'Student grievance status update failed.',
+                [
+                    'grievance_id' => $id,
+                    'error' => $e->getMessage(),
+                ]
+            );
+
+
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Failed to update grievance status.'
+                );
+        }
+    }
+
+
+    /**
+     * ============================================================
+     * STATISTICS
+     * ============================================================
      */
     public function statistics()
     {
+        $this->requireStaff();
+
+
         $stats = [
-            'total' => StudentGrievance::count(),
-            'pending' => StudentGrievance::pending()->count(),
-            'resolved' => StudentGrievance::whereIn('status', ['resolved', 'closed'])->count(),
-            'by_status' => StudentGrievance::selectRaw('status, count(*) as count')
+            'total' =>
+                StudentGrievance::count(),
+
+            'pending' =>
+                StudentGrievance::pending()->count(),
+
+            'resolved' =>
+                StudentGrievance::whereIn(
+                    'status',
+                    [
+                        'resolved',
+                        'closed',
+                    ]
+                )->count(),
+
+            'by_status' =>
+                StudentGrievance::selectRaw(
+                    'status, COUNT(*) as count'
+                )
                 ->groupBy('status')
                 ->get(),
-            'by_priority' => StudentGrievance::selectRaw('priority, count(*) as count')
+
+            'by_priority' =>
+                StudentGrievance::selectRaw(
+                    'priority, COUNT(*) as count'
+                )
                 ->groupBy('priority')
                 ->get(),
-            'by_category' => StudentGrievance::with('category')
-                ->selectRaw('category_id, count(*) as count')
+
+            'by_category' =>
+                StudentGrievance::with('category')
+                ->selectRaw(
+                    'category_id, COUNT(*) as count'
+                )
                 ->groupBy('category_id')
                 ->get(),
-            'recent' => StudentGrievance::with(['student', 'category'])
-                ->orderBy('created_at', 'desc')
+
+            'recent' =>
+                StudentGrievance::with([
+                    'student',
+                    'category',
+                ])
+                ->latest()
                 ->limit(10)
                 ->get(),
         ];
 
+
         return response()->json([
             'success' => true,
-            'data' => $stats
+            'data' => $stats,
         ]);
+    }
+
+
+    /**
+     * ============================================================
+     * AUTHENTICATION HELPERS
+     * ============================================================
+     */
+
+    /**
+     * Get authenticated student.
+     */
+    private function student()
+    {
+        return auth('student')->user();
+    }
+
+
+    /**
+     * Determine whether the current user is
+     * authenticated through the student guard.
+     */
+    private function isStudent(): bool
+    {
+        return auth('student')->check();
+    }
+
+
+    /**
+     * Require staff/admin authentication.
+     */
+    private function requireStaff()
+    {
+        if (!auth('web')->check()) {
+            abort(403, 'Staff authentication required.');
+        }
+
+        return auth('web')->user();
+    }
+
+
+    /**
+     * Get authenticated staff ID.
+     */
+    private function staffId()
+    {
+        $user = auth('web')->user();
+
+        if (!$user) {
+            return null;
+        }
+
+        return $user->staff_id ?? $user->id;
+    }
+
+
+    /**
+     * ============================================================
+     * FILE HELPERS
+     * ============================================================
+     */
+
+    /**
+     * Store grievance attachment.
+     */
+    private function storeGrievanceFile($file): string
+    {
+        if (!$file || !$file->isValid()) {
+            throw new \RuntimeException(
+                'Invalid grievance attachment.'
+            );
+        }
+
+
+        $extension =
+            strtolower(
+                $file->getClientOriginalExtension()
+            );
+
+
+        $allowed =
+            [
+                'pdf',
+                'doc',
+                'docx',
+                'jpg',
+                'jpeg',
+                'png',
+            ];
+
+
+        if (!in_array($extension, $allowed, true)) {
+
+            throw new \RuntimeException(
+                'Unsupported attachment type.'
+            );
+        }
+
+
+        $fileName =
+            now()->format('YmdHis') .
+            '_' .
+            Str::random(12) .
+            '.' .
+            $extension;
+
+
+        return $file->storeAs(
+            'student-grievances/attachments',
+            $fileName,
+            'public'
+        );
+    }
+
+
+    /**
+     * Store comment attachment.
+     */
+    private function storeCommentFile($file): string
+    {
+        if (!$file || !$file->isValid()) {
+            throw new \RuntimeException(
+                'Invalid comment attachment.'
+            );
+        }
+
+
+        $extension =
+            strtolower(
+                $file->getClientOriginalExtension()
+            );
+
+
+        $allowed =
+            [
+                'pdf',
+                'doc',
+                'docx',
+                'jpg',
+                'jpeg',
+                'png',
+            ];
+
+
+        if (!in_array($extension, $allowed, true)) {
+
+            throw new \RuntimeException(
+                'Unsupported attachment type.'
+            );
+        }
+
+
+        $fileName =
+            now()->format('YmdHis') .
+            '_' .
+            Str::random(12) .
+            '.' .
+            $extension;
+
+
+        return $file->storeAs(
+            'student-grievances/comments',
+            $fileName,
+            'public'
+        );
+    }
+
+
+    /**
+     * ============================================================
+     * HISTORY
+     * ============================================================
+     *
+     * Centralized history creation.
+     *
+     * This prevents every controller method from having
+     * to know how the history record is constructed.
+     */
+    private function recordHistory(
+        StudentGrievance $grievance,
+        string $action,
+        string $description,
+        $oldValues = null,
+        $newValues = null,
+        string $performerType = 'staff',
+        $performedBy = null
+    ) {
+        return $grievance->histories()->create([
+            'action' =>
+                $action,
+
+            'description' =>
+                $description,
+
+            'old_values' =>
+                $oldValues,
+
+            'new_values' =>
+                $newValues,
+
+            'performed_by' =>
+                $performedBy,
+
+            'performer_type' =>
+                $performerType,
+        ]);
+    }
+
+
+    /**
+     * ============================================================
+     * GRIEVANCE CODE
+     * ============================================================
+     */
+    private function generateGrievanceCode(): string
+    {
+        do {
+
+            $code =
+                'SGRV-' .
+                now()->format('Ymd') .
+                '-' .
+                strtoupper(
+                    Str::random(6)
+                );
+
+        } while (
+            StudentGrievance::where(
+                'grievance_code',
+                $code
+            )->exists()
+        );
+
+
+        return $code;
     }
 }

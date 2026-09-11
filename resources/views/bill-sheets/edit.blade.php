@@ -185,20 +185,29 @@
                                 id="term"
                                 class="form-select @error('term_id') is-invalid @enderror"
                                 required>
-                            <option value="">Select Term</option>
-
-                            @foreach($terms as $termOption)
-                                <option value="{{ $termOption->id }}"
-                                    {{ old('term_id', $billSheet->term_id) == $termOption->id ? 'selected' : '' }}>
-                                    {{ $termOption->name }}
-                                </option>
-                            @endforeach
+                            <option value="">Select Academic Year First</option>
                         </select>
 
                         @error('term_id')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
+
+                        <div class="form-text" id="termHelp">
+                            Terms shown here belong only to the selected Academic Year.
+                        </div>
                     </div>
+
+                    {{-- Hidden source of all terms. JavaScript filters these by academic year. --}}
+                    <template id="termOptionsTemplate">
+                        @foreach($terms as $termOption)
+                            <option value="{{ $termOption->id }}"
+                                    data-academic-year-id="{{ $termOption->academic_year_id }}"
+                                    data-start-date="{{ optional($termOption->start_date)->format('Y-m-d') }}"
+                                    data-end-date="{{ optional($termOption->end_date)->format('Y-m-d') }}">
+                                {{ $termOption->name }}
+                            </option>
+                        @endforeach
+                    </template>
 
                     {{-- GENERATED DATE --}}
                     <div class="col-lg-4">
@@ -629,6 +638,15 @@
         display: flex;
         align-items: center;
     }
+
+    #term:disabled {
+        background-color: #f8f9fa;
+        cursor: not-allowed;
+    }
+
+    #termHelp {
+        min-height: 18px;
+    }
 </style>
 @endpush
 
@@ -642,9 +660,98 @@ document.addEventListener('DOMContentLoaded', function () {
     const clearItemsBtn = document.getElementById('clearItemsBtn');
     const submitBtn = document.getElementById('submitBtn');
 
+    const academicYearSelect = document.getElementById('academicYear');
+    const termSelect = document.getElementById('term');
+    const termOptionsTemplate = document.getElementById('termOptionsTemplate');
+    const termHelp = document.getElementById('termHelp');
+
+    const initialAcademicYearId = @json(old('academic_year_id', $billSheet->academic_year_id));
+    const initialTermId = @json(old('term_id', $billSheet->term_id));
+
     let nextIndex = {{ $billSheet->items->count() }};
 
     const feeCategories = @json($feeCategories ?? []);
+
+    function getAvailableTermsForAcademicYear(academicYearId) {
+        if (!termOptionsTemplate || !academicYearId) {
+            return [];
+        }
+
+        return Array.from(
+            termOptionsTemplate.content.querySelectorAll('option')
+        ).filter(option => {
+            return String(option.dataset.academicYearId) === String(academicYearId);
+        });
+    }
+
+    function populateTerms(academicYearId, selectedTermId = '') {
+        if (!termSelect) {
+            return;
+        }
+
+        const terms = getAvailableTermsForAcademicYear(academicYearId);
+
+        termSelect.innerHTML = '';
+
+        if (!academicYearId) {
+            termSelect.disabled = true;
+
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'Select Academic Year First';
+            termSelect.appendChild(option);
+
+            if (termHelp) {
+                termHelp.textContent = 'Select an Academic Year to load its terms.';
+            }
+
+            return;
+        }
+
+        const placeholder = document.createElement('option');
+        placeholder.value = '';
+        placeholder.textContent = terms.length
+            ? 'Select Term'
+            : 'No Terms Available';
+
+        termSelect.appendChild(placeholder);
+
+        terms.forEach(sourceOption => {
+            const option = sourceOption.cloneNode(true);
+
+            if (String(option.value) === String(selectedTermId)) {
+                option.selected = true;
+            }
+
+            termSelect.appendChild(option);
+        });
+
+        termSelect.disabled = terms.length === 0;
+
+        if (termHelp) {
+            if (terms.length === 0) {
+                termHelp.textContent = 'No terms are configured for this Academic Year.';
+            } else {
+                termHelp.textContent =
+                    `${terms.length} term${terms.length === 1 ? '' : 's'} available for the selected Academic Year.`;
+            }
+        }
+
+        // Never retain a term that belongs to another academic year.
+        if (
+            selectedTermId &&
+            !terms.some(option => String(option.value) === String(selectedTermId))
+        ) {
+            termSelect.value = '';
+        }
+    }
+
+    academicYearSelect?.addEventListener('change', function () {
+        populateTerms(this.value, '');
+    });
+
+    // Load the correct terms when the edit page opens.
+    populateTerms(initialAcademicYearId, initialTermId);
 
     function money(value) {
         return Number(value || 0).toFixed(2);
@@ -961,6 +1068,26 @@ document.addEventListener('DOMContentLoaded', function () {
             event.preventDefault();
 
             alert('Please add at least one bill item before updating the BillSheet.');
+
+            return;
+        }
+
+        if (!academicYearSelect?.value) {
+            event.preventDefault();
+
+            alert('Please select an Academic Year.');
+
+            academicYearSelect?.focus();
+
+            return;
+        }
+
+        if (!termSelect?.value) {
+            event.preventDefault();
+
+            alert('Please select a Term belonging to the selected Academic Year.');
+
+            termSelect?.focus();
 
             return;
         }

@@ -51,11 +51,11 @@
 
         <!-- Attendance -->
         <li class="nav-item">
-            <a href="#" 
+            <a href="/student/attendance" 
                class="nav-link text-white">
                 <i class="fas fa-calendar-check me-3"></i>
                 <span>Attendance</span>
-                <span class="badge bg-warning text-dark ms-2">New</span>
+                
             </a>
         </li>
 
@@ -101,11 +101,11 @@
 
         <!-- Announcements -->
         <li class="nav-item">
-            <a href="#" 
+            <a href="/student/announcements" 
                class="nav-link text-white">
                 <i class="fas fa-bullhorn me-3"></i>
                 <span>Announcements</span>
-                <span class="badge bg-info ms-2">3</span>
+               
             </a>
         </li>
 

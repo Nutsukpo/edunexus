@@ -52,6 +52,11 @@ use App\Http\Controllers\PayrollPeriodApprovalController;
 use App\Http\Controllers\StudentFeesController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\PaystackWebhookController;
+use App\Http\Controllers\StudentAnnouncementController;
+use App\Http\Controllers\StudentFeeAllocationController;
+use App\Http\Controllers\SystemSettingController;
+use App\Http\Controllers\StudentImportController;
+use App\Http\Controllers\AcademicPeriodController;
 
 /*
 |--------------------------------------------------------------------------
@@ -167,6 +172,26 @@ Route::middleware(['auth:web'])->group(function () {
         ->middlewareFor(['edit', 'update'], 'permission:departments.edit')
         ->middlewareFor('destroy', 'permission:departments.delete');
 
+        /*
+    |--------------------------------------------------------------------------
+    | ACADEMIC PERIOD OPENING
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        '/academic-period/open',
+        [AcademicPeriodController::class, 'open']
+    )
+        ->middleware('permission:student-class-assignments.edit')
+        ->name('academic-period.open');
+
+    Route::post(
+        '/academic-period/activate',
+        [AcademicPeriodController::class, 'activate']
+    )
+        ->middleware('permission:student-class-assignments.edit')
+        ->name('academic-period.activate');
+
     /*
     |--------------------------------------------------------------------------
     | ACADEMIC SETUP
@@ -194,6 +219,43 @@ Route::middleware(['auth:web'])->group(function () {
         ->middlewareFor(['edit', 'update'], 'permission:classes.edit')
         ->middlewareFor('destroy', 'permission:classes.delete');
 
+
+        // student-fee-allocations
+        Route::prefix('student-fee-allocations')
+    ->name('student-fee-allocations.')
+    ->group(function () {
+
+        Route::get('/', [
+            StudentFeeAllocationController::class,
+            'index'
+        ])->name('index');
+
+        Route::get('/create', [
+            StudentFeeAllocationController::class,
+            'create'
+        ])->name('create');
+
+        Route::get('/students/search', [
+            StudentFeeAllocationController::class,
+            'students'
+        ])->name('students');
+
+        Route::post('/', [
+            StudentFeeAllocationController::class,
+            'store'
+        ])->name('store');
+
+        Route::get('/{studentFeeAccount}', [
+            StudentFeeAllocationController::class,
+            'show'
+        ])->name('show');
+
+        Route::delete('/items/{studentFeeItem}', [
+            StudentFeeAllocationController::class,
+            'destroyItem'
+        ])->name('items.destroy');
+    });
+
     /*
     |--------------------------------------------------------------------------
     | STAFF
@@ -211,6 +273,37 @@ Route::middleware(['auth:web'])->group(function () {
     | STUDENTS
     |--------------------------------------------------------------------------
     */
+
+                /*
+    |--------------------------------------------------------------------------
+    | STUDENT CSV IMPORT
+    |--------------------------------------------------------------------------
+    */
+
+    Route::get(
+        '/students/import',
+        [StudentImportController::class, 'create']
+    )->name('students.import');
+
+    Route::get(
+        '/students/import/template',
+        [StudentImportController::class, 'template']
+    )->name('students.import.template');
+
+    Route::get(
+        '/students/import/terms',
+        [StudentImportController::class, 'getTerms']
+    )->name('students.import.terms');
+
+    Route::post(
+        '/students/import/preview',
+        [StudentImportController::class, 'preview']
+    )->name('students.import.preview');
+
+    Route::post(
+        '/students/import/store',
+        [StudentImportController::class, 'import']
+    )->name('students.import.store');
 
     Route::resource('students', StudentController::class)
         ->middlewareFor(['index', 'show'], 'permission:students.view')
@@ -233,6 +326,16 @@ Route::middleware(['auth:web'])->group(function () {
         [StudentClassAssignmentController::class, 'destroy']
     )->middleware('permission:student-class-assignments.delete')
 ->name('classes.students.remove');
+
+Route::patch(
+    'student-class-assignments/{id}/deactivate',
+    [StudentClassAssignmentController::class, 'deactivate']
+)->name('student-class-assignments.deactivate');
+
+Route::patch(
+    'student-class-assignments/{id}/reactivate',
+    [StudentClassAssignmentController::class, 'reactivate']
+)->name('student-class-assignments.reactivate');
 
     /*
     |--------------------------------------------------------------------------
@@ -382,78 +485,121 @@ Route::middleware(['auth:web'])->group(function () {
                 ->name('resubmit');
         });
 
-        /*
-    |--------------------------------------------------------------------------
-    | FEE PAYMENTS
-    |--------------------------------------------------------------------------
-    | IMPORTANT: Put the fixed AJAX routes BEFORE Route::resource().
-    | Otherwise /fee-payments/get-students-by-class can be captured by the
-    | resource show route as {fee_payment}.
-    |--------------------------------------------------------------------------
-    */
+      /*
+|--------------------------------------------------------------------------
+| FEE PAYMENTS
+|--------------------------------------------------------------------------
+| IMPORTANT: Put the fixed AJAX routes BEFORE Route::resource().
+| Otherwise /fee-payments/get-students-by-class can be captured by the
+| resource show route as {fee_payment}.
+|--------------------------------------------------------------------------
+*/
 
-    Route::get(
-        '/fee-payments/get-students-by-class',
-        [FeePaymentController::class, 'getStudentsByClass']
-    )->middleware('permission:payments.create')
-->name('fee-payments.get-students-by-class');
+Route::get(
+    '/fee-payments/get-terms',
+    [FeePaymentController::class, 'getTerms']
+)->middleware('permission:payments.create')
+  ->name('fee-payments.get-terms');
 
-    Route::get(
-        '/fee-payments/get-student-details/{studentId}',
-        [FeePaymentController::class, 'getStudentDetails']
-    )->middleware('permission:payments.create')
-->name('fee-payments.get-student-details');
 
-    Route::get(
-        '/fee-payments/get-student-bill-sheets',
-        [FeePaymentController::class, 'getStudentBillSheets']
-    )->middleware('permission:payments.create')
-->name('fee-payments.get-student-bill-sheets');
+Route::get(
+    '/fee-payments/get-students-by-class',
+    [FeePaymentController::class, 'getStudentsByClass']
+)->middleware('permission:payments.create')
+  ->name('fee-payments.get-students-by-class');
 
-    Route::get(
-        '/fee-payments/get-bill-sheet-total/{studentId}',
-        [FeePaymentController::class, 'getBillSheetTotal']
-    )->middleware('permission:payments.create')
-->name('fee-payments.get-bill-sheet-total');
 
-    Route::get(
-        '/fee-payments/get-bill-sheet-items',
-        [FeePaymentController::class, 'getBillSheetItems']
-    )->middleware('permission:payments.create')
-->name('fee-payments.get-bill-sheet-items');
+Route::get(
+    '/fee-payments/get-student-details/{studentId}',
+    [FeePaymentController::class, 'getStudentDetails']
+)->middleware('permission:payments.create')
+  ->name('fee-payments.get-student-details');
 
-    // Resource routes MUST come after the specific GET routes above.
-    Route::resource('fee-payments', FeePaymentController::class)
-        ->middlewareFor(['index', 'show'], 'permission:payments.view')
-        ->middlewareFor(['create', 'store'], 'permission:payments.create')
-        ->middlewareFor(['edit', 'update'], 'permission:payments.edit')
-        ->middlewareFor('destroy', 'permission:payments.delete');
 
-    Route::get(
-        '/fee-payments/{id}/receipt',
-        [FeePaymentController::class, 'printReceipt']
-    )->middleware('permission:payments.receipts')
-->name('fee-payments.receipt');
+Route::get(
+    '/fee-payments/get-student-bill-sheets',
+    [FeePaymentController::class, 'getStudentBillSheets']
+)->middleware('permission:payments.create')
+  ->name('fee-payments.get-student-bill-sheets');
 
-    Route::get(
-        '/fee-payments/{id}/receipt/pdf',
-        [FeePaymentController::class, 'receiptPdf']
-    )->middleware('permission:payments.receipts')
-->name('fee-payments.receipt.pdf');
 
-    Route::get(
-        '/fee-payments/{id}/receipt/download',
-        [FeePaymentController::class, 'downloadReceipt']
-    )->middleware('permission:payments.receipts')
-->name('fee-payments.receipt.download');
+Route::get(
+    '/fee-payments/get-bill-sheet-total/{studentId}',
+    [FeePaymentController::class, 'getBillSheetTotal']
+)->middleware('permission:payments.create')
+  ->name('fee-payments.get-bill-sheet-total');
 
-    Route::get('/fee-payment-reports/school-overview',
+
+Route::get(
+    '/fee-payments/get-bill-sheet-items',
+    [FeePaymentController::class, 'getBillSheetItems']
+)->middleware('permission:payments.create')
+  ->name('fee-payments.get-bill-sheet-items');
+
+
+/*
+|--------------------------------------------------------------------------
+| RESOURCE ROUTES
+|--------------------------------------------------------------------------
+*/
+
+Route::resource('fee-payments', FeePaymentController::class)
+    ->middlewareFor(
+        ['index', 'show'],
+        'permission:payments.view'
+    )
+    ->middlewareFor(
+        ['create', 'store'],
+        'permission:payments.create'
+    )
+    ->middlewareFor(
+        ['edit', 'update'],
+        'permission:payments.edit'
+    )
+    ->middlewareFor(
+        'destroy',
+        'permission:payments.delete'
+    );
+
+
+/*
+|--------------------------------------------------------------------------
+| RECEIPTS
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/fee-payments/{id}/receipt',
+    [FeePaymentController::class, 'printReceipt']
+)->middleware('permission:payments.receipts')
+  ->name('fee-payments.receipt');
+
+
+Route::get(
+    '/fee-payments/{id}/receipt/pdf',
+    [FeePaymentController::class, 'receiptPdf']
+)->middleware('permission:payments.receipts')
+  ->name('fee-payments.receipt.pdf');
+
+
+Route::get(
+    '/fee-payments/{id}/receipt/download',
+    [FeePaymentController::class, 'downloadReceipt']
+)->middleware('permission:payments.receipts')
+  ->name('fee-payments.receipt.download');
+
+
+/*
+|--------------------------------------------------------------------------
+| FEE PAYMENT REPORTS
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/fee-payment-reports/school-overview',
     [FeePaymentReportController::class, 'schoolOverview']
-    )->middleware('permission:fees.reports')
-->name('fee.payment.reports.school-overview');
-
-
-
+)->middleware('permission:fees.reports')
+  ->name('fee.payment.reports.school-overview');
     /*
     |--------------------------------------------------------------------------
     | ANNOUNCEMENTS - ADMIN / STAFF
@@ -494,31 +640,57 @@ Route::middleware(['auth:web'])->group(function () {
         ->middleware('permission:announcements.view')
         ->name('announcements.api');
 
-    /*
+            /*
     |--------------------------------------------------------------------------
     | BILL SHEET APPROVAL CENTER
     |--------------------------------------------------------------------------
     */
 
     Route::get('/bill-sheet-approvals', [BillSheetApprovalController::class, 'index'])
-        ->middleware('permission:bill-sheets.view')
-        ->name('bill-sheet-approvals.index');
+    ->middleware('permission:bill-sheets.view')
+    ->name('bill-sheet-approvals.index');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Approve / Reject All
+    |--------------------------------------------------------------------------
+    */
 
     Route::post('/bill-sheet-approvals/approve-all', [BillSheetApprovalController::class, 'approveAll'])
-        ->middleware('permission:bill-sheets.approve')
-        ->name('bill-sheet-approvals.approve-all');
+    ->middleware('permission:bill-sheets.approve')
+    ->name('bill-sheet-approvals.approve-all');
 
     Route::post('/bill-sheet-approvals/reject-all', [BillSheetApprovalController::class, 'rejectAll'])
-        ->middleware('permission:bill-sheets.reject')
-        ->name('bill-sheet-approvals.reject-all');
+    ->middleware('permission:bill-sheets.reject')
+    ->name('bill-sheet-approvals.reject-all');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Bulk Selected Approval / Rejection
+    |--------------------------------------------------------------------------
+    */
+
+    Route::post('/bill-sheet-approvals/bulk-approve', [BillSheetApprovalController::class, 'bulkApprove'])
+    ->middleware('permission:bill-sheets.approve')
+    ->name('bill-sheet-approvals.bulk-approve');
+
+    Route::post('/bill-sheet-approvals/bulk-reject', [BillSheetApprovalController::class, 'bulkReject'])
+    ->middleware('permission:bill-sheets.reject')
+    ->name('bill-sheet-approvals.bulk-reject');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Individual Approval / Rejection
+    |--------------------------------------------------------------------------
+    */
 
     Route::post('/bill-sheet-approvals/{billSheet}/approve', [BillSheetApprovalController::class, 'approve'])
-        ->middleware('permission:bill-sheets.approve')
-        ->name('bill-sheet-approvals.approve');
+    ->middleware('permission:bill-sheets.approve')
+    ->name('bill-sheet-approvals.approve');
 
     Route::post('/bill-sheet-approvals/{billSheet}/reject', [BillSheetApprovalController::class, 'reject'])
-        ->middleware('permission:bill-sheets.reject')
-        ->name('bill-sheet-approvals.reject');
+    ->middleware('permission:bill-sheets.reject')
+    ->name('bill-sheet-approvals.reject');
 
     /*
     |--------------------------------------------------------------------------
@@ -535,6 +707,19 @@ Route::middleware(['auth:web'])->group(function () {
     Route::get('/bill-sheets/assignments', [BillSheetController::class, 'assignments'])
         ->middleware('permission:bill-sheets.view')
         ->name('bill-sheets.assignments');
+
+                /*
+    |--------------------------------------------------------------------------
+    | BILL SHEET SUBMISSION / RESUBMISSION
+    |--------------------------------------------------------------------------
+    */
+
+    Route::post(
+        '/bill-sheets/{billSheet}/submit-for-approval',
+        [BillSheetController::class, 'submitForApproval']
+    )
+        ->middleware('permission:bill-sheets.edit')
+        ->name('bill-sheets.submit-for-approval');
 
     Route::resource('bill-sheets', BillSheetController::class)
         ->middlewareFor(['index', 'show'], 'permission:bill-sheets.view')
@@ -584,6 +769,10 @@ Route::middleware(['auth:web'])->group(function () {
         Route::get('/{class}/attendance-dashboard', [StudentClassController::class, 'attendanceDashboard'])
             ->middleware('permission:attendance.view')
             ->name('attendance.dashboard');
+
+        Route::post('/ajax/{classId}', [AttendanceSessionController::class, 'getAttendanceData'])
+            ->middleware('permission:attendance.view')
+            ->name('ajax');
     });
 
     Route::prefix('student-classes')->name('student-classes.')->group(function () {
@@ -1206,6 +1395,29 @@ Route::middleware(['auth:web'])->group(function () {
     });
 });
 
+            /*
+    |--------------------------------------------------------------------------
+    | SYSTEM SETTINGS
+    |--------------------------------------------------------------------------
+    */
+
+    Route::middleware(['auth'])->group(function () {
+
+        Route::get('/settings', [SystemSettingController::class, 'index'])
+            ->name('settings.index');
+
+        Route::get('/settings/academic-years/{academicYear}/terms', [SystemSettingController::class, 'terms'])
+            ->name('settings.academic-years.terms');
+
+        Route::put('/settings', [SystemSettingController::class, 'update'])
+            ->name('settings.update');
+
+        Route::put(
+                '/settings/operational-period',
+                [SystemSettingController::class, 'updateOperationalPeriod']
+            )->name('settings.update-operational-period');
+    });
+
 /*
 |--------------------------------------------------------------------------
 | STUDENT GRIEVANCES
@@ -1293,6 +1505,28 @@ Route::middleware(['auth:student'])->group(function () {
         Route::post('/switch', [StudentDashboardController::class, 'switchTimetable'])
             ->name('switch');
     });
+
+        /*
+|--------------------------------------------------------------------------
+| STUDENT ANNOUNCEMENTS
+|--------------------------------------------------------------------------
+*/
+
+Route::middleware('auth:student')
+->prefix('student')
+->name('students.')
+->group(function () {
+
+    Route::get(
+        '/announcements',
+        [StudentAnnouncementController::class, 'index']
+    )->name('announcements.index');
+
+    Route::get(
+        '/announcements/{id}',
+        [StudentAnnouncementController::class, 'show']
+    )->name('announcements.show');
+});
 
     Route::middleware('auth:student')
     ->prefix('student')

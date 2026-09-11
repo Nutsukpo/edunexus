@@ -5,318 +5,142 @@
 @section('content')
 
 @php
-
-/*
-|--------------------------------------------------------------------------
-| CLASS DATA
-|--------------------------------------------------------------------------
-*/
-
-$activeAssignments = $studentClass->assignments
-    ->where('is_current', true)
-    ->where('status', 'active')
-    ->filter(fn ($assignment) => $assignment->student !== null)
-    ->values();
-
-$students = $activeAssignments->pluck('student');
-
-$totalStudents = $students->count();
-
-$maleCount = $students
-    ->where('gender', 'Male')
-    ->count();
-
-$femaleCount = $students
-    ->where('gender', 'Female')
-    ->count();
-
-
-/*
-|--------------------------------------------------------------------------
-| ROUTE AVAILABILITY
-|--------------------------------------------------------------------------
-*/
-
-$hasAttendanceRoutes =
-    Route::has('attendance.ajax') &&
-    Route::has('attendance.store.class');
-
-$hasBroadsheetRoute = Route::has('broadsheet.ajax');
-
-$hasProgressionRoute = Route::has('student-progressions.index');
-
-
-/*
-|--------------------------------------------------------------------------
-| FEES
-|--------------------------------------------------------------------------
-|
-| Calculate the class fee rate from actual Bill Sheets and completed
-| Fee Payments. This avoids relying on an undefined/stale controller
-| variable such as $feesPaidPercentage.
-|
-*/
-
-$assignmentIds = $activeAssignments
-    ->pluck('id')
-    ->filter()
-    ->values();
-
-
-$classBillSheets = collect();
-
-$classFeePayments = collect();
-
-
-if ($assignmentIds->isNotEmpty()) {
-
-    $classBillSheets = \App\Models\BillSheet::query()
-        ->whereIn(
-            'student_class_assignment_id',
-            $assignmentIds
-        )
-        ->where('is_active', true)
-        ->whereIn('status', [
-            'approved',
-            'published'
-        ])
-        ->get();
-
-
-    $classFeePayments = \App\Models\FeePayment::query()
-        ->whereIn(
-            'student_class_assignment_id',
-            $assignmentIds
-        )
-        ->where('status', 'completed')
-        ->get();
-}
-
-
-/*
-|--------------------------------------------------------------------------
-| CLASS FEE TOTALS
-|--------------------------------------------------------------------------
-*/
-
-$totalClassFees = $classBillSheets->sum(function ($bill) {
-    return (float) (
-        $bill->net_amount
-        ?? $bill->total_amount
-        ?? 0
-    );
-});
-
-
-$totalClassFeesPaid = $classFeePayments->sum(function ($payment) {
-    return (float) (
-        $payment->net_amount
-        ?? $payment->amount
-        ?? 0
-    );
-});
-
-
-$totalClassFeesBalance = max(
-    0,
-    round(
-        $totalClassFees - $totalClassFeesPaid,
-        2
-    )
-);
-
-
-/*
-|--------------------------------------------------------------------------
-| FEES PAID RATE
-|--------------------------------------------------------------------------
-*/
-
-$feesPaidPercentage = $totalClassFees > 0
-    ? min(
-        100,
-        round(
-            ($totalClassFeesPaid / $totalClassFees) * 100,
-            1
-        )
-    )
-    : 0;
-
-
-/*
-|--------------------------------------------------------------------------
-| STUDENT FEE DATA
-|--------------------------------------------------------------------------
-*/
-
-$feeData = $activeAssignments->map(
-    function ($assignment) use (
-        $classBillSheets,
-        $classFeePayments
-    ) {
-
-        $student = $assignment->student;
-
-
-        $studentBills = $classBillSheets->where(
-            'student_class_assignment_id',
-            $assignment->id
-        );
-
-
-        $studentPayments = $classFeePayments->where(
-            'student_class_assignment_id',
-            $assignment->id
-        );
-
-
-        $totalFees = $studentBills->sum(
-            function ($bill) {
-                return (float) (
-                    $bill->net_amount
-                    ?? $bill->total_amount
-                    ?? 0
-                );
-            }
-        );
-
-
-        $amountPaid = $studentPayments->sum(
-            function ($payment) {
-                return (float) (
-                    $payment->net_amount
-                    ?? $payment->amount
-                    ?? 0
-                );
-            }
-        );
-
-
-        $balance = max(
-            0,
-            round(
-                $totalFees - $amountPaid,
-                2
-            )
-        );
-
-
-        if ($totalFees <= 0) {
-
-            $status = 'No Bill';
-
-            $statusClass = 'secondary';
-
-            $paymentPercentage = 0;
-
-        } elseif ($balance <= 0) {
-
-            $status = 'Paid';
-
-            $statusClass = 'success';
-
-            $paymentPercentage = 100;
-
-        } elseif ($amountPaid > 0) {
-
-            $status = 'Partially Paid';
-
-            $statusClass = 'warning';
-
-            $paymentPercentage = round(
-                ($amountPaid / $totalFees) * 100,
-                1
-            );
-
-        } else {
-
-            $status = 'Unpaid';
-
-            $statusClass = 'danger';
-
-            $paymentPercentage = 0;
-        }
-
-
-        return [
-            'assignment_id' => $assignment->id,
-
-            'student' => $student,
-
-            'total_fees' => $totalFees,
-
-            'amount_paid' => $amountPaid,
-
-            'balance' => $balance,
-
-            'status' => $status,
-
-            'status_class' => $statusClass,
-
-            'payment_percentage' => $paymentPercentage,
-        ];
+    /*
+    |--------------------------------------------------------------------------
+    | ROUTE AVAILABILITY
+    |--------------------------------------------------------------------------
+    */
+    $hasAttendanceRoutes =
+        Route::has('attendance.ajax') &&
+        Route::has('attendance.store.class');
+
+    $hasBroadsheetRoute = Route::has('broadsheet.ajax');
+
+    $hasProgressionRoute = Route::has('student-progressions.index');
+
+    /*
+    |--------------------------------------------------------------------------
+    | SELECTED VIEWING PERIOD
+    |--------------------------------------------------------------------------
+    |
+    | The controller supplies all period-sensitive class, attendance and fee
+    | data. This view does not query annual fee accounts or rebuild period
+    | assignments.
+    |--------------------------------------------------------------------------
+    */
+    $attendanceTermStart = $currentTerm?->start_date
+        ? \Carbon\Carbon::parse($currentTerm->start_date)->startOfDay()
+        : null;
+
+    $attendanceTermEnd = $currentTerm?->end_date
+        ? \Carbon\Carbon::parse($currentTerm->end_date)->endOfDay()
+        : null;
+
+    if ($attendanceTermEnd && $attendanceTermEnd->greaterThan(now())) {
+        $attendanceTermEnd = now()->endOfDay();
     }
-);
 
+    $attendanceDefaultDate = now();
 
-/*
-|--------------------------------------------------------------------------
-| FEE STUDENT COUNTS
-|--------------------------------------------------------------------------
-*/
+    if ($attendanceTermStart && $attendanceDefaultDate->lessThan($attendanceTermStart)) {
+        $attendanceDefaultDate = $attendanceTermStart->copy();
+    }
 
-$paidStudents = $feeData
-    ->where('status', 'Paid')
-    ->count();
+    if ($attendanceTermEnd && $attendanceDefaultDate->greaterThan($attendanceTermEnd)) {
+        $attendanceDefaultDate = $attendanceTermEnd->copy();
+    }
 
-$partialStudents = $feeData
-    ->where('status', 'Partially Paid')
-    ->count();
-
-$unpaidStudents = $feeData
-    ->where('status', 'Unpaid')
-    ->count();
-
-
-/*
-|--------------------------------------------------------------------------
-| CLASS SUBJECTS
-|--------------------------------------------------------------------------
-*/
-
-$classSubjects = $studentClass->subjects ?? collect();
-
+    $attendanceDefaultDate = $attendanceDefaultDate->format('Y-m-d');
 @endphp
 
-<div class="container-fluid" id="app-container">
+                        {{-- ================================================================
+                CLASS HEADER / CURRENT ACADEMIC PERIOD
+            ================================================================= --}}
 
-{{-- ================================================================
-    PAGE HEADER
-================================================================= --}}
+            <div class="container-fluid mb-3" id="app-container">
 
-<div class="d-flex justify-content-between align-items-center mb-4 mt-3">
+<div class="card border-0 shadow-sm">
 
-    <div>
+    <div class="card-body py-3">
 
-        <h5 class="fw-bold mb-1">
-            {{ $studentClass->name }}
-        </h5>
+        <div class="row align-items-center">
 
-        <p class="text-muted mb-0">
-            Manage class details, students, fees, attendance, results and more
-        </p>
+            {{-- CLASS NAME --}}
+            <div class="col-md-7">
+
+                <div class="d-flex align-items-center">
+
+                    <div class="bg-primary bg-opacity-10 rounded-circle p-3 me-3">
+                        <i class="fas fa-chalkboard text-primary fs-4"></i>
+                    </div>
+
+                    <div>
+                        <h4 class="fw-bold mb-0">
+                            {{ $studentClass->name }}
+                        </h4>
+                    </div>
+
+                </div>
+
+            </div>
+
+
+            {{-- CURRENT ACADEMIC PERIOD --}}
+            <div class="col-md-5 mt-3 mt-md-0">
+
+                <div class="d-flex justify-content-end">
+
+                    <div class="text-end">
+
+                        <div class="text-muted small text-uppercase fw-semibold mb-1">
+                            <!-- Current Academic Period -->
+                        </div>
+
+                        @if($currentAcademicYear && $currentTerm)
+
+                            <div class="d-flex align-items-center justify-content-end flex-wrap gap-2">
+
+                                <span class="badge bg-primary px-3 py-2">
+                                    <i class="fas fa-calendar-alt me-1"></i>
+                                    {{ $currentAcademicYear->name }}
+                                </span>
+
+                                <span class="badge bg-success px-3 py-2">
+                                    <i class="fas fa-layer-group me-1"></i>
+                                    {{ $currentTerm->name }}
+                                </span>
+
+                            </div>
+
+                        @else
+
+                            <span class="badge bg-danger">
+                                <i class="fas fa-exclamation-triangle me-1"></i>
+                                Academic period not configured
+                            </span>
+
+                        @endif
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
 
     </div>
 
 </div>
 
+</div>
 
 
 {{-- ================================================================
     SUMMARY CARDS
 ================================================================= --}}
 
-<div class="row mb-3">
+<div class="row mb-2">
 
 
     {{-- TOTAL STUDENTS --}}
@@ -705,6 +529,45 @@ $classSubjects = $studentClass->subjects ?? collect();
                                 <th width="220">Class Name</th>
                                 <td>{{ $studentClass->name }}</td>
                             </tr>
+                            <tr>
+                                <th>Academic Year</th>
+                                <td>
+                                    @if($currentAcademicYear)
+
+                                        <span class="badge bg-light text-dark border">
+                                            <i class="fas fa-calendar-alt me-1"></i>
+                                            {{ $currentAcademicYear->name }}
+                                        </span>
+
+                                    @else
+
+                                        <span class="text-danger">
+                                            Not configured
+                                        </span>
+
+                                    @endif
+                                </td>
+                            </tr>
+
+                            <tr>
+                                <th>Current Term</th>
+                                <td>
+                                    @if($currentTerm)
+
+                                        <span class="badge bg-light text-dark border">
+                                            <i class="fas fa-layer-group me-1"></i>
+                                            {{ $currentTerm->name }}
+                                        </span>
+
+                                    @else
+
+                                        <span class="text-danger">
+                                            Not configured
+                                        </span>
+
+                                    @endif
+                                </td>
+                            </tr>
 
                             <tr>
                                 <th>Education Type</th>
@@ -929,7 +792,7 @@ $classSubjects = $studentClass->subjects ?? collect();
 
                         <tbody>
 
-                            @forelse($activeAssignments as $assignment)
+                            @forelse($activeStudentAssignments as $assignment)
 
                                 @php
                                     $student = $assignment->student;
@@ -989,8 +852,22 @@ $classSubjects = $studentClass->subjects ?? collect();
 
                                     <td>
 
-                                        <span class="badge bg-success">
-                                            Active
+                                        @php
+                                            $assignmentStatus = strtolower((string) ($assignment->status ?? ''));
+                                            $statusConfig = [
+                                                'active' => ['label' => 'Active', 'class' => 'success'],
+                                                'repeated' => ['label' => 'Repeated', 'class' => 'warning text-dark'],
+                                                'pending' => ['label' => 'Prepared', 'class' => 'info text-dark'],
+                                                'completed' => ['label' => 'Completed', 'class' => 'secondary'],
+                                            ];
+                                            $displayStatus = $statusConfig[$assignmentStatus] ?? [
+                                                'label' => ucfirst($assignmentStatus ?: 'Unknown'),
+                                                'class' => 'secondary',
+                                            ];
+                                        @endphp
+
+                                        <span class="badge bg-{{ $displayStatus['class'] }}">
+                                            {{ $displayStatus['label'] }}
                                         </span>
 
                                     </td>
@@ -1446,8 +1323,9 @@ $classSubjects = $studentClass->subjects ?? collect();
                         <input type="date"
                                id="attendanceDate"
                                class="form-control"
-                               value="{{ date('Y-m-d') }}"
-                               max="{{ date('Y-m-d') }}">
+                               value="{{ $attendanceDefaultDate }}"
+                               min="{{ $attendanceTermStart?->format('Y-m-d') }}"
+                               max="{{ $attendanceTermEnd?->format('Y-m-d') }}">
 
                     </div>
 
@@ -1468,7 +1346,7 @@ $classSubjects = $studentClass->subjects ?? collect();
                             @for($m = 1; $m <= 12; $m++)
 
                                 <option value="{{ $m }}"
-                                    {{ date('m') == str_pad($m, 2, '0', STR_PAD_LEFT) ? 'selected' : '' }}>
+                                    {{ $attendanceTermEnd ? $attendanceTermEnd->format('m') == str_pad($m, 2, '0', STR_PAD_LEFT) ? 'selected' : '' : '' }}>
 
                                     {{ date('F', mktime(0, 0, 0, $m, 1)) }}
 
@@ -1491,7 +1369,7 @@ $classSubjects = $studentClass->subjects ?? collect();
                                 class="form-select">
 
                             @php
-                                $currentYear = date('Y');
+                                $currentYear = $attendanceTermEnd ? (int) $attendanceTermEnd->format('Y') : (int) now()->format('Y');
                             @endphp
 
                             @for(
@@ -2833,8 +2711,9 @@ TAKE ATTENDANCE MODAL
                                id="attendanceDateInput"
                                name="attendance_date"
                                class="form-control"
-                               value="{{ date('Y-m-d') }}"
-                               max="{{ date('Y-m-d') }}"
+                               value="{{ $attendanceDefaultDate }}"
+                               min="{{ $attendanceTermStart?->format('Y-m-d') }}"
+                               max="{{ $attendanceTermEnd?->format('Y-m-d') }}""
                                required>
 
                     </div>

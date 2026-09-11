@@ -13,7 +13,7 @@
 
         @include('student_classes.form')
 
-        <button class="btn btn-danger text-white">Save</button>
+        <button class="btn btn-primary text-white">Save</button>
     </form>
 
 </div>

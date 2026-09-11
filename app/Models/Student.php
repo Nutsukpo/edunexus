@@ -23,7 +23,6 @@ class Student extends Authenticatable
         'date_of_birth',
         'gender',
         'address',
-        'phone',
         'email',
         'password',
         'guardian_name',
@@ -78,7 +77,7 @@ class Student extends Authenticatable
      */
     public function getFullNameWithAdmissionAttribute()
     {
-        return $this->full_name . ' (' . ($this->admission_number ?? $this->student_id ?? 'N/A') . ')';
+        return $this->full_name . ' (' . ($this->student_id ?? 'N/A') . ')';
     }
 
     /**
@@ -290,6 +289,13 @@ class Student extends Authenticatable
     public function getRememberTokenName()
     {
         return 'remember_token';
+    }
+    public function results()
+    {
+        return $this->hasMany(
+            StudentResult::class,
+            'student_id'
+        );
     }
 
         

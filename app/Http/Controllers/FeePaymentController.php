@@ -164,10 +164,8 @@ class FeePaymentController extends Controller
             ->orderBy('name')
             ->get();
 
-        $terms = Term::query()
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get();
+        // Terms are loaded dynamically after the academic year is selected.
+        $terms = collect();
 
         $paymentMethods = $this->paymentMethods();
 
@@ -179,9 +177,9 @@ class FeePaymentController extends Controller
         ];
 
         $recordedBy = [
-            'cashier'   => 'Cashier',
+            'cashier'    => 'Cashier',
             'accountant' => 'Accountant',
-            'admin'     => 'Administrator',
+            'admin'      => 'Administrator',
         ];
 
         return view('fee-payments.create', compact(
@@ -192,6 +190,43 @@ class FeePaymentController extends Controller
             'paymentTypes',
             'recordedBy'
         ));
+    }
+
+            /*
+|--------------------------------------------------------------------------
+| GET TERMS BY ACADEMIC YEAR
+|--------------------------------------------------------------------------
+|
+| Returns ONLY active terms belonging to the selected academic year.
+| This prevents terms from another academic year appearing in the
+| Fee Payment form.
+|
+*/
+
+    public function getTerms(Request $request)
+    {
+        $validated = $request->validate([
+            'academic_year_id' => 'required|exists:academic_years,id',
+        ]);
+
+        $terms = Term::query()
+            ->where('academic_year_id', $validated['academic_year_id'])
+            ->where('is_active', true)
+            ->orderBy('start_date')
+            ->orderBy('id')
+            ->get([
+                'id',
+                'academic_year_id',
+                'name',
+                'start_date',
+                'end_date',
+                'is_active',
+            ]);
+
+        return response()->json([
+            'success' => true,
+            'terms' => $terms,
+        ]);
     }
 
     /*
@@ -233,7 +268,8 @@ class FeePaymentController extends Controller
             $assignment = $this->resolveAssignment(
                 $request->student_id,
                 $request->student_class_assignment_id,
-                $request->academic_year_id
+                $request->academic_year_id,
+                $request->term_id
             );
 
             if (!$assignment) {
@@ -255,6 +291,22 @@ class FeePaymentController extends Controller
                     'The selected Bill Sheet does not belong to this student, assignment, academic year and term, or is not available for payment.'
                 );
             }
+
+            // HARD TERM BOUNDARY:
+            // The selected term must belong to the selected academic year.
+            $this->validateTermForAcademicYear(
+                (int) $request->term_id,
+                (int) $request->academic_year_id
+            );
+
+            // FINANCIAL CLEARANCE RULE:
+            // A student must clear the immediately preceding term
+            // before a completed payment can be recorded for this term.
+            $this->enforcePreviousTermCleared(
+                $assignment,
+                (int) $request->term_id,
+                (int) $request->academic_year_id
+            );
 
             $billTotal = $this->billTotal($billSheet);
 
@@ -290,16 +342,16 @@ class FeePaymentController extends Controller
             $discount = round((float) ($request->discount_amount ?? 0), 2);
             $netAmount = round($amount + $penalty - $discount, 2);
 
-            if ($amount > $billBalance) {
-                throw new \RuntimeException(
-                    'The payment amount cannot exceed the outstanding Bill Sheet balance of GHS '
-                    . number_format($billBalance, 2) . '.'
-                );
-            }
-
             if ($discount > ($amount + $penalty)) {
                 throw new \RuntimeException(
                     'The discount cannot be greater than the payment plus penalty.'
+                );
+            }
+
+            if ($netAmount > $billBalance) {
+                throw new \RuntimeException(
+                    'The net payment amount cannot exceed the outstanding Bill Sheet balance of GHS '
+                    . number_format($billBalance, 2) . '.'
                 );
             }
 
@@ -494,7 +546,8 @@ class FeePaymentController extends Controller
             $assignment = $this->resolveAssignment(
                 $request->student_id,
                 $request->student_class_assignment_id,
-                $request->academic_year_id
+                $request->academic_year_id,
+                $request->term_id
             );
 
             if (!$assignment) {
@@ -512,6 +565,22 @@ class FeePaymentController extends Controller
             if (!$billSheet) {
                 throw new \RuntimeException(
                     'The selected Bill Sheet is invalid or is not available for payment.'
+                );
+            }
+
+            // HARD TERM BOUNDARY.
+            $this->validateTermForAcademicYear(
+                (int) $request->term_id,
+                (int) $request->academic_year_id
+            );
+
+            // Only a payment being recorded/completed must pass
+            // the previous-term clearance rule.
+            if ($request->status === 'completed') {
+                $this->enforcePreviousTermCleared(
+                    $assignment,
+                    (int) $request->term_id,
+                    (int) $request->academic_year_id
                 );
             }
 
@@ -548,16 +617,16 @@ class FeePaymentController extends Controller
             $discount = round((float) ($request->discount_amount ?? 0), 2);
             $netAmount = round($amount + $penalty - $discount, 2);
 
-            if ($request->status === 'completed' && $amount > $outstanding) {
-                throw new \RuntimeException(
-                    'The payment amount cannot exceed the outstanding Bill Sheet balance of GHS '
-                    . number_format($outstanding, 2) . '.'
-                );
-            }
-
             if ($discount > ($amount + $penalty)) {
                 throw new \RuntimeException(
                     'The discount cannot be greater than the payment plus penalty.'
+                );
+            }
+
+            if ($request->status === 'completed' && $netAmount > $outstanding) {
+                throw new \RuntimeException(
+                    'The net payment amount cannot exceed the outstanding Bill Sheet balance of GHS '
+                    . number_format($outstanding, 2) . '.'
                 );
             }
 
@@ -646,6 +715,32 @@ class FeePaymentController extends Controller
             $oldStatus = $payment->status;
             $newStatus = $request->status;
 
+            /*
+             * If a payment is being changed to COMPLETED, re-check
+             * the previous-term clearance rule on the server.
+             *
+             * This prevents someone from creating a pending payment
+             * first and later bypassing the clearance rule by simply
+             * changing its status to completed.
+             */
+            if ($newStatus === 'completed' && $oldStatus !== 'completed') {
+                $payment->load([
+                    'studentClassAssignment',
+                    'billSheet',
+                ]);
+
+                if (
+                    $payment->studentClassAssignment
+                    && $payment->billSheet
+                ) {
+                    $this->enforcePreviousTermCleared(
+                        $payment->studentClassAssignment,
+                        (int) $payment->billSheet->term_id,
+                        (int) $payment->billSheet->academic_year_id
+                    );
+                }
+            }
+
             $payment->update([
                 'status' => $newStatus,
             ]);
@@ -731,16 +826,30 @@ class FeePaymentController extends Controller
         $validated = $request->validate([
             'class_id' => 'required|exists:student_classes,id',
             'academic_year_id' => 'required|exists:academic_years,id',
-            'term_id' => 'nullable|exists:terms,id',
+            'term_id' => 'required|exists:terms,id',
         ]);
 
+        if (!empty($validated['term_id'])) {
+            $this->validateTermForAcademicYear(
+                (int) $validated['term_id'],
+                (int) $validated['academic_year_id']
+            );
+        }
+
+        /*
+         * A student can have multiple assignments in one academic year,
+         * one for each term. The payment form must therefore resolve the
+         * assignment for the SELECTED TERM, not simply the student's
+         * current assignment.
+         */
         $assignments = StudentClassAssignment::query()
-            ->with(['student', 'studentClass', 'academicYear'])
+            ->with(['student', 'studentClass', 'academicYear', 'term'])
             ->where('student_class_id', $validated['class_id'])
             ->where('academic_year_id', $validated['academic_year_id'])
+            ->where('term_id', $validated['term_id'])
             ->where(function ($query) {
                 $query->whereNull('status')
-                    ->orWhereIn(DB::raw('LOWER(status)'), ['active']);
+                    ->orWhereRaw('LOWER(status) = ?', ['active']);
             })
             ->orderBy('id')
             ->get();
@@ -758,8 +867,10 @@ class FeePaymentController extends Controller
                     'assignment_id' => $assignment->id,
                     'student_class_id' => $assignment->student_class_id,
                     'academic_year_id' => $assignment->academic_year_id,
+                    'term_id' => $assignment->term_id,
                     'class_name' => $assignment->studentClass?->name,
                     'academic_year' => $assignment->academicYear?->name,
+                    'term_name' => $assignment->term?->name,
                 ];
             })
             ->values();
@@ -791,11 +902,17 @@ class FeePaymentController extends Controller
             'term_id' => 'required|exists:terms,id',
         ]);
 
+        $this->validateTermForAcademicYear(
+            (int) $request->term_id,
+            (int) $request->academic_year_id
+        );
+
         try {
             $assignment = $this->resolveAssignment(
                 $studentId,
                 $request->student_class_assignment_id,
-                $request->academic_year_id
+                $request->academic_year_id,
+                $request->term_id
             );
 
             if (!$assignment) {
@@ -884,6 +1001,8 @@ class FeePaymentController extends Controller
                     'class_name' => $assignment->studentClass?->name,
                     'academic_year' => $assignment->academicYear?->name,
                     'academic_year_id' => $assignment->academic_year_id,
+                    'term_id' => $assignment->term_id,
+                    'term_name' => $assignment->term?->name,
                 ],
 
                 'bill_sheets' => $billData,
@@ -932,62 +1051,331 @@ class FeePaymentController extends Controller
     */
 
     public function getStudentBillSheets(Request $request)
-    {
-        $request->validate([
-            'student_id' => 'required|exists:students,id',
-            'student_class_assignment_id' => 'required|exists:student_class_assignments,id',
-            'academic_year_id' => 'required|exists:academic_years,id',
-            'term_id' => 'required|exists:terms,id',
-        ]);
+{
+    $request->validate([
+        'student_id' => [
+            'required',
+            'exists:students,id',
+        ],
 
-        $assignment = $this->resolveAssignment(
-            $request->student_id,
-            $request->student_class_assignment_id,
-            $request->academic_year_id
-        );
+        'student_class_assignment_id' => [
+            'required',
+            'exists:student_class_assignments,id',
+        ],
 
-        if (!$assignment) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Invalid student class assignment.',
-            ], 422);
-        }
+        'academic_year_id' => [
+            'required',
+            'exists:academic_years,id',
+        ],
 
-        $bills = BillSheet::query()
-            ->where('student_class_assignment_id', $assignment->id)
-            ->where('academic_year_id', $assignment->academic_year_id)
-            ->where('term_id', $request->term_id)
-            ->where('is_active', true)
-            ->whereIn('status', ['approved', 'published'])
-            ->orderByDesc('id')
-            ->get()
-            ->map(function ($bill) use ($assignment) {
-                $total = $this->billTotal($bill);
-                $paid = $this->billPaid($assignment->id, $bill->id);
-                $balance = max(0, round($total - $paid, 2));
+        'term_id' => [
+            'required',
+            'exists:terms,id',
+        ],
+    ]);
 
+    $this->validateTermForAcademicYear(
+        (int) $request->term_id,
+        (int) $request->academic_year_id
+    );
+
+
+    $assignment = $this->resolveAssignment(
+        $request->student_id,
+        $request->student_class_assignment_id,
+        $request->academic_year_id,
+        $request->term_id
+    );
+
+
+    if (!$assignment) {
+
+        return response()->json([
+            'success' => false,
+            'message' => 'Invalid student class assignment.',
+        ], 422);
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | FIND APPROVED / PUBLISHED BILL SHEETS
+    |--------------------------------------------------------------------------
+    */
+
+    $bills = BillSheet::query()
+        ->with('items')
+        ->where(
+            'student_class_assignment_id',
+            $assignment->id
+        )
+        ->where(
+            'academic_year_id',
+            $assignment->academic_year_id
+        )
+        ->where(
+            'term_id',
+            $request->term_id
+        )
+        ->where(
+            'is_active',
+            true
+        )
+        ->whereIn(
+            'status',
+            [
+                'approved',
+                'published',
+            ]
+        )
+        ->orderByDesc('id')
+        ->get()
+        ->map(function ($bill) use ($assignment) {
+
+            /*
+            |--------------------------------------------------------------------------
+            | BILL TOTAL
+            |--------------------------------------------------------------------------
+            */
+
+            $total =
+                $this->billTotal($bill);
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | AMOUNT PAID
+            |--------------------------------------------------------------------------
+            */
+
+            $paid =
+                $this->billPaid(
+                    $assignment->id,
+                    $bill->id
+                );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | OUTSTANDING BALANCE
+            |--------------------------------------------------------------------------
+            */
+
+            $balance =
+                max(
+                    0,
+                    round(
+                        $total - $paid,
+                        2
+                    )
+                );
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | PAYMENT STATUS
+            |--------------------------------------------------------------------------
+            */
+
+            $paymentStatus =
+                $balance <= 0
+                    ? 'paid'
+                    : (
+                        $paid > 0
+                            ? 'partial'
+                            : 'pending'
+                    );
+
+
+            return [
+
+                /*
+                |--------------------------------------------------------------------------
+                | BILL IDENTITY
+                |--------------------------------------------------------------------------
+                */
+
+                'id' =>
+                    $bill->id,
+
+                'name' =>
+                    $bill->name,
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | FINANCIAL VALUES
+                |--------------------------------------------------------------------------
+                */
+
+                'total_amount' =>
+                    $total,
+
+                'paid' =>
+                    $paid,
+
+                'balance' =>
+                    $balance,
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | FORMATTED VALUES
+                |--------------------------------------------------------------------------
+                */
+
+                'formatted_total' =>
+                    $this->money($total),
+
+                'formatted_paid' =>
+                    $this->money($paid),
+
+                'formatted_balance' =>
+                    $this->money($balance),
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | DATES
+                |--------------------------------------------------------------------------
+                */
+
+                'generated_date' =>
+                    $bill->generated_date
+                        ? $bill->generated_date->format('Y-m-d')
+                        : null,
+
+                'due_date' =>
+                    $bill->due_date
+                        ? $bill->due_date->format('Y-m-d')
+                        : null,
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | IMPORTANT STATUS SEPARATION
+                |--------------------------------------------------------------------------
+                */
+
+                'bill_sheet_status' =>
+                    $bill->status,
+
+                'payment_status' =>
+                    $paymentStatus,
+
+
+                /*
+                |--------------------------------------------------------------------------
+                | BILL ITEMS
+                |--------------------------------------------------------------------------
+                */
+
+                'items' =>
+                    $bill->items
+                        ->map(function ($item) {
+
+                            return [
+
+                                'id' =>
+                                    $item->id,
+
+                                'name' =>
+                                    $item->name,
+
+                                'amount' =>
+                                    (float) $item->amount,
+
+                                'quantity' =>
+                                    (int) (
+                                        $item->quantity ?? 1
+                                    ),
+
+                                'total_amount' =>
+                                    (float) $item->total_amount,
+
+                                'is_optional' =>
+                                    (bool) (
+                                        $item->is_optional ?? false
+                                    ),
+
+                                'is_mandatory' =>
+                                    (bool) (
+                                        $item->is_mandatory ?? true
+                                    ),
+
+                            ];
+
+                        })
+                        ->values(),
+
+            ];
+
+        })
+        ->values();
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | RESPONSE
+    |--------------------------------------------------------------------------
+    */
+
+    /*
+     * Keep Draft/Pending Bill Sheets non-payable, but return their status
+     * so the create form can explain why no approved sheet is available.
+     */
+    $nonPayableBillSheets = BillSheet::query()
+        ->where('student_class_assignment_id', $assignment->id)
+        ->where('academic_year_id', $assignment->academic_year_id)
+        ->where('term_id', $request->term_id)
+        ->where('is_active', true)
+        ->whereNotIn('status', ['approved', 'published'])
+        ->orderByDesc('id')
+        ->get(['id', 'name', 'status']);
+
+    return response()->json([
+
+        'success' =>
+            true,
+
+        'bill_sheets' =>
+            $bills,
+
+        'count' =>
+            $bills->count(),
+
+        'non_payable_bill_sheets' =>
+            $nonPayableBillSheets->map(function ($bill) {
                 return [
                     'id' => $bill->id,
                     'name' => $bill->name,
-                    'total_amount' => $total,
-                    'paid' => $paid,
-                    'balance' => $balance,
-                    'formatted_total' => $this->money($total),
-                    'formatted_paid' => $this->money($paid),
-                    'formatted_balance' => $this->money($balance),
-                    'status' => $balance <= 0
-                        ? 'paid'
-                        : ($paid > 0 ? 'partial' : 'pending'),
+                    'status' => $bill->status,
                 ];
-            })
-            ->values();
+            })->values(),
 
-        return response()->json([
-            'success' => true,
-            'bill_sheets' => $bills,
-            'count' => $bills->count(),
-        ]);
-    }
+        'total_amount' =>
+            round(
+                (float) $bills->sum('total_amount'),
+                2
+            ),
+
+        'total_paid' =>
+            round(
+                (float) $bills->sum('paid'),
+                2
+            ),
+
+        'total_balance' =>
+            round(
+                (float) $bills->sum('balance'),
+                2
+            ),
+
+        'assignment_id' =>
+            $assignment->id,
+
+    ]);
+}
 
     /*
     |--------------------------------------------------------------------------
@@ -1048,19 +1436,333 @@ class FeePaymentController extends Controller
     |--------------------------------------------------------------------------
     */
 
-    private function resolveAssignment($studentId, $assignmentId, $academicYearId)
-    {
+    /*
+    |--------------------------------------------------------------------------
+    | TERM / ACADEMIC YEAR VALIDATION
+    |--------------------------------------------------------------------------
+    |
+    | A Term is never allowed to cross academic-year boundaries.
+    |
+    | Example:
+    |   2026/2027 First Term belongs to 2026/2027.
+    |
+    | It must never be accepted together with a 2025/2026 academic year.
+    |
+    |--------------------------------------------------------------------------
+    */
+
+    private function validateTermForAcademicYear(
+        int $termId,
+        int $academicYearId
+    ): Term {
+        $term = Term::query()
+            ->whereKey($termId)
+            ->where('academic_year_id', $academicYearId)
+            ->first();
+
+        if (!$term) {
+            throw new \RuntimeException(
+                'The selected term does not belong to the selected academic year.'
+            );
+        }
+
+        return $term;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | PREVIOUS TERM CLEARANCE
+    |--------------------------------------------------------------------------
+    |
+    | BUSINESS RULE:
+    |
+    | First Term:
+    |   No previous term exists, therefore payment is allowed.
+    |
+    | Second Term:
+    |   First Term must have a zero balance.
+    |
+    | Third Term:
+    |   Second Term must have a zero balance.
+    |
+    | IMPORTANT:
+    |   The previous term is searched ONLY inside the same academic year.
+    |
+    |   We calculate the previous term using start_date, not global
+    |   database ID ordering. This prevents a term from another academic
+    |   year from being accidentally selected.
+    |
+    |--------------------------------------------------------------------------
+    */
+
+    private function enforcePreviousTermCleared(
+        StudentClassAssignment $assignment,
+        int $termId,
+        int $academicYearId
+    ): void {
+        $currentTerm = $this->validateTermForAcademicYear(
+            $termId,
+            $academicYearId
+        );
+
+        /*
+         * Find the immediately preceding term in the SAME academic year.
+         *
+         * If start_date is available, it is the safest ordering field.
+         * The fallback uses the term ID only when dates are unavailable.
+         */
+        $previousTermQuery = Term::query()
+            ->where('academic_year_id', $academicYearId)
+            ->where('id', '!=', $currentTerm->id);
+
+        if ($currentTerm->start_date) {
+            $previousTerm = (clone $previousTermQuery)
+                ->whereNotNull('start_date')
+                ->where('start_date', '<', $currentTerm->start_date)
+                ->orderByDesc('start_date')
+                ->first();
+        } else {
+            $previousTerm = (clone $previousTermQuery)
+                ->where('id', '<', $currentTerm->id)
+                ->orderByDesc('id')
+                ->first();
+        }
+
+        /*
+         * First Term has no previous term.
+         */
+        if (!$previousTerm) {
+            return;
+        }
+
+        /*
+         * Find the previous term's active approved/published Bill Sheet
+         * for THIS exact student assignment and academic year.
+         */
+        $previousBill = BillSheet::query()
+            ->where('student_class_assignment_id', $assignment->id)
+            ->where('academic_year_id', $academicYearId)
+            ->where('term_id', $previousTerm->id)
+            ->where('is_active', true)
+            ->whereIn('status', ['approved', 'published'])
+            ->orderByDesc('id')
+            ->first();
+
+        /*
+         * If the school has not generated a previous-term bill, we do
+         * not invent an outstanding balance.
+         *
+         * This is important for students whose billing has not yet been
+         * created for that term.
+         */
+        if (!$previousBill) {
+            return;
+        }
+
+        $previousTotal = $this->billTotal($previousBill);
+
+        /*
+         * IMPORTANT:
+         *
+         * We ONLY count payments attached to the previous Bill Sheet.
+         *
+         * We do NOT use StudentFeeAccount.balance here.
+         */
+        $previousPaid = $this->billPaid(
+            $assignment->id,
+            $previousBill->id
+        );
+
+        $previousBalance = max(
+            0,
+            round($previousTotal - $previousPaid, 2)
+        );
+
+        if ($previousBalance > 0) {
+            throw new \RuntimeException(
+                'Payment blocked. '
+                . $previousTerm->name
+                . ' fees must be fully settled before '
+                . $currentTerm->name
+                . ' payment can be recorded. '
+                . 'Outstanding '
+                . $previousTerm->name
+                . ' balance: GHS '
+                . number_format($previousBalance, 2)
+                . '.'
+            );
+        }
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | TERM FINANCIAL SUMMARY
+    |--------------------------------------------------------------------------
+    |
+    | Returns the financial position of ONE exact Bill Sheet.
+    |
+    | This is deliberately Bill Sheet based and therefore cannot mix
+    | First Term, Second Term and Third Term money.
+    |
+    |--------------------------------------------------------------------------
+    */
+
+    private function billFinancialSummary(
+        StudentClassAssignment $assignment,
+        BillSheet $billSheet
+    ): array {
+        $total = $this->billTotal($billSheet);
+
+        $paid = $this->billPaid(
+            $assignment->id,
+            $billSheet->id
+        );
+
+        $balance = max(
+            0,
+            round($total - $paid, 2)
+        );
+
+        return [
+            'bill_sheet_id' => $billSheet->id,
+            'academic_year_id' => $billSheet->academic_year_id,
+            'term_id' => $billSheet->term_id,
+            'total' => $total,
+            'paid' => $paid,
+            'balance' => $balance,
+            'status' => $balance <= 0
+                ? 'paid'
+                : ($paid > 0 ? 'partial' : 'pending'),
+        ];
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | PAYMENT CLEARANCE INFORMATION
+    |--------------------------------------------------------------------------
+    |
+    | Used by AJAX responses so the payment form can display the reason
+    | a later term is locked.
+    |
+    |--------------------------------------------------------------------------
+    */
+
+    private function previousTermClearance(
+        StudentClassAssignment $assignment,
+        int $termId,
+        int $academicYearId
+    ): array {
+        $currentTerm = $this->validateTermForAcademicYear(
+            $termId,
+            $academicYearId
+        );
+
+        $previousTermQuery = Term::query()
+            ->where('academic_year_id', $academicYearId)
+            ->where('id', '!=', $currentTerm->id);
+
+        if ($currentTerm->start_date) {
+            $previousTerm = (clone $previousTermQuery)
+                ->whereNotNull('start_date')
+                ->where('start_date', '<', $currentTerm->start_date)
+                ->orderByDesc('start_date')
+                ->first();
+        } else {
+            $previousTerm = (clone $previousTermQuery)
+                ->where('id', '<', $currentTerm->id)
+                ->orderByDesc('id')
+                ->first();
+        }
+
+        if (!$previousTerm) {
+            return [
+                'cleared' => true,
+                'has_previous_term' => false,
+                'previous_term_id' => null,
+                'previous_term_name' => null,
+                'previous_term_balance' => 0,
+            ];
+        }
+
+        $previousBill = BillSheet::query()
+            ->where('student_class_assignment_id', $assignment->id)
+            ->where('academic_year_id', $academicYearId)
+            ->where('term_id', $previousTerm->id)
+            ->where('is_active', true)
+            ->whereIn('status', ['approved', 'published'])
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$previousBill) {
+            return [
+                'cleared' => true,
+                'has_previous_term' => true,
+                'previous_term_id' => $previousTerm->id,
+                'previous_term_name' => $previousTerm->name,
+                'previous_term_balance' => 0,
+                'previous_bill_exists' => false,
+            ];
+        }
+
+        $total = $this->billTotal($previousBill);
+
+        $paid = $this->billPaid(
+            $assignment->id,
+            $previousBill->id
+        );
+
+        $balance = max(
+            0,
+            round($total - $paid, 2)
+        );
+
+        return [
+            'cleared' => $balance <= 0,
+            'has_previous_term' => true,
+            'previous_term_id' => $previousTerm->id,
+            'previous_term_name' => $previousTerm->name,
+            'previous_bill_exists' => true,
+            'previous_bill_sheet_id' => $previousBill->id,
+            'previous_term_total' => $total,
+            'previous_term_paid' => $paid,
+            'previous_term_balance' => $balance,
+        ];
+    }
+
+
+    private function resolveAssignment(
+        $studentId,
+        $assignmentId,
+        $academicYearId,
+        $termId
+    ) {
+        /*
+         * IMPORTANT:
+         * is_current represents the student's CURRENT assignment.
+         * Historical First Term assignments can correctly have
+         * is_current = false after the student moves to another term.
+         *
+         * Payments must resolve the assignment for the selected
+         * Academic Year + Term, so is_current must NOT be required here.
+         */
         return StudentClassAssignment::query()
             ->with([
                 'student',
                 'studentClass',
                 'academicYear',
+                'term',
             ])
             ->whereKey($assignmentId)
             ->where('student_id', $studentId)
             ->where('academic_year_id', $academicYearId)
-            ->where('is_current', true)
-            ->where('status', 'active')
+            ->where('term_id', $termId)
+            ->where(function ($query) {
+                $query->whereNull('status')
+                    ->orWhereRaw('LOWER(status) = ?', ['active']);
+            })
             ->first();
     }
 
@@ -1081,16 +1783,71 @@ class FeePaymentController extends Controller
     }
 
     private function billTotal(BillSheet $billSheet): float
-    {
-        return round(
-            (float) (
-                $billSheet->net_amount
-                ?? $billSheet->total_amount
-                ?? 0
-            ),
-            2
-        );
+{
+    /*
+    |--------------------------------------------------------------------------
+    | BILL TOTAL
+    |--------------------------------------------------------------------------
+    |
+    | net_amount is the final payable amount when it has been properly
+    | calculated.
+    |
+    | However, older/generated Bill Sheets may have:
+    |
+    |     total_amount > 0
+    |     net_amount = 0
+    |
+    | In that situation, using:
+    |
+    |     net_amount ?? total_amount
+    |
+    | incorrectly returns ZERO because 0 is not NULL.
+    |
+    | Therefore:
+    |
+    | 1. Use net_amount when it is greater than zero.
+    | 2. Otherwise calculate the payable amount from total_amount,
+    |    discount and tax.
+    |
+    |--------------------------------------------------------------------------
+    */
+
+    $totalAmount = (float) ($billSheet->total_amount ?? 0);
+
+    $discountAmount = (float) ($billSheet->discount_amount ?? 0);
+
+    $taxAmount = (float) ($billSheet->tax_amount ?? 0);
+
+    $netAmount = (float) ($billSheet->net_amount ?? 0);
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Properly stored net amount
+    |--------------------------------------------------------------------------
+    */
+
+    if ($netAmount > 0) {
+        return round($netAmount, 2);
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | Fallback for Bill Sheets whose net_amount is zero/null
+    |--------------------------------------------------------------------------
+    */
+
+    return round(
+        max(
+            0,
+            $totalAmount
+            - $discountAmount
+            + $taxAmount
+        ),
+        2
+    );
+}
 
     private function billPaid($assignmentId, $billSheetId): float
     {

@@ -2,19 +2,58 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicYear;
 use App\Models\Attendance;
 use App\Models\AttendanceSession;
 use App\Models\StudentClass;
 use App\Models\StudentClassAssignment;
+use App\Models\SystemSetting;
+use App\Models\Term;
+use App\Services\EdunexusAuthorizationService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
-use App\Services\EdunexusAuthorizationService;
+use Illuminate\Validation\ValidationException;
 
 class AttendanceSessionController extends Controller
 {
-    public function __construct(private EdunexusAuthorizationService $authorization)
+    public function __construct(
+        private EdunexusAuthorizationService $authorization
+    ) {
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | CURRENT ACADEMIC PERIOD
+    |--------------------------------------------------------------------------
+    */
+
+    private function currentPeriod(): array
     {
+        $settings = SystemSetting::instance();
+
+        $academicYear = $settings->currentAcademicYear;
+        $term = $settings->currentTerm;
+
+        if (!$academicYear || !$term) {
+            throw ValidationException::withMessages([
+                'academic_period' =>
+                    'The current academic year and term have not been configured in System Settings.',
+            ]);
+        }
+
+        if ((int) $term->academic_year_id !== (int) $academicYear->id) {
+            throw ValidationException::withMessages([
+                'academic_period' =>
+                    'The current term does not belong to the current academic year.',
+            ]);
+        }
+
+        return [
+            'settings' => $settings,
+            'academic_year' => $academicYear,
+            'term' => $term,
+        ];
     }
 
     /*
@@ -22,24 +61,45 @@ class AttendanceSessionController extends Controller
     | DISPLAY ALL ATTENDANCE SESSIONS
     |--------------------------------------------------------------------------
     */
+
     public function index()
     {
-        abort_unless(auth()->user()->can('attendance.view'), 403);
+        abort_unless(
+            auth()->user()->can('attendance.view'),
+            403
+        );
+
+        $period = $this->currentPeriod();
 
         $sessions = AttendanceSession::with([
             'studentClass',
-            'takenBy'
+            'academicYear',
+            'term',
+            'takenBy',
         ])
-        ->when($this->authorization->isScopedStaff(auth()->user()), function ($query) {
-            $query->whereIn(
-                'student_class_id',
-                $this->authorization->accessibleClasses(auth()->user())->select('student_classes.id')
-            );
-        })
-        ->latest()
-        ->paginate(20);
+            ->where('academic_year_id', $period['academic_year']->id)
+            ->where('term_id', $period['term']->id)
+            ->when(
+                $this->authorization->isScopedStaff(auth()->user()),
+                function ($query) {
+                    $query->whereIn(
+                        'student_class_id',
+                        $this->authorization
+                            ->accessibleClasses(auth()->user())
+                            ->select('student_classes.id')
+                    );
+                }
+            )
+            ->latest('attendance_date')
+            ->latest('id')
+            ->paginate(20);
 
-        return view('attendance.index', compact('sessions'));
+        return view('attendance.index', [
+            'sessions' => $sessions,
+            'settings' => $period['settings'],
+            'currentAcademicYear' => $period['academic_year'],
+            'currentTerm' => $period['term'],
+        ]);
     }
 
     /*
@@ -47,14 +107,27 @@ class AttendanceSessionController extends Controller
     | SHOW CREATE FORM
     |--------------------------------------------------------------------------
     */
+
     public function create()
     {
-        abort_unless(auth()->user()->can('attendance.create'), 403);
+        abort_unless(
+            auth()->user()->can('attendance.create'),
+            403
+        );
 
-        $classes = $this->authorization->accessibleClasses(auth()->user())
+        $period = $this->currentPeriod();
+
+        $classes = $this->authorization
+            ->accessibleClasses(auth()->user())
             ->orderBy('name')
             ->get();
-        return view('attendance.create', compact('classes'));
+
+        return view('attendance.create', [
+            'classes' => $classes,
+            'settings' => $period['settings'],
+            'currentAcademicYear' => $period['academic_year'],
+            'currentTerm' => $period['term'],
+        ]);
     }
 
     /*
@@ -62,42 +135,163 @@ class AttendanceSessionController extends Controller
     | STORE ATTENDANCE
     |--------------------------------------------------------------------------
     */
+
     public function store(Request $request)
     {
-        abort_unless(auth()->user()->can('attendance.create'), 403);
-
-        $request->validate([
-            'student_class_id' => 'required|exists:student_classes,id',
-            'attendance_date'  => 'required|date',
-            'attendance'       => 'required|array',
-        ]);
-
         abort_unless(
-            $this->authorization->canAccessClass(auth()->user(), (int) $request->student_class_id),
+            auth()->user()->can('attendance.create'),
             403
         );
 
-        // Prevent duplicate attendance
-        $exists = AttendanceSession::where('student_class_id', $request->student_class_id)
-            ->where('attendance_date', $request->attendance_date)
+        $period = $this->currentPeriod();
+
+        $validated = $request->validate([
+            'student_class_id' => [
+                'required',
+                'integer',
+                'exists:student_classes,id',
+            ],
+            'attendance_date' => [
+                'required',
+                'date',
+            ],
+            'attendance' => [
+                'required',
+                'array',
+            ],
+        ]);
+
+        $classId = (int) $validated['student_class_id'];
+
+        abort_unless(
+            $this->authorization->canAccessClass(
+                auth()->user(),
+                $classId
+            ),
+            403
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Validate Attendance Date Against Current Term
+        |--------------------------------------------------------------------------
+        */
+
+        $attendanceDate = Carbon::parse(
+            $validated['attendance_date']
+        )->startOfDay();
+
+        $term = $period['term'];
+
+        if (
+            $term->start_date
+            && $attendanceDate->lt(
+                Carbon::parse($term->start_date)->startOfDay()
+            )
+        ) {
+            return back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'The attendance date is before the start of the current term.'
+                );
+        }
+
+        if (
+            $term->end_date
+            && $attendanceDate->gt(
+                Carbon::parse($term->end_date)->endOfDay()
+            )
+        ) {
+            return back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'The attendance date is after the end of the current term.'
+                );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Prevent Duplicate Attendance
+        |--------------------------------------------------------------------------
+        */
+
+        $exists = AttendanceSession::query()
+            ->where('student_class_id', $classId)
+            ->where('academic_year_id', $period['academic_year']->id)
+            ->where('term_id', $period['term']->id)
+            ->whereDate(
+                'attendance_date',
+                $attendanceDate->toDateString()
+            )
             ->exists();
 
         if ($exists) {
-            return back()->with('error', 'Attendance already taken for this class and date.');
+            return back()
+                ->withInput()
+                ->with(
+                    'error',
+                    'Attendance has already been taken for this class on this date.'
+                );
         }
 
-        DB::transaction(function () use ($request) {
-            // Create session
+        DB::transaction(function () use (
+            $validated,
+            $classId,
+            $attendanceDate,
+            $period
+        ) {
+            /*
+            |--------------------------------------------------------------------------
+            | Get Only Current Students For Current Academic Period
+            |--------------------------------------------------------------------------
+            */
+
+            $assignments = StudentClassAssignment::query()
+                ->where('student_class_id', $classId)
+                ->where(
+                    'academic_year_id',
+                    $period['academic_year']->id
+                )
+                ->where(
+                    'term_id',
+                    $period['term']->id
+                )
+                ->where('is_current', true)
+                ->whereIn('status', [
+                    'active',
+                    'repeated',
+                ])
+                ->get()
+                ->keyBy('id');
+
+            /*
+            |--------------------------------------------------------------------------
+            | Create Attendance Session
+            |--------------------------------------------------------------------------
+            */
+
             $session = AttendanceSession::create([
-                'student_class_id' => $request->student_class_id,
-                'attendance_date'  => $request->attendance_date,
-                'taken_by'         => auth()->id(),
-                'status'           => 'completed',
+                'student_class_id' => $classId,
+                'academic_year_id' => $period['academic_year']->id,
+                'term_id' => $period['term']->id,
+                'attendance_date' => $attendanceDate->toDateString(),
+                'taken_by' => auth()->id(),
+                'status' => 'completed',
             ]);
 
-            // Save student attendance
-            foreach ($request->attendance as $assignmentId => $status) {
-                $assignment = StudentClassAssignment::with('student')->find($assignmentId);
+            /*
+            |--------------------------------------------------------------------------
+            | Save Attendance Records
+            |--------------------------------------------------------------------------
+            */
+
+            foreach ($validated['attendance'] as $assignmentId => $status) {
+                $assignment = $assignments->get(
+                    (int) $assignmentId
+                );
+
                 if (!$assignment) {
                     continue;
                 }
@@ -112,8 +306,14 @@ class AttendanceSessionController extends Controller
         });
 
         return redirect()
-            ->route('student-classes.show', $request->student_class_id)
-            ->with('success', 'Attendance submitted successfully.');
+            ->route(
+                'student-classes.show',
+                $classId
+            )
+            ->with(
+                'success',
+                'Attendance submitted successfully.'
+            );
     }
 
     /*
@@ -121,62 +321,187 @@ class AttendanceSessionController extends Controller
     | STORE ATTENDANCE FOR SPECIFIC CLASS (AJAX)
     |--------------------------------------------------------------------------
     */
-    public function storeForClass(Request $request, $classId)
-    {
-        abort_unless(auth()->user()->can('attendance.create'), 403);
-        abort_unless($this->authorization->canAccessClass(auth()->user(), (int) $classId), 403);
 
-        $request->validate([
-            'attendance_date' => 'required|date',
-            'attendance' => 'required|array',
+    public function storeForClass(
+        Request $request,
+        $classId
+    ) {
+        abort_unless(
+            auth()->user()->can('attendance.create'),
+            403
+        );
+
+        $classId = (int) $classId;
+
+        abort_unless(
+            $this->authorization->canAccessClass(
+                auth()->user(),
+                $classId
+            ),
+            403
+        );
+
+        $period = $this->currentPeriod();
+
+        $validated = $request->validate([
+            'attendance_date' => [
+                'required',
+                'date',
+            ],
+            'attendance' => [
+                'required',
+                'array',
+            ],
         ]);
 
-        $exists = AttendanceSession::where('student_class_id', $classId)
-            ->where('attendance_date', $request->attendance_date)
+        $attendanceDate = Carbon::parse(
+            $validated['attendance_date']
+        )->startOfDay();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Validate Date Against Current Term
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            $period['term']->start_date
+            && $attendanceDate->lt(
+                Carbon::parse(
+                    $period['term']->start_date
+                )->startOfDay()
+            )
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' =>
+                    'The attendance date is before the start of the current term.',
+            ], 422);
+        }
+
+        if (
+            $period['term']->end_date
+            && $attendanceDate->gt(
+                Carbon::parse(
+                    $period['term']->end_date
+                )->endOfDay()
+            )
+        ) {
+            return response()->json([
+                'success' => false,
+                'message' =>
+                    'The attendance date is after the end of the current term.',
+            ], 422);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Duplicate Check
+        |--------------------------------------------------------------------------
+        */
+
+        $exists = AttendanceSession::query()
+            ->where('student_class_id', $classId)
+            ->where(
+                'academic_year_id',
+                $period['academic_year']->id
+            )
+            ->where(
+                'term_id',
+                $period['term']->id
+            )
+            ->whereDate(
+                'attendance_date',
+                $attendanceDate->toDateString()
+            )
             ->exists();
 
         if ($exists) {
             return response()->json([
                 'success' => false,
-                'message' => 'Attendance already taken for this class and date.'
-            ]);
+                'message' =>
+                    'Attendance has already been taken for this class on this date.',
+            ], 422);
         }
 
         try {
-            DB::transaction(function () use ($request, $classId) {
+            DB::transaction(function () use (
+                $validated,
+                $classId,
+                $attendanceDate,
+                $period
+            ) {
+                /*
+                |--------------------------------------------------------------------------
+                | Current Assignments Only
+                |--------------------------------------------------------------------------
+                */
+
+                $assignments = StudentClassAssignment::query()
+                    ->where('student_class_id', $classId)
+                    ->where(
+                        'academic_year_id',
+                        $period['academic_year']->id
+                    )
+                    ->where(
+                        'term_id',
+                        $period['term']->id
+                    )
+                    ->where('is_current', true)
+                    ->whereIn('status', [
+                        'active',
+                        'repeated',
+                    ])
+                    ->get()
+                    ->keyBy('student_id');
+
                 $session = AttendanceSession::create([
                     'student_class_id' => $classId,
-                    'attendance_date' => $request->attendance_date,
+                    'academic_year_id' =>
+                        $period['academic_year']->id,
+                    'term_id' =>
+                        $period['term']->id,
+                    'attendance_date' =>
+                        $attendanceDate->toDateString(),
                     'taken_by' => auth()->id(),
                     'status' => 'completed',
                 ]);
 
-                foreach ($request->attendance as $studentId => $data) {
-                    $assignment = StudentClassAssignment::where('student_id', $studentId)
-                        ->where('student_class_id', $classId)
-                        ->where('is_current', true)
-                        ->first();
+                foreach ($validated['attendance'] as $studentId => $data) {
+                    $assignment = $assignments->get(
+                        (int) $studentId
+                    );
 
-                    if ($assignment) {
-                        Attendance::create([
-                            'attendance_session_id' => $session->id,
-                            'student_class_assignment_id' => $assignment->id,
-                            'student_id' => $studentId,
-                            'status' => $data['status'] ?? 'present',
-                        ]);
+                    if (!$assignment) {
+                        continue;
                     }
+
+                    Attendance::create([
+                        'attendance_session_id' => $session->id,
+                        'student_class_assignment_id' =>
+                            $assignment->id,
+                        'student_id' =>
+                            $assignment->student_id,
+                        'status' =>
+                            is_array($data)
+                                ? ($data['status'] ?? 'present')
+                                : $data,
+                    ]);
                 }
             });
 
             return response()->json([
                 'success' => true,
-                'message' => 'Attendance saved successfully!'
+                'message' =>
+                    'Attendance saved successfully.',
             ]);
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error saving attendance: ' . $e->getMessage()
-            ]);
+                'message' =>
+                    'Error saving attendance: '
+                    . $e->getMessage(),
+            ], 500);
         }
     }
 
@@ -185,66 +510,153 @@ class AttendanceSessionController extends Controller
     | GET ATTENDANCE DATA (AJAX)
     |--------------------------------------------------------------------------
     */
-    public function getAttendanceData(Request $request, $classId)
-    {
-        abort_unless(auth()->user()->can('attendance.view'), 403);
-        abort_unless($this->authorization->canAccessClass(auth()->user(), (int) $classId), 403);
+
+    public function getAttendanceData(
+        Request $request,
+        $classId
+    ) {
+        abort_unless(
+            auth()->user()->can('attendance.view'),
+            403
+        );
+
+        $classId = (int) $classId;
+
+        abort_unless(
+            $this->authorization->canAccessClass(
+                auth()->user(),
+                $classId
+            ),
+            403
+        );
+
+        $period = $this->currentPeriod();
 
         $date = $request->get('date');
         $month = $request->get('month');
         $year = $request->get('year');
 
-        $query = AttendanceSession::with(['attendances.student', 'studentClass'])
-            ->where('student_class_id', $classId);
+        $query = AttendanceSession::with([
+            'attendances.student',
+            'studentClass',
+            'academicYear',
+            'term',
+        ])
+            ->where('student_class_id', $classId)
+            ->where(
+                'academic_year_id',
+                $period['academic_year']->id
+            )
+            ->where(
+                'term_id',
+                $period['term']->id
+            );
 
         if ($date) {
-            $query->whereDate('attendance_date', $date);
+            $query->whereDate(
+                'attendance_date',
+                $date
+            );
         } else {
             if ($month) {
-                $query->whereMonth('attendance_date', $month);
+                $query->whereMonth(
+                    'attendance_date',
+                    $month
+                );
             }
+
             if ($year) {
-                $query->whereYear('attendance_date', $year);
-            } else {
-                $query->whereYear('attendance_date', date('Y'));
+                $query->whereYear(
+                    'attendance_date',
+                    $year
+                );
             }
         }
 
-        $sessions = $query->orderBy('attendance_date', 'desc')->get();
+        $sessions = $query
+            ->orderBy(
+                'attendance_date',
+                'desc'
+            )
+            ->get();
 
         if ($sessions->isEmpty()) {
             return response()->json([
                 'success' => false,
-                'message' => 'No attendance records found for the selected criteria.'
+                'message' =>
+                    'No attendance records found for the selected criteria.',
             ]);
         }
 
         $records = [];
+
         foreach ($sessions as $session) {
             foreach ($session->attendances as $attendance) {
+                if (!$attendance->student) {
+                    continue;
+                }
+
                 $records[] = [
-                    'date' => $session->attendance_date,
-                    'student_name' => $attendance->student->first_name . ' ' . $attendance->student->last_name,
-                    'student_id' => $attendance->student->student_id,
-                    'gender' => $attendance->student->gender,
-                    'status' => $attendance->status,
-                    'remarks' => $attendance->remarks ?? '',
+                    'date' =>
+                        $session->attendance_date
+                            ? $session->attendance_date->toDateString()
+                            : null,
+
+                    'student_name' =>
+                        trim(
+                            $attendance->student->first_name
+                            . ' '
+                            . $attendance->student->last_name
+                        ),
+
+                    'student_id' =>
+                        $attendance->student->student_id,
+
+                    'gender' =>
+                        $attendance->student->gender,
+
+                    'status' =>
+                        $attendance->status,
+
+                    'remarks' =>
+                        $attendance->remarks ?? '',
                 ];
             }
         }
 
         $summary = [
-            'present' => collect($records)->where('status', 'present')->count(),
-            'absent' => collect($records)->where('status', 'absent')->count(),
-            'late' => collect($records)->where('status', 'late')->count(),
-            'excused' => collect($records)->where('status', 'excused')->count(),
+            'present' =>
+                collect($records)
+                    ->where('status', 'present')
+                    ->count(),
+
+            'absent' =>
+                collect($records)
+                    ->where('status', 'absent')
+                    ->count(),
+
+            'late' =>
+                collect($records)
+                    ->where('status', 'late')
+                    ->count(),
+
+            'excused' =>
+                collect($records)
+                    ->where('status', 'excused')
+                    ->count(),
         ];
 
         return response()->json([
             'success' => true,
             'records' => $records,
             'summary' => $summary,
-            'total' => count($records)
+            'total' => count($records),
+
+            'academic_year' =>
+                $period['academic_year']->name,
+
+            'term' =>
+                $period['term']->name,
         ]);
     }
 
@@ -253,21 +665,36 @@ class AttendanceSessionController extends Controller
     | SHOW SINGLE SESSION
     |--------------------------------------------------------------------------
     */
-    public function show(AttendanceSession $attendanceSession)
-    {
-        abort_unless(auth()->user()->can('attendance.view'), 403);
+
+    public function show(
+        AttendanceSession $attendanceSession
+    ) {
         abort_unless(
-            $this->authorization->canAccessClass(auth()->user(), (int) $attendanceSession->student_class_id),
+            auth()->user()->can('attendance.view'),
+            403
+        );
+
+        abort_unless(
+            $this->authorization->canAccessClass(
+                auth()->user(),
+                (int) $attendanceSession->student_class_id
+            ),
             403
         );
 
         $attendanceSession->load([
             'studentClass',
+            'academicYear',
+            'term',
             'attendances.student',
-            'takenBy'
+            'attendances.classAssignment',
+            'takenBy',
         ]);
 
-        return view('attendance.show', compact('attendanceSession'));
+        return view(
+            'attendance.show',
+            compact('attendanceSession')
+        );
     }
 
     /*
@@ -275,14 +702,45 @@ class AttendanceSessionController extends Controller
     | AJAX LOAD CLASS STUDENTS
     |--------------------------------------------------------------------------
     */
+
     public function getStudents($classId)
     {
-        abort_unless(auth()->user()->can('attendance.view') || auth()->user()->can('attendance.create'), 403);
-        abort_unless($this->authorization->canAccessClass(auth()->user(), (int) $classId), 403);
+        abort_unless(
+            auth()->user()->can('attendance.view')
+            || auth()->user()->can('attendance.create'),
+            403
+        );
+
+        $classId = (int) $classId;
+
+        abort_unless(
+            $this->authorization->canAccessClass(
+                auth()->user(),
+                $classId
+            ),
+            403
+        );
+
+        $period = $this->currentPeriod();
 
         $students = StudentClassAssignment::with('student')
-            ->where('student_class_id', $classId)
+            ->where(
+                'student_class_id',
+                $classId
+            )
+            ->where(
+                'academic_year_id',
+                $period['academic_year']->id
+            )
+            ->where(
+                'term_id',
+                $period['term']->id
+            )
             ->where('is_current', true)
+            ->whereIn('status', [
+                'active',
+                'repeated',
+            ])
             ->orderBy('id')
             ->get();
 
@@ -294,19 +752,61 @@ class AttendanceSessionController extends Controller
     | CREATE ATTENDANCE FOR CLASS
     |--------------------------------------------------------------------------
     */
-    public function createForClass($studentClassId)
-    {
-        abort_unless(auth()->user()->can('attendance.create'), 403);
-        abort_unless($this->authorization->canAccessClass(auth()->user(), (int) $studentClassId), 403);
 
-        $studentClass = StudentClass::findOrFail($studentClassId);
-        
+    public function createForClass(
+        $studentClassId
+    ) {
+        abort_unless(
+            auth()->user()->can('attendance.create'),
+            403
+        );
+
+        $studentClassId = (int) $studentClassId;
+
+        abort_unless(
+            $this->authorization->canAccessClass(
+                auth()->user(),
+                $studentClassId
+            ),
+            403
+        );
+
+        $period = $this->currentPeriod();
+
+        $studentClass = StudentClass::findOrFail(
+            $studentClassId
+        );
+
         $assignments = StudentClassAssignment::with('student')
-            ->where('student_class_id', $studentClassId)
+            ->where(
+                'student_class_id',
+                $studentClassId
+            )
+            ->where(
+                'academic_year_id',
+                $period['academic_year']->id
+            )
+            ->where(
+                'term_id',
+                $period['term']->id
+            )
             ->where('is_current', true)
+            ->whereIn('status', [
+                'active',
+                'repeated',
+            ])
+            ->orderBy('id')
             ->get();
-        
-        return view('attendance.take', compact('studentClass', 'assignments'));
+
+        return view('attendance.take', [
+            'studentClass' => $studentClass,
+            'assignments' => $assignments,
+            'settings' => $period['settings'],
+            'currentAcademicYear' =>
+                $period['academic_year'],
+            'currentTerm' =>
+                $period['term'],
+        ]);
     }
 
     /*
@@ -314,162 +814,548 @@ class AttendanceSessionController extends Controller
     | CHECK IF ATTENDANCE EXISTS
     |--------------------------------------------------------------------------
     */
-    public function checkExists(Request $request)
-    {
-        $classId = $request->get('class_id');
+
+    public function checkExists(
+        Request $request
+    ) {
+        abort_unless(
+            auth()->user()->can('attendance.view')
+            || auth()->user()->can('attendance.create'),
+            403
+        );
+
+        $classId = (int) $request->get(
+            'class_id'
+        );
+
         $date = $request->get('date');
-        
-        $session = AttendanceSession::where('student_class_id', $classId)
-            ->where('attendance_date', $date)
+
+        abort_unless(
+            $this->authorization->canAccessClass(
+                auth()->user(),
+                $classId
+            ),
+            403
+        );
+
+        $period = $this->currentPeriod();
+
+        $session = AttendanceSession::query()
+            ->where(
+                'student_class_id',
+                $classId
+            )
+            ->where(
+                'academic_year_id',
+                $period['academic_year']->id
+            )
+            ->where(
+                'term_id',
+                $period['term']->id
+            )
+            ->whereDate(
+                'attendance_date',
+                $date
+            )
             ->first();
-        
+
         if ($session) {
-            $attendances = Attendance::where('attendance_session_id', $session->id)
+            $attendances = Attendance::query()
+                ->where(
+                    'attendance_session_id',
+                    $session->id
+                )
                 ->get()
-                ->pluck('status', 'student_class_assignment_id');
-            
+                ->pluck(
+                    'status',
+                    'student_class_assignment_id'
+                );
+
             return response()->json([
                 'exists' => true,
                 'session_id' => $session->id,
-                'attendance' => $attendances
+                'attendance' => $attendances,
+
+                'academic_year' =>
+                    $period['academic_year']->name,
+
+                'term' =>
+                    $period['term']->name,
             ]);
         }
-        
+
         return response()->json([
-            'exists' => false
+            'exists' => false,
         ]);
     }
 
     /*
     |--------------------------------------------------------------------------
-    | MONTHLY ATTENDANCE REPORT FOR A CLASS
+    | MONTHLY ATTENDANCE REPORT
     |--------------------------------------------------------------------------
     */
+
     public function monthlyReport(Request $request)
     {
-        // Get all classes for dropdown
-        $classes = StudentClass::orderBy('name')->get();
-        
-        // Get selected class or default to first
+        abort_unless(
+            auth()->user()->can('attendance.view'),
+            403
+        );
+
+        $period = $this->currentPeriod();
+
+        $classes = $this->authorization
+            ->accessibleClasses(auth()->user())
+            ->orderBy('name')
+            ->get();
+
         $selectedClassId = $request->input('class_id');
-        
-        // If no class selected and classes exist, select the first one
+
         if (!$selectedClassId && $classes->isNotEmpty()) {
             $selectedClassId = $classes->first()->id;
         }
-        
-        // Handle month selection
-        if ($request->has('month_year')) {
-            $monthYear = $request->month_year;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Determine Month
+        |--------------------------------------------------------------------------
+        */
+
+        if ($request->filled('month_year')) {
+            $monthYear = $request->input('month_year');
+
+            if (!preg_match('/^\d{4}-\d{2}$/', $monthYear)) {
+                return redirect()
+                    ->route('attendance.monthly-report')
+                    ->with('error', 'Invalid month selected.');
+            }
+
             $year = (int) substr($monthYear, 0, 4);
             $month = (int) substr($monthYear, 5, 2);
+
+            if ($month < 1 || $month > 12) {
+                return redirect()
+                    ->route('attendance.monthly-report')
+                    ->with('error', 'Invalid month selected.');
+            }
         } else {
-            $year = now()->year;
-            $month = now()->month;
+            $referenceDate = $period['term']->start_date
+                ? Carbon::parse($period['term']->start_date)
+                : now();
+
+            $year = $referenceDate->year;
+            $month = $referenceDate->month;
         }
-        
+
         $selectedClass = null;
         $monthlyData = [];
         $days = [];
         $summary = [];
-        
+
+        /*
+        |--------------------------------------------------------------------------
+        | Month Range
+        |--------------------------------------------------------------------------
+        */
+
+        $startDate = Carbon::create(
+            $year,
+            $month,
+            1
+        )->startOfDay();
+
+        $endDate = Carbon::create(
+            $year,
+            $month,
+            1
+        )->endOfMonth()
+            ->endOfDay();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Days In Selected Month
+        |--------------------------------------------------------------------------
+        */
+
+        $daysInMonth = $startDate->daysInMonth;
+
+        for ($i = 1; $i <= $daysInMonth; $i++) {
+            $days[] = Carbon::create(
+                $year,
+                $month,
+                $i
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | Selected Class
+        |--------------------------------------------------------------------------
+        */
+
         if ($selectedClassId) {
-            $selectedClass = StudentClass::findOrFail($selectedClassId);
-            
-            // Get all students in the class
+
+            $selectedClass = $classes->firstWhere(
+                'id',
+                (int) $selectedClassId
+            );
+
+            abort_unless(
+                $selectedClass,
+                404
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Current Students
+            |--------------------------------------------------------------------------
+            */
+
             $students = StudentClassAssignment::with('student')
-                ->where('student_class_id', $selectedClassId)
-                ->where('is_current', true)
+                ->where(
+                    'student_class_id',
+                    $selectedClass->id
+                )
+                ->where(
+                    'academic_year_id',
+                    $period['academic_year']->id
+                )
+                ->where(
+                    'term_id',
+                    $period['term']->id
+                )
+                ->where(
+                    'is_current',
+                    true
+                )
+                ->whereIn(
+                    'status',
+                    [
+                        'active',
+                        'repeated',
+                    ]
+                )
                 ->orderBy('id')
                 ->get();
-            
-            // Get attendance records for the selected month
-            $startDate = Carbon::create($year, $month, 1)->startOfDay();
-            $endDate = Carbon::create($year, $month, 1)->endOfMonth()->endOfDay();
-            
-            // Get all attendance sessions for this class in the month
-            $sessions = AttendanceSession::where('student_class_id', $selectedClassId)
-                ->whereBetween('attendance_date', [$startDate, $endDate])
-                ->with(['attendances' => function($query) {
-                    $query->with('student');
-                }])
+
+            /*
+            |--------------------------------------------------------------------------
+            | Attendance Sessions
+            |--------------------------------------------------------------------------
+            |
+            | Only sessions belonging to the current System Settings
+            | academic year and term are included.
+            |
+            */
+
+            $sessions = AttendanceSession::query()
+                ->where(
+                    'student_class_id',
+                    $selectedClass->id
+                )
+                ->where(
+                    'academic_year_id',
+                    $period['academic_year']->id
+                )
+                ->where(
+                    'term_id',
+                    $period['term']->id
+                )
+                ->whereBetween(
+                    'attendance_date',
+                    [
+                        $startDate,
+                        $endDate,
+                    ]
+                )
+                ->with([
+                    'attendances.student',
+                ])
+                ->orderBy('attendance_date')
                 ->get()
-                ->groupBy('attendance_date');
-            
-            // Get days in month
-            $daysInMonth = Carbon::create($year, $month, 1)->daysInMonth;
-            $days = [];
-            for ($i = 1; $i <= $daysInMonth; $i++) {
-                $days[] = Carbon::create($year, $month, $i);
-            }
-            
-            // Prepare monthly data
-            $monthlyData = [];
+                ->keyBy(
+                    fn ($session) =>
+                        Carbon::parse(
+                            $session->attendance_date
+                        )->toDateString()
+                );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Recorded Attendance Days
+            |--------------------------------------------------------------------------
+            */
+
+            $recordedDates = $sessions
+                ->keys()
+                ->map(
+                    fn ($date) => Carbon::parse($date)->toDateString()
+                )
+                ->values();
+
+            $recordedDays = $recordedDates->count();
+
+            /*
+            |--------------------------------------------------------------------------
+            | Student Attendance Data
+            |--------------------------------------------------------------------------
+            */
+
             foreach ($students as $assignment) {
+
                 $student = $assignment->student;
+
+                if (!$student) {
+                    continue;
+                }
+
                 $attendanceData = [];
-                
+
+                $present = 0;
+                $late = 0;
+                $absent = 0;
+                $excused = 0;
+
                 foreach ($days as $day) {
+
                     $dateString = $day->toDateString();
+
                     $session = $sessions->get($dateString);
-                    $status = 'absent';
-                    
-                    if ($session) {
-                        // Find attendance for this student
-                        $attendance = $session->first()->attendances->firstWhere('student_id', $student->id);
-                        if ($attendance) {
-                            $status = $attendance->status;
-                        }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | No Session = No Record
+                    |--------------------------------------------------------------------------
+                    */
+
+                    if (!$session) {
+
+                        $attendanceData[$dateString] = [
+                            'status' => 'no_record',
+                            'student_id' => $student->id,
+                        ];
+
+                        continue;
                     }
-                    
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Session Exists
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $attendance = $session
+                        ->attendances
+                        ->firstWhere(
+                            'student_class_assignment_id',
+                            $assignment->id
+                        );
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Session Exists But Student Has No Record
+                    |--------------------------------------------------------------------------
+                    |
+                    | A completed class session means a student without an
+                    | attendance record is considered absent.
+                    |
+                    */
+
+                    if (!$attendance) {
+
+                        $status = 'absent';
+
+                    } else {
+
+                        $status = $attendance->status;
+                    }
+
                     $attendanceData[$dateString] = [
                         'status' => $status,
                         'student_id' => $student->id,
                     ];
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Count Only Recorded Sessions
+                    |--------------------------------------------------------------------------
+                    */
+
+                    switch ($status) {
+
+                        case 'present':
+                            $present++;
+                            break;
+
+                        case 'late':
+                            $late++;
+                            break;
+
+                        case 'excused':
+                            $excused++;
+                            break;
+
+                        case 'absent':
+                            $absent++;
+                            break;
+                    }
                 }
-                
-                // Calculate statistics
-                $present = collect($attendanceData)->filter(fn($data) => $data['status'] === 'present')->count();
-                $late = collect($attendanceData)->filter(fn($data) => $data['status'] === 'late')->count();
-                $absent = collect($attendanceData)->filter(fn($data) => $data['status'] === 'absent')->count();
-                $excused = collect($attendanceData)->filter(fn($data) => $data['status'] === 'excused')->count();
-                $totalDays = $daysInMonth;
-                
+
+                /*
+                |--------------------------------------------------------------------------
+                | Student Recorded Total
+                |--------------------------------------------------------------------------
+                */
+
+                $studentRecordedDays =
+                    $present
+                    + $late
+                    + $absent
+                    + $excused;
+
+                /*
+                |--------------------------------------------------------------------------
+                | Attendance Rate
+                |--------------------------------------------------------------------------
+                |
+                | Present and Late count as attendance.
+                | Excused and Absent do not.
+                |
+                */
+
+                $attendanceRate =
+                    $studentRecordedDays > 0
+                        ? round(
+                            (
+                                $present
+                                + $late
+                            )
+                            / $studentRecordedDays
+                            * 100,
+                            2
+                        )
+                        : 0;
+
                 $monthlyData[] = [
-                    'student' => $student,
-                    'assignment' => $assignment,
-                    'attendance' => $attendanceData,
-                    'present' => $present,
-                    'late' => $late,
-                    'absent' => $absent,
-                    'excused' => $excused,
-                    'total' => $totalDays,
-                    'attendance_rate' => $totalDays > 0 ? round(($present + $late) / $totalDays * 100, 2) : 0,
+
+                    'student' =>
+                        $student,
+
+                    'assignment' =>
+                        $assignment,
+
+                    'attendance' =>
+                        $attendanceData,
+
+                    'present' =>
+                        $present,
+
+                    'late' =>
+                        $late,
+
+                    'absent' =>
+                        $absent,
+
+                    'excused' =>
+                        $excused,
+
+                    'total' =>
+                        $studentRecordedDays,
+
+                    'attendance_rate' =>
+                        $attendanceRate,
                 ];
             }
-            
-            // Get summary statistics
+
+            /*
+            |--------------------------------------------------------------------------
+            | Summary
+            |--------------------------------------------------------------------------
+            */
+
             $summary = [
-                'total_students' => $students->count(),
-                'total_present' => collect($monthlyData)->sum('present'),
-                'total_late' => collect($monthlyData)->sum('late'),
-                'total_absent' => collect($monthlyData)->sum('absent'),
-                'total_excused' => collect($monthlyData)->sum('excused'),
-                'month_name' => Carbon::create($year, $month, 1)->format('F Y'),
-                'class_name' => $selectedClass->name,
+
+                'total_students' =>
+                    $students->count(),
+
+                'recorded_days' =>
+                    $recordedDays,
+
+                'total_present' =>
+                    collect($monthlyData)
+                        ->sum('present'),
+
+                'total_late' =>
+                    collect($monthlyData)
+                        ->sum('late'),
+
+                'total_absent' =>
+                    collect($monthlyData)
+                        ->sum('absent'),
+
+                'total_excused' =>
+                    collect($monthlyData)
+                        ->sum('excused'),
+
+                'total_records' =>
+                    collect($monthlyData)
+                        ->sum('total'),
+
+                'month_name' =>
+                    Carbon::create(
+                        $year,
+                        $month,
+                        1
+                    )->format('F Y'),
+
+                'class_name' =>
+                    $selectedClass->name,
+
+                'academic_year' =>
+                    $period['academic_year']->name,
+
+                'term' =>
+                    $period['term']->name,
             ];
         }
-        
-        return view('attendance.monthly-report', compact(
-            'classes',
-            'selectedClass',
-            'selectedClassId',
-            'monthlyData',
-            'days',
-            'month',
-            'year',
-            'summary'
-        ));
+
+        return view(
+            'attendance.monthly-report',
+            [
+                'classes' =>
+                    $classes,
+
+                'selectedClass' =>
+                    $selectedClass,
+
+                'selectedClassId' =>
+                    $selectedClassId,
+
+                'monthlyData' =>
+                    $monthlyData,
+
+                'days' =>
+                    $days,
+
+                'month' =>
+                    $month,
+
+                'year' =>
+                    $year,
+
+                'summary' =>
+                    $summary,
+
+                'settings' =>
+                    $period['settings'],
+
+                'currentAcademicYear' =>
+                    $period['academic_year'],
+
+                'currentTerm' =>
+                    $period['term'],
+            ]
+        );
     }
 
     /*
@@ -477,127 +1363,463 @@ class AttendanceSessionController extends Controller
     | EXPORT MONTHLY REPORT TO CSV
     |--------------------------------------------------------------------------
     */
+
     public function exportMonthlyReport(Request $request)
     {
+        abort_unless(
+            auth()->user()->can('attendance.view'),
+            403
+        );
+
+        $period = $this->currentPeriod();
+
         $classId = $request->input('class_id');
-        
+
         if (!$classId) {
-            return redirect()->back()->with('error', 'Please select a class first.');
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Please select a class first.'
+                );
         }
-        
-        // Handle month selection
-        if ($request->has('month_year')) {
-            $monthYear = $request->month_year;
-            $year = (int) substr($monthYear, 0, 4);
-            $month = (int) substr($monthYear, 5, 2);
-        } else {
-            $year = now()->year;
-            $month = now()->month;
-        }
-        
-        $selectedClass = StudentClass::findOrFail($classId);
-        
-        // Get all students in the class
-        $students = StudentClassAssignment::with('student')
-            ->where('student_class_id', $classId)
-            ->where('is_current', true)
-            ->orderBy('id')
-            ->get();
-        
-        // Get attendance records for the selected month
-        $startDate = Carbon::create($year, $month, 1)->startOfDay();
-        $endDate = Carbon::create($year, $month, 1)->endOfMonth()->endOfDay();
-        
-        $sessions = AttendanceSession::where('student_class_id', $classId)
-            ->whereBetween('attendance_date', [$startDate, $endDate])
-            ->with(['attendances' => function($query) {
-                $query->with('student');
-            }])
-            ->get()
-            ->groupBy('attendance_date');
-        
-        $daysInMonth = Carbon::create($year, $month, 1)->daysInMonth;
-        $days = [];
-        for ($i = 1; $i <= $daysInMonth; $i++) {
-            $days[] = Carbon::create($year, $month, $i);
-        }
-        
-        // Create CSV data
-        $csvData = [];
-        
-        // Header row
-        $header = ['#', 'Student Name', 'Admission No.'];
-        foreach ($days as $day) {
-            $header[] = $day->format('d');
-        }
-        $header[] = 'Present';
-        $header[] = 'Late';
-        $header[] = 'Absent';
-        $header[] = 'Excused';
-        $header[] = 'Total';
-        $header[] = 'Rate %';
-        $csvData[] = $header;
-        
-        // Data rows
-        foreach ($students as $index => $assignment) {
-            $student = $assignment->student;
-            $row = [
-                $index + 1,
-                $student->first_name . ' ' . $student->last_name,
-                $student->student_id ?? 'N/A'
-            ];
-            
-            $present = 0;
-            $late = 0;
-            $absent = 0;
-            $excused = 0;
-            
-            foreach ($days as $day) {
-                $dateString = $day->toDateString();
-                $session = $sessions->get($dateString);
-                $status = 'Absent';
-                
-                if ($session) {
-                    $attendance = $session->first()->attendances->firstWhere('student_id', $student->id);
-                    if ($attendance) {
-                        $status = ucfirst($attendance->status);
-                        
-                        if ($attendance->status === 'present') $present++;
-                        elseif ($attendance->status === 'late') $late++;
-                        elseif ($attendance->status === 'excused') $excused++;
-                        else $absent++;
-                    } else {
-                        $absent++;
-                    }
-                } else {
-                    $absent++;
-                }
-                
-                $row[] = $status;
+
+        $classId = (int) $classId;
+
+        abort_unless(
+            $this->authorization->canAccessClass(
+                auth()->user(),
+                $classId
+            ),
+            403
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Month
+        |--------------------------------------------------------------------------
+        */
+
+        if ($request->filled('month_year')) {
+
+            $monthYear =
+                $request->input('month_year');
+
+            if (!preg_match('/^\d{4}-\d{2}$/', $monthYear)) {
+                return redirect()
+                    ->back()
+                    ->with(
+                        'error',
+                        'Invalid month selected.'
+                    );
             }
-            
-            $total = $daysInMonth;
-            $row[] = $present;
-            $row[] = $late;
-            $row[] = $absent;
-            $row[] = $excused;
-            $row[] = $total;
-            $row[] = $total > 0 ? round(($present + $late) / $total * 100, 2) : 0;
-            
-            $csvData[] = $row;
+
+            $year = (int) substr(
+                $monthYear,
+                0,
+                4
+            );
+
+            $month = (int) substr(
+                $monthYear,
+                5,
+                2
+            );
+
+        } else {
+
+            $referenceDate =
+                $period['term']->start_date
+                    ? Carbon::parse(
+                        $period['term']->start_date
+                    )
+                    : now();
+
+            $year =
+                $referenceDate->year;
+
+            $month =
+                $referenceDate->month;
         }
-        
-        // Create CSV
-        $filename = "monthly_attendance_" . str_replace(' ', '_', $selectedClass->name) . "_{$year}_{$month}.csv";
-        header('Content-Type: text/csv');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        
-        $output = fopen('php://output', 'w');
-        foreach ($csvData as $row) {
-            fputcsv($output, $row);
+
+        if ($month < 1 || $month > 12) {
+            return redirect()
+                ->back()
+                ->with(
+                    'error',
+                    'Invalid month selected.'
+                );
         }
-        fclose($output);
-        exit;
+
+        /*
+        |--------------------------------------------------------------------------
+        | Class
+        |--------------------------------------------------------------------------
+        */
+
+        $selectedClass =
+            $this->authorization
+                ->accessibleClasses(auth()->user())
+                ->where('student_classes.id', $classId)
+                ->first();
+
+        abort_unless(
+            $selectedClass,
+            404
+        );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Current Students
+        |--------------------------------------------------------------------------
+        */
+
+        $students =
+            StudentClassAssignment::with('student')
+                ->where(
+                    'student_class_id',
+                    $classId
+                )
+                ->where(
+                    'academic_year_id',
+                    $period['academic_year']->id
+                )
+                ->where(
+                    'term_id',
+                    $period['term']->id
+                )
+                ->where(
+                    'is_current',
+                    true
+                )
+                ->whereIn(
+                    'status',
+                    [
+                        'active',
+                        'repeated',
+                    ]
+                )
+                ->orderBy('id')
+                ->get();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Month Range
+        |--------------------------------------------------------------------------
+        */
+
+        $startDate =
+            Carbon::create(
+                $year,
+                $month,
+                1
+            )->startOfDay();
+
+        $endDate =
+            Carbon::create(
+                $year,
+                $month,
+                1
+            )->endOfMonth()
+                ->endOfDay();
+
+        /*
+        |--------------------------------------------------------------------------
+        | Attendance Sessions
+        |--------------------------------------------------------------------------
+        */
+
+        $sessions =
+            AttendanceSession::query()
+                ->where(
+                    'student_class_id',
+                    $classId
+                )
+                ->where(
+                    'academic_year_id',
+                    $period['academic_year']->id
+                )
+                ->where(
+                    'term_id',
+                    $period['term']->id
+                )
+                ->whereBetween(
+                    'attendance_date',
+                    [
+                        $startDate,
+                        $endDate,
+                    ]
+                )
+                ->with([
+                    'attendances.student',
+                ])
+                ->orderBy('attendance_date')
+                ->get()
+                ->keyBy(
+                    fn ($session) =>
+                        Carbon::parse(
+                            $session->attendance_date
+                        )->toDateString()
+                );
+
+        /*
+        |--------------------------------------------------------------------------
+        | Days
+        |--------------------------------------------------------------------------
+        */
+
+        $daysInMonth =
+            $startDate->daysInMonth;
+
+        $days = [];
+
+        for (
+            $i = 1;
+            $i <= $daysInMonth;
+            $i++
+        ) {
+            $days[] =
+                Carbon::create(
+                    $year,
+                    $month,
+                    $i
+                );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | CSV
+        |--------------------------------------------------------------------------
+        */
+
+        return response()->streamDownload(
+            function () use (
+                $students,
+                $days,
+                $sessions
+            ) {
+
+                $output =
+                    fopen(
+                        'php://output',
+                        'w'
+                    );
+
+                /*
+                |--------------------------------------------------------------------------
+                | Report Header
+                |--------------------------------------------------------------------------
+                */
+
+                $header = [
+                    '#',
+                    'Student Name',
+                    'Admission No.',
+                ];
+
+                foreach ($days as $day) {
+                    $header[] =
+                        $day->format('d');
+                }
+
+                $header[] = 'Present';
+                $header[] = 'Late';
+                $header[] = 'Absent';
+                $header[] = 'Excused';
+                $header[] = 'Total Recorded';
+                $header[] = 'Rate %';
+
+                fputcsv(
+                    $output,
+                    $header
+                );
+
+                /*
+                |--------------------------------------------------------------------------
+                | Student Rows
+                |--------------------------------------------------------------------------
+                */
+
+                foreach (
+                    $students as $index => $assignment
+                ) {
+
+                    $student =
+                        $assignment->student;
+
+                    if (!$student) {
+                        continue;
+                    }
+
+                    $row = [
+
+                        $index + 1,
+
+                        trim(
+                            $student->first_name
+                            . ' '
+                            . $student->middle_name
+                            . ' '
+                            . $student->last_name
+                        ),
+
+                        $student->student_id
+                            ?? 'N/A',
+                    ];
+
+                    $present = 0;
+                    $late = 0;
+                    $absent = 0;
+                    $excused = 0;
+
+                    foreach ($days as $day) {
+
+                        $dateString =
+                            $day->toDateString();
+
+                        $session =
+                            $sessions->get(
+                                $dateString
+                            );
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | No Session
+                        |--------------------------------------------------------------------------
+                        */
+
+                        if (!$session) {
+
+                            $row[] =
+                                'No Record';
+
+                            continue;
+                        }
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Find Student Attendance
+                        |--------------------------------------------------------------------------
+                        */
+
+                        $attendance =
+                            $session
+                                ->attendances
+                                ->firstWhere(
+                                    'student_class_assignment_id',
+                                    $assignment->id
+                                );
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Session Exists But No Student Record
+                        |--------------------------------------------------------------------------
+                        */
+
+                        if (!$attendance) {
+
+                            $status =
+                                'absent';
+
+                        } else {
+
+                            $status =
+                                $attendance->status;
+                        }
+
+                        /*
+                        |--------------------------------------------------------------------------
+                        | Count
+                        |--------------------------------------------------------------------------
+                        */
+
+                        switch ($status) {
+
+                            case 'present':
+                                $present++;
+                                break;
+
+                            case 'late':
+                                $late++;
+                                break;
+
+                            case 'excused':
+                                $excused++;
+                                break;
+
+                            case 'absent':
+                                $absent++;
+                                break;
+                        }
+
+                        $row[] =
+                            ucfirst(
+                                $status
+                            );
+                    }
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | Totals
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $total =
+                        $present
+                        + $late
+                        + $absent
+                        + $excused;
+
+                    $rate =
+                        $total > 0
+                            ? round(
+                                (
+                                    $present
+                                    + $late
+                                )
+                                / $total
+                                * 100,
+                                2
+                            )
+                            : 0;
+
+                    $row[] = $present;
+                    $row[] = $late;
+                    $row[] = $absent;
+                    $row[] = $excused;
+                    $row[] = $total;
+                    $row[] = $rate;
+
+                    fputcsv(
+                        $output,
+                        $row
+                    );
+                }
+
+                fclose($output);
+
+            },
+            'monthly_attendance_'
+            . str_replace(
+                ' ',
+                '_',
+                $selectedClass->name
+            )
+            . '_'
+            . $year
+            . '_'
+            . str_pad(
+                $month,
+                2,
+                '0',
+                STR_PAD_LEFT
+            )
+            . '.csv',
+            [
+                'Content-Type' =>
+                    'text/csv; charset=UTF-8',
+            ]
+        );
     }
 
     /*
@@ -605,18 +1827,45 @@ class AttendanceSessionController extends Controller
     | DELETE ATTENDANCE SESSION
     |--------------------------------------------------------------------------
     */
+
     public function destroy($id)
     {
-        $session = AttendanceSession::findOrFail($id);
-        
-        DB::transaction(function () use ($session) {
-            // Delete all attendance records for this session
-            Attendance::where('attendance_session_id', $session->id)->delete();
-            // Delete the session
-            $session->delete();
-        });
-        
-        return redirect()->route('attendance-sessions.index')
-            ->with('success', 'Attendance session deleted successfully.');
+        abort_unless(
+            auth()->user()->can('attendance.delete'),
+            403
+        );
+
+        $session =
+            AttendanceSession::findOrFail(
+                $id
+            );
+
+        abort_unless(
+            $this->authorization->canAccessClass(
+                auth()->user(),
+                (int) $session->student_class_id
+            ),
+            403
+        );
+
+        DB::transaction(
+            function () use ($session) {
+                Attendance::where(
+                    'attendance_session_id',
+                    $session->id
+                )->delete();
+
+                $session->delete();
+            }
+        );
+
+        return redirect()
+            ->route(
+                'attendance-sessions.index'
+            )
+            ->with(
+                'success',
+                'Attendance session deleted successfully.'
+            );
     }
 }

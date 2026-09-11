@@ -9,6 +9,7 @@ use App\Models\FeeCategory;
 use App\Models\FeePayment;
 use App\Models\StudentClass;
 use App\Models\StudentClassAssignment;
+use App\Models\SystemSetting;
 use App\Models\Term;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -237,369 +238,188 @@ class BillSheetController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'student_class_id' => [
-                'required',
-                'integer',
-                'exists:student_classes,id',
-            ],
-
-            'academic_year_id' => [
-                'required',
-                'integer',
-                'exists:academic_years,id',
-            ],
-
+            'student_class_id' => ['required', 'integer', 'exists:student_classes,id'],
+            'academic_year_id' => ['required', 'integer', 'exists:academic_years,id'],
             'term_id' => [
                 'required',
                 'integer',
-                'exists:terms,id',
+                Rule::exists('terms', 'id')->where(function ($query) use ($request) {
+                    $query->where('academic_year_id', $request->input('academic_year_id'));
+                }),
             ],
-
-            'name' => [
-                'required',
-                'string',
-                'max:255',
-            ],
-
-            'generated_date' => [
-                'required',
-                'date',
-            ],
-
-            'due_date' => [
-                'nullable',
-                'date',
-                'after_or_equal:generated_date',
-            ],
-
-            'description' => [
-                'nullable',
-                'string',
-            ],
-
-            'discount_amount' => [
-                'nullable',
-                'numeric',
-                'min:0',
-            ],
-
-            'tax_amount' => [
-                'nullable',
-                'numeric',
-                'min:0',
-            ],
-
-            'items' => [
-                'required',
-                'array',
-                'min:1',
-            ],
-
-            'items.*.fee_category_id' => [
-                'nullable',
-                'integer',
-                'exists:fee_categories,id',
-            ],
-
-            'items.*.name' => [
-                'required',
-                'string',
-                'max:255',
-            ],
-
-            'items.*.amount' => [
-                'required',
-                'numeric',
-                'min:0',
-            ],
-
-            'items.*.quantity' => [
-                'required',
-                'integer',
-                'min:1',
-            ],
-
-            'items.*.is_optional' => [
-                'nullable',
-                'boolean',
-            ],
+            'name' => ['required', 'string', 'max:255'],
+            'generated_date' => ['required', 'date'],
+            'due_date' => ['nullable', 'date', 'after_or_equal:generated_date'],
+            'description' => ['nullable', 'string'],
+            'discount_amount' => ['nullable', 'numeric', 'min:0'],
+            'tax_amount' => ['nullable', 'numeric', 'min:0'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.fee_category_id' => ['nullable', 'integer', 'exists:fee_categories,id'],
+            'items.*.name' => ['required', 'string', 'max:255'],
+            'items.*.amount' => ['required', 'numeric', 'min:0'],
+            'items.*.quantity' => ['required', 'integer', 'min:1'],
+            'items.*.is_optional' => ['nullable', 'boolean'],
         ]);
 
-        $studentClass = StudentClass::findOrFail(
-            $validated['student_class_id']
-        );
+        $studentClass = StudentClass::findOrFail($validated['student_class_id']);
 
-        /*
-        |--------------------------------------------------------------------------
-        | FIND ELIGIBLE ASSIGNMENTS
-        |--------------------------------------------------------------------------
-        */
-
-        $assignments = StudentClassAssignment::query()
-            ->with([
-                'student',
-                'studentClass',
-                'academicYear',
-            ])
-            ->where(
-                'student_class_id',
-                $validated['student_class_id']
-            )
-            ->where(
-                'academic_year_id',
-                $validated['academic_year_id']
-            )
-            ->where(
-                'status',
-                'active'
-            )
-            ->where(
-                'is_current',
-                true
-            )
-            ->get();
-
-        if ($assignments->isEmpty()) {
-            return back()
-                ->withInput()
-                ->withErrors([
-                    'student_class_id' =>
-                        'There are no active students currently assigned to the selected class for the selected academic year.'
-                ]);
+        if (!$this->termBelongsToAcademicYear(
+            (int) $validated['academic_year_id'],
+            (int) $validated['term_id']
+        )) {
+            return back()->withInput()->withErrors([
+                'term_id' => 'The selected term does not belong to the selected academic year.',
+            ]);
         }
-
-        /*
-        |--------------------------------------------------------------------------
-        | PREPARE BILL ITEMS
-        |--------------------------------------------------------------------------
-        */
 
         $preparedItems = [];
         $subtotal = 0;
 
         foreach ($validated['items'] as $item) {
-
             $amount = (float) $item['amount'];
             $quantity = (int) $item['quantity'];
-
             $totalAmount = $amount * $quantity;
-
             $subtotal += $totalAmount;
 
             $preparedItems[] = [
-                'fee_category_id' =>
-                    $item['fee_category_id'] ?? null,
-
-                'name' =>
-                    $item['name'],
-
-                'amount' =>
-                    $amount,
-
-                'quantity' =>
-                    $quantity,
-
-                'total_amount' =>
-                    $totalAmount,
-
-                'is_optional' =>
-                    !empty($item['is_optional']),
+                'fee_category_id' => $item['fee_category_id'] ?? null,
+                'name' => $item['name'],
+                'amount' => $amount,
+                'quantity' => $quantity,
+                'total_amount' => $totalAmount,
+                'is_optional' => !empty($item['is_optional']),
             ];
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | CALCULATE TOTALS
-        |--------------------------------------------------------------------------
-        */
-
-        $discountAmount =
-            (float) ($validated['discount_amount'] ?? 0);
-
-        $taxAmount =
-            (float) ($validated['tax_amount'] ?? 0);
-
-        $netAmount = max(
-            0,
-            $subtotal - $discountAmount + $taxAmount
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | GENERATE
-        |--------------------------------------------------------------------------
-        */
+        $discountAmount = (float) ($validated['discount_amount'] ?? 0);
+        $taxAmount = (float) ($validated['tax_amount'] ?? 0);
+        $netAmount = max(0, $subtotal - $discountAmount + $taxAmount);
 
         $createdCount = 0;
         $skippedCount = 0;
+        $preparedAssignmentCount = 0;
 
         DB::beginTransaction();
 
         try {
+            /*
+             * IMPORTANT:
+             * Bill Sheet generation is driven by the period selected on this
+             * form, not by System Settings' viewing period.
+             *
+             * A future/current period may receive pending assignments so fees
+             * can be prepared before that term becomes operational.
+             *
+             * A historical period may only use assignments that already exist.
+             */
+            $assignments = $this->resolveBillableAssignments(
+                (int) $validated['student_class_id'],
+                (int) $validated['academic_year_id'],
+                (int) $validated['term_id'],
+                true,
+                $preparedAssignmentCount
+            );
+
+            if ($assignments->isEmpty()) {
+                DB::rollBack();
+
+                $message = $this->isHistoricalPeriod(
+                    (int) $validated['academic_year_id'],
+                    (int) $validated['term_id']
+                )
+                    ? 'There are no existing student assignments for the selected historical academic year and term. EDUNEXUS will not create historical assignments automatically.'
+                    : 'There are no eligible students for the selected class, academic year and term.';
+
+                return back()
+                    ->withInput()
+                    ->withErrors([
+                        'student_class_id' => $message,
+                    ]);
+            }
 
             foreach ($assignments as $assignment) {
+                /*
+                 * First look for a Bill Sheet attached to this exact
+                 * assignment and exact financial period.
+                 */
+                $existingBill = BillSheet::query()
+                    ->where('student_class_assignment_id', $assignment->id)
+                    ->where('academic_year_id', $validated['academic_year_id'])
+                    ->where('term_id', $validated['term_id'])
+                    ->first();
 
                 /*
-                |--------------------------------------------------------------------------
-                | CHECK EXISTING BILL
-                |--------------------------------------------------------------------------
-                */
-
-                $existingBill = BillSheet::query()
-                    ->where(
-                        'student_class_assignment_id',
-                        $assignment->id
-                    )
-                    ->where(
-                        'academic_year_id',
-                        $validated['academic_year_id']
-                    )
-                    ->where(
-                        'term_id',
-                        $validated['term_id']
-                    )
-                    ->first();
+                 * If the assignment is a newly-created pending assignment,
+                 * an existing Bill Sheet cannot normally exist on it.
+                 *
+                 * However, if an older assignment for the same student already
+                 * has a Bill Sheet for this exact period, never create a second
+                 * financial record.
+                 */
+                if (!$existingBill) {
+                    $existingBill = $this->findProtectedOrRepairablePeriodBill(
+                        $assignment,
+                        (int) $validated['student_class_id'],
+                        (int) $validated['academic_year_id'],
+                        (int) $validated['term_id']
+                    );
+                }
 
                 if ($existingBill) {
                     $skippedCount++;
                     continue;
                 }
 
-                /*
-                |--------------------------------------------------------------------------
-                | STUDENT NAME
-                |--------------------------------------------------------------------------
-                */
-
                 $student = $assignment->student;
 
                 $studentName = $student
-                    ? trim(
-                        collect([
-                            $student->first_name ?? null,
-                            $student->middle_name ?? null,
-                            $student->last_name ?? null,
-                        ])
-                            ->filter()
-                            ->implode(' ')
-                    )
+                    ? trim(collect([
+                        $student->first_name ?? null,
+                        $student->middle_name ?? null,
+                        $student->last_name ?? null,
+                    ])->filter()->implode(' '))
                     : 'Student';
 
-                /*
-                |--------------------------------------------------------------------------
-                | BILL NAME
-                |--------------------------------------------------------------------------
-                */
-
-                $billName =
-                    $validated['name']
-                    . ' - '
-                    . $studentName;
-
-                /*
-                |--------------------------------------------------------------------------
-                | CREATE BILL
-                |--------------------------------------------------------------------------
-                */
+                $billName = $validated['name'] . ' - ' . $studentName;
 
                 $billSheet = BillSheet::create([
-                    'name' =>
-                        $billName,
-
-                    'student_class_assignment_id' =>
-                        $assignment->id,
-
-                    'academic_year_id' =>
-                        $validated['academic_year_id'],
-
-                    'term_id' =>
-                        $validated['term_id'],
-
-                    'generated_date' =>
-                        $validated['generated_date'],
-
-                    'due_date' =>
-                        $validated['due_date'] ?? null,
-
-                    'description' =>
-                        $validated['description'] ?? null,
-
-                    'total_amount' =>
-                        $subtotal,
-
-                    'discount_amount' =>
-                        $discountAmount,
-
-                    'tax_amount' =>
-                        $taxAmount,
-
-                    'net_amount' =>
-                        $netAmount,
-
-                    'status' =>
-                        'draft',
-
-                    'generated_by' =>
-                        Auth::id(),
-
-                    'is_active' =>
-                        true,
-
+                    'name' => $billName,
+                    'student_class_assignment_id' => $assignment->id,
+                    'academic_year_id' => $validated['academic_year_id'],
+                    'term_id' => $validated['term_id'],
+                    'generated_date' => $validated['generated_date'],
+                    'due_date' => $validated['due_date'] ?? null,
+                    'description' => $validated['description'] ?? null,
+                    'total_amount' => $subtotal,
+                    'discount_amount' => $discountAmount,
+                    'tax_amount' => $taxAmount,
+                    'net_amount' => $netAmount,
+                    'status' => 'draft',
+                    'generated_by' => Auth::id(),
+                    'is_active' => true,
                     'metadata' => [
                         'generated_as_batch' => true,
-
-                        'batch_class_id' =>
-                            $validated['student_class_id'],
-
-                        'batch_academic_year_id' =>
-                            $validated['academic_year_id'],
-
-                        'batch_term_id' =>
-                            $validated['term_id'],
-
-                        'student_assignment_id' =>
-                            $assignment->id,
-
-                        'student_id' =>
-                            $assignment->student_id,
-
-                        'student_name' =>
-                            $studentName,
-
-                        'generated_at' =>
-                            now()->toDateTimeString(),
+                        'batch_class_id' => $validated['student_class_id'],
+                        'batch_academic_year_id' => $validated['academic_year_id'],
+                        'batch_term_id' => $validated['term_id'],
+                        'student_assignment_id' => $assignment->id,
+                        'student_id' => $assignment->student_id,
+                        'student_name' => $studentName,
+                        'assignment_status_at_generation' => $assignment->status,
+                        'assignment_is_current_at_generation' => (bool) $assignment->is_current,
+                        'generated_at' => now()->toDateTimeString(),
                     ],
                 ]);
 
-                /*
-                |--------------------------------------------------------------------------
-                | CREATE ITEMS
-                |--------------------------------------------------------------------------
-                */
-
                 foreach ($preparedItems as $item) {
-
                     BillSheetItem::create([
-                        'bill_sheet_id' =>
-                            $billSheet->id,
-
-                        'fee_category_id' =>
-                            $item['fee_category_id'],
-
-                        'name' =>
-                            $item['name'],
-
-                        'amount' =>
-                            $item['amount'],
-
-                        'quantity' =>
-                            $item['quantity'],
-
-                        'total_amount' =>
-                            $item['total_amount'],
-
-                        'is_optional' =>
-                            $item['is_optional'],
+                        'bill_sheet_id' => $billSheet->id,
+                        'fee_category_id' => $item['fee_category_id'],
+                        'name' => $item['name'],
+                        'amount' => $item['amount'],
+                        'quantity' => $item['quantity'],
+                        'total_amount' => $item['total_amount'],
+                        'is_optional' => $item['is_optional'],
                     ]);
                 }
 
@@ -608,57 +428,41 @@ class BillSheetController extends Controller
 
             DB::commit();
 
-            $message =
-                "{$createdCount} Bill Sheet"
+            $message = "{$createdCount} Bill Sheet"
                 . ($createdCount === 1 ? '' : 's')
                 . " generated successfully for {$studentClass->name}.";
 
+            if ($preparedAssignmentCount > 0) {
+                $message .= " {$preparedAssignmentCount} pending student assignment"
+                    . ($preparedAssignmentCount === 1 ? '' : 's')
+                    . " were prepared for the selected period.";
+            }
+
             if ($skippedCount > 0) {
-                $message .=
-                    " {$skippedCount} existing Bill Sheet"
+                $message .= " {$skippedCount} existing Bill Sheet"
                     . ($skippedCount === 1 ? '' : 's')
                     . " were skipped.";
             }
 
             return redirect()
                 ->route('bill-sheets.index', [
-                    'class_id' =>
-                        $validated['student_class_id'],
-
-                    'academic_year_id' =>
-                        $validated['academic_year_id'],
-
-                    'term_id' =>
-                        $validated['term_id'],
+                    'class_id' => $validated['student_class_id'],
+                    'academic_year_id' => $validated['academic_year_id'],
+                    'term_id' => $validated['term_id'],
                 ])
-                ->with(
-                    'success',
-                    $message
-                );
-
+                ->with('success', $message);
         } catch (\Throwable $e) {
-
             DB::rollBack();
-
             report($e);
 
             return back()
                 ->withInput()
-                ->with(
-                    'error',
-                    'Bill Sheet generation failed. No Bill Sheets were created.'
-                );
+                ->with('error', 'Bill Sheet generation failed. No Bill Sheets or pending assignments were created.');
         }
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | SHOW
-    |--------------------------------------------------------------------------
-    */
-
-    public function show(BillSheet $billSheet)
+        public function show(BillSheet $billSheet)
     {
         $billSheet->load([
             'studentClassAssignment.student',
@@ -686,7 +490,7 @@ class BillSheetController extends Controller
 
     public function edit(BillSheet $billSheet)
     {
-        if (!$billSheet->isDraft()) {
+        if (!$billSheet->isDraft() && !$billSheet->isRejected()) {
             return redirect()
                 ->route(
                     'bill-sheets.show',
@@ -694,7 +498,7 @@ class BillSheetController extends Controller
                 )
                 ->with(
                     'error',
-                    'Only draft Bill Sheets can be edited.'
+                    'Only draft or rejected Bill Sheets can be edited.'
                 );
         }
 
@@ -746,7 +550,7 @@ class BillSheetController extends Controller
         Request $request,
         BillSheet $billSheet
     ) {
-        if (!$billSheet->isDraft()) {
+        if (!$billSheet->isDraft() && !$billSheet->isRejected()) {
             return redirect()
                 ->route(
                     'bill-sheets.show',
@@ -754,7 +558,7 @@ class BillSheetController extends Controller
                 )
                 ->with(
                     'error',
-                    'Only draft Bill Sheets can be edited.'
+                    'Only draft or rejected Bill Sheets can be edited.'
                 );
         }
 
@@ -780,7 +584,13 @@ class BillSheetController extends Controller
             'term_id' => [
                 'required',
                 'integer',
-                'exists:terms,id',
+                Rule::exists('terms', 'id')
+                    ->where(function ($query) use ($request) {
+                        $query->where(
+                            'academic_year_id',
+                            $request->input('academic_year_id')
+                        );
+                    }),
             ],
 
             'generated_date' => [
@@ -856,6 +666,50 @@ class BillSheetController extends Controller
         $assignment = StudentClassAssignment::findOrFail(
             $validated['student_class_assignment_id']
         );
+
+        /*
+        |--------------------------------------------------------------------------
+        | VERIFY ASSIGNMENT BELONGS TO THE BILL'S SELECTED PERIOD
+        |--------------------------------------------------------------------------
+        |
+        | An assignment from another class/year/term must never be attached
+        | to this Bill Sheet.
+        |
+        */
+
+        if (
+            (int) $assignment->student_class_id !==
+                (int) $billSheet->studentClassAssignment?->student_class_id
+            || (int) $assignment->academic_year_id !==
+                (int) $validated['academic_year_id']
+            || (int) $assignment->term_id !==
+                (int) $validated['term_id']
+        ) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'student_class_assignment_id' =>
+                        'The selected student assignment does not belong to the selected class, academic year and term.'
+                ]);
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | VERIFY TERM
+        |--------------------------------------------------------------------------
+        */
+
+        if (!$this->termBelongsToAcademicYear(
+            (int) $validated['academic_year_id'],
+            (int) $validated['term_id']
+        )) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'term_id' =>
+                        'The selected term does not belong to the selected academic year.'
+                ]);
+        }
 
         /*
         |--------------------------------------------------------------------------
@@ -1091,10 +945,22 @@ class BillSheetController extends Controller
 
     public function submitForApproval(BillSheet $billSheet)
     {
-        if (!$billSheet->isDraft()) {
+        /*
+        |--------------------------------------------------------------------------
+        | DRAFT + REJECTED BILLS CAN BE SUBMITTED
+        |--------------------------------------------------------------------------
+        |
+        | A rejected Bill Sheet is intentionally returned to the
+        | administrator's workflow. The administrator may edit it,
+        | correct the problem identified during approval, and submit it
+        | again without creating a new Bill Sheet.
+        |
+        */
+
+        if (!$billSheet->isDraft() && !$billSheet->isRejected()) {
             return back()->with(
                 'error',
-                'Only draft Bill Sheets can be submitted for approval.'
+                'Only draft or rejected Bill Sheets can be submitted for approval.'
             );
         }
 
@@ -1105,13 +971,80 @@ class BillSheetController extends Controller
             );
         }
 
+        $metadata = $billSheet->metadata ?? [];
+
+        /*
+        |--------------------------------------------------------------------------
+        | PRESERVE REJECTION HISTORY
+        |--------------------------------------------------------------------------
+        |
+        | Do not delete the previous rejection information. Instead, keep it
+        | under a history array so the approval trail is not lost.
+        |
+        */
+
+        if ($billSheet->isRejected()) {
+            $rejectionHistory = $metadata['rejection_history'] ?? [];
+
+            $rejectionHistory[] = [
+                'rejection_reason' =>
+                    $metadata['rejection_reason'] ?? null,
+
+                'rejected_by' =>
+                    $metadata['rejected_by'] ?? null,
+
+                'rejected_at' =>
+                    $metadata['rejected_at'] ?? null,
+
+                'resubmitted_by' =>
+                    Auth::id(),
+
+                'resubmitted_at' =>
+                    now()->toDateTimeString(),
+            ];
+
+            $metadata['rejection_history'] =
+                $rejectionHistory;
+
+            /*
+            | Clear the CURRENT rejection fields because this submission
+            | is now awaiting a fresh approval decision.
+            */
+            unset(
+                $metadata['rejection_reason'],
+                $metadata['rejected_by'],
+                $metadata['rejected_at']
+            );
+        }
+
+        $metadata['resubmitted_by'] =
+            Auth::id();
+
+        $metadata['resubmitted_at'] =
+            now()->toDateTimeString();
+
         $billSheet->update([
-            'status' => 'pending',
+            'status' =>
+                'pending',
+
+            'metadata' =>
+                $metadata,
+
+            /*
+            | A new approval cycle must receive a fresh approval record.
+            */
+            'approved_by' =>
+                null,
+
+            'approved_at' =>
+                null,
         ]);
 
         return back()->with(
             'success',
-            'Bill Sheet submitted for approval successfully.'
+            $billSheet->wasChanged('status') && !empty($metadata['rejection_history'])
+                ? 'Corrected Bill Sheet resubmitted for approval successfully.'
+                : 'Bill Sheet submitted for approval successfully.'
         );
     }
 
@@ -1295,15 +1228,14 @@ class BillSheetController extends Controller
             'items',
         ]);
 
-        if (!$billSheet->isDraft()) {
+        if (!$billSheet->isDraft() && !$billSheet->isRejected()) {
             return back()->with(
                 'error',
-                'Only a draft Bill Sheet can be used as the regeneration template.'
+                'Only draft or rejected Bill Sheets can be used as the regeneration template.'
             );
         }
 
-        $assignment =
-            $billSheet->studentClassAssignment;
+        $assignment = $billSheet->studentClassAssignment;
 
         if (!$assignment) {
             return back()->with(
@@ -1312,47 +1244,30 @@ class BillSheetController extends Controller
             );
         }
 
-        $classId =
-            (int) $assignment->student_class_id;
+        $classId = (int) $assignment->student_class_id;
+        $academicYearId = (int) $billSheet->academic_year_id;
+        $termId = (int) $billSheet->term_id;
 
-        $academicYearId =
-            (int) $billSheet->academic_year_id;
+        if (!$this->termBelongsToAcademicYear($academicYearId, $termId)) {
+            return back()->with(
+                'error',
+                'This Bill Sheet has an invalid academic year and term combination.'
+            );
+        }
 
-        $termId =
-            (int) $billSheet->term_id;
-
-        /*
-        |--------------------------------------------------------------------------
-        | TEMPLATE ITEMS
-        |--------------------------------------------------------------------------
-        */
-
-        $templateItems =
-            $billSheet->items
-                ->map(function ($item) {
-
-                    return [
-                        'fee_category_id' =>
-                            $item->fee_category_id,
-
-                        'name' =>
-                            $item->name,
-
-                        'amount' =>
-                            (float) $item->amount,
-
-                        'quantity' =>
-                            (int) $item->quantity,
-
-                        'total_amount' =>
-                            (float) $item->total_amount,
-
-                        'is_optional' =>
-                            (bool) $item->is_optional,
-                    ];
-                })
-                ->values()
-                ->all();
+        $templateItems = $billSheet->items
+            ->map(function ($item) {
+                return [
+                    'fee_category_id' => $item->fee_category_id,
+                    'name' => $item->name,
+                    'amount' => (float) $item->amount,
+                    'quantity' => (int) $item->quantity,
+                    'total_amount' => (float) $item->total_amount,
+                    'is_optional' => (bool) $item->is_optional,
+                ];
+            })
+            ->values()
+            ->all();
 
         if (empty($templateItems)) {
             return back()->with(
@@ -1361,370 +1276,176 @@ class BillSheetController extends Controller
             );
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | ELIGIBLE ASSIGNMENTS
-        |--------------------------------------------------------------------------
-        */
-
-        $assignments = StudentClassAssignment::query()
-            ->with([
-                'student',
-                'studentClass',
-                'academicYear',
-            ])
-            ->where(
-                'student_class_id',
-                $classId
-            )
-            ->where(
-                'academic_year_id',
-                $academicYearId
-            )
-            ->where(
-                'status',
-                'active'
-            )
-            ->where(
-                'is_current',
-                true
-            )
-            ->get();
-
-        if ($assignments->isEmpty()) {
-            return back()->with(
-                'error',
-                'There are no active students assigned to this class for the selected academic year.'
-            );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | TOTALS
-        |--------------------------------------------------------------------------
-        */
-
-        $subtotal = collect($templateItems)
-            ->sum(function ($item) {
-                return
-                    (float) $item['amount']
-                    *
-                    (int) $item['quantity'];
-            });
-
-        $discountAmount =
-            (float) $billSheet->discount_amount;
-
-        $taxAmount =
-            (float) $billSheet->tax_amount;
-
-        $netAmount = max(
-            0,
-            $subtotal - $discountAmount + $taxAmount
-        );
-
         $updatedCount = 0;
         $createdCount = 0;
+        $preparedAssignmentCount = 0;
         $skippedPaidCount = 0;
         $skippedStatusCount = 0;
+        $skippedExistingCount = 0;
 
         DB::beginTransaction();
 
         try {
+            $assignments = $this->resolveBillableAssignments(
+                $classId,
+                $academicYearId,
+                $termId,
+                true,
+                $preparedAssignmentCount
+            );
+
+            if ($assignments->isEmpty()) {
+                DB::rollBack();
+
+                $message = $this->isHistoricalPeriod($academicYearId, $termId)
+                    ? 'There are no existing student assignments for this historical period. No historical assignments were created.'
+                    : 'There are no eligible students for this class and period.';
+
+                return back()->with('error', $message);
+            }
+
+            $subtotal = collect($templateItems)->sum(
+                fn ($item) => (float) $item['amount'] * (int) $item['quantity']
+            );
+
+            $discountAmount = (float) $billSheet->discount_amount;
+            $taxAmount = (float) $billSheet->tax_amount;
+            $netAmount = max(0, $subtotal - $discountAmount + $taxAmount);
 
             foreach ($assignments as $studentAssignment) {
-
-                /*
-                |--------------------------------------------------------------------------
-                | FIND EXISTING STUDENT BILL
-                |--------------------------------------------------------------------------
-                */
-
                 $studentBill = BillSheet::query()
-                    ->where(
-                        'student_class_assignment_id',
-                        $studentAssignment->id
-                    )
-                    ->where(
-                        'academic_year_id',
-                        $academicYearId
-                    )
-                    ->where(
-                        'term_id',
-                        $termId
-                    )
+                    ->where('student_class_assignment_id', $studentAssignment->id)
+                    ->where('academic_year_id', $academicYearId)
+                    ->where('term_id', $termId)
                     ->first();
 
-                $student =
-                    $studentAssignment->student;
+                /*
+                 * If no bill is attached to the selected assignment, look for
+                 * an existing bill for the same student/class/year/term.
+                 * Unpaid draft/rejected bills may be repaired; protected bills
+                 * remain untouched and are skipped.
+                 */
+                if (!$studentBill) {
+                    $studentBill = $this->findProtectedOrRepairablePeriodBill(
+                        $studentAssignment,
+                        $classId,
+                        $academicYearId,
+                        $termId
+                    );
+                }
+
+                $student = $studentAssignment->student;
 
                 $studentName = $student
-                    ? trim(
-                        collect([
-                            $student->first_name ?? null,
-                            $student->middle_name ?? null,
-                            $student->last_name ?? null,
-                        ])
-                            ->filter()
-                            ->implode(' ')
-                    )
+                    ? trim(collect([
+                        $student->first_name ?? null,
+                        $student->middle_name ?? null,
+                        $student->last_name ?? null,
+                    ])->filter()->implode(' '))
                     : 'Student';
 
-                $className =
-                    $studentAssignment
-                        ->studentClass
-                        ?->name
-                    ?? 'Class';
+                $className = $studentAssignment->studentClass?->name ?? 'Class';
+                $termName = $billSheet->term?->name ?? 'Term';
 
-                $termName =
-                    $billSheet->term?->name
-                    ?? 'Term';
-
-                $billName =
-                    $className
-                    . ' - '
-                    . $studentName
-                    . ' - '
-                    . $termName;
-
-                /*
-                |--------------------------------------------------------------------------
-                | CREATE MISSING BILL
-                |--------------------------------------------------------------------------
-                */
+                $billName = $className . ' - ' . $studentName . ' - ' . $termName;
 
                 if (!$studentBill) {
-
                     $studentBill = BillSheet::create([
-                        'name' =>
-                            $billName,
-
-                        'student_class_assignment_id' =>
-                            $studentAssignment->id,
-
-                        'academic_year_id' =>
-                            $academicYearId,
-
-                        'term_id' =>
-                            $termId,
-
-                        'generated_date' =>
-                            $billSheet->generated_date,
-
-                        'due_date' =>
-                            $billSheet->due_date,
-
-                        'description' =>
-                            $billSheet->description,
-
-                        'total_amount' =>
-                            $subtotal,
-
-                        'discount_amount' =>
-                            $discountAmount,
-
-                        'tax_amount' =>
-                            $taxAmount,
-
-                        'net_amount' =>
-                            $netAmount,
-
-                        'status' =>
-                            'draft',
-
-                        'generated_by' =>
-                            Auth::id(),
-
-                        'is_active' =>
-                            true,
-
+                        'name' => $billName,
+                        'student_class_assignment_id' => $studentAssignment->id,
+                        'academic_year_id' => $academicYearId,
+                        'term_id' => $termId,
+                        'generated_date' => $billSheet->generated_date,
+                        'due_date' => $billSheet->due_date,
+                        'description' => $billSheet->description,
+                        'total_amount' => $subtotal,
+                        'discount_amount' => $discountAmount,
+                        'tax_amount' => $taxAmount,
+                        'net_amount' => $netAmount,
+                        'status' => 'draft',
+                        'generated_by' => Auth::id(),
+                        'is_active' => true,
                         'metadata' => [
-                            'generated_as_batch' =>
-                                true,
-
-                            'regenerated_from_bill_sheet_id' =>
-                                $billSheet->id,
-
-                            'batch_class_id' =>
-                                $classId,
-
-                            'batch_academic_year_id' =>
-                                $academicYearId,
-
-                            'batch_term_id' =>
-                                $termId,
-
-                            'student_assignment_id' =>
-                                $studentAssignment->id,
-
-                            'student_id' =>
-                                $studentAssignment->student_id,
-
-                            'student_name' =>
-                                $studentName,
-
-                            'regenerated_at' =>
-                                now()->toDateTimeString(),
+                            'generated_as_batch' => true,
+                            'regenerated_from_bill_sheet_id' => $billSheet->id,
+                            'batch_class_id' => $classId,
+                            'batch_academic_year_id' => $academicYearId,
+                            'batch_term_id' => $termId,
+                            'student_assignment_id' => $studentAssignment->id,
+                            'student_id' => $studentAssignment->student_id,
+                            'student_name' => $studentName,
+                            'assignment_status_at_generation' => $studentAssignment->status,
+                            'assignment_is_current_at_generation' => (bool) $studentAssignment->is_current,
+                            'regenerated_at' => now()->toDateTimeString(),
                         ],
                     ]);
 
                     foreach ($templateItems as $item) {
-
                         BillSheetItem::create([
-                            'bill_sheet_id' =>
-                                $studentBill->id,
-
-                            'fee_category_id' =>
-                                $item['fee_category_id'],
-
-                            'name' =>
-                                $item['name'],
-
-                            'amount' =>
-                                $item['amount'],
-
-                            'quantity' =>
-                                $item['quantity'],
-
-                            'total_amount' =>
-                                $item['amount']
-                                * $item['quantity'],
-
-                            'is_optional' =>
-                                $item['is_optional'],
+                            'bill_sheet_id' => $studentBill->id,
+                            'fee_category_id' => $item['fee_category_id'],
+                            'name' => $item['name'],
+                            'amount' => $item['amount'],
+                            'quantity' => $item['quantity'],
+                            'total_amount' => $item['amount'] * $item['quantity'],
+                            'is_optional' => $item['is_optional'],
                         ]);
                     }
 
                     $createdCount++;
-
                     continue;
                 }
 
-                /*
-                |--------------------------------------------------------------------------
-                | DO NOT TOUCH BILLS WITH PAYMENTS
-                |--------------------------------------------------------------------------
-                */
-
-                $hasPayments =
-                    FeePayment::query()
-                        ->where(
-                            'bill_sheet_id',
-                            $studentBill->id
-                        )
-                        ->exists();
+                $hasPayments = FeePayment::query()
+                    ->where('bill_sheet_id', $studentBill->id)
+                    ->exists();
 
                 if ($hasPayments) {
-
                     $skippedPaidCount++;
-
                     continue;
                 }
 
-                /*
-                |--------------------------------------------------------------------------
-                | DO NOT TOUCH NON-DRAFT BILLS
-                |--------------------------------------------------------------------------
-                */
-
-                if (!$studentBill->isDraft()) {
-
+                if (!$studentBill->isDraft() && !$studentBill->isRejected()) {
                     $skippedStatusCount++;
-
                     continue;
                 }
 
                 /*
-                |--------------------------------------------------------------------------
-                | UPDATE DRAFT BILL
-                |--------------------------------------------------------------------------
-                */
-
-                $metadata =
-                    $studentBill->metadata ?? [];
-
-                $metadata[
-                    'regenerated_from_bill_sheet_id'
-                ] = $billSheet->id;
-
-                $metadata[
-                    'regenerated_at'
-                ] = now()->toDateTimeString();
-
-                $metadata[
-                    'student_assignment_id'
-                ] = $studentAssignment->id;
+                 * A repairable draft/rejected bill can be brought onto the
+                 * selected assignment. This does not touch approved/published
+                 * or paid financial records.
+                 */
+                $metadata = $studentBill->metadata ?? [];
+                $metadata['regenerated_from_bill_sheet_id'] = $billSheet->id;
+                $metadata['regenerated_at'] = now()->toDateTimeString();
+                $metadata['student_assignment_id'] = $studentAssignment->id;
 
                 $studentBill->update([
-                    'name' =>
-                        $billName,
-
-                    'student_class_assignment_id' =>
-                        $studentAssignment->id,
-
-                    'academic_year_id' =>
-                        $academicYearId,
-
-                    'term_id' =>
-                        $termId,
-
-                    'generated_date' =>
-                        $billSheet->generated_date,
-
-                    'due_date' =>
-                        $billSheet->due_date,
-
-                    'description' =>
-                        $billSheet->description,
-
-                    'total_amount' =>
-                        $subtotal,
-
-                    'discount_amount' =>
-                        $discountAmount,
-
-                    'tax_amount' =>
-                        $taxAmount,
-
-                    'net_amount' =>
-                        $netAmount,
-
-                    'metadata' =>
-                        $metadata,
+                    'name' => $billName,
+                    'student_class_assignment_id' => $studentAssignment->id,
+                    'academic_year_id' => $academicYearId,
+                    'term_id' => $termId,
+                    'generated_date' => $billSheet->generated_date,
+                    'due_date' => $billSheet->due_date,
+                    'description' => $billSheet->description,
+                    'total_amount' => $subtotal,
+                    'discount_amount' => $discountAmount,
+                    'tax_amount' => $taxAmount,
+                    'net_amount' => $netAmount,
+                    'metadata' => $metadata,
                 ]);
-
-                /*
-                |--------------------------------------------------------------------------
-                | REPLACE ITEMS
-                |--------------------------------------------------------------------------
-                */
 
                 $studentBill->items()->delete();
 
                 foreach ($templateItems as $item) {
-
                     BillSheetItem::create([
-                        'bill_sheet_id' =>
-                            $studentBill->id,
-
-                        'fee_category_id' =>
-                            $item['fee_category_id'],
-
-                        'name' =>
-                            $item['name'],
-
-                        'amount' =>
-                            $item['amount'],
-
-                        'quantity' =>
-                            $item['quantity'],
-
-                        'total_amount' =>
-                            $item['amount']
-                            * $item['quantity'],
-
-                        'is_optional' =>
-                            $item['is_optional'],
+                        'bill_sheet_id' => $studentBill->id,
+                        'fee_category_id' => $item['fee_category_id'],
+                        'name' => $item['name'],
+                        'amount' => $item['amount'],
+                        'quantity' => $item['quantity'],
+                        'total_amount' => $item['amount'] * $item['quantity'],
+                        'is_optional' => $item['is_optional'],
                     ]);
                 }
 
@@ -1733,50 +1454,40 @@ class BillSheetController extends Controller
 
             DB::commit();
 
-            $className =
-                $assignment
-                    ->studentClass
-                    ?->name
-                ?? 'selected class';
+            $className = $assignment->studentClass?->name ?? 'selected class';
 
-            $message =
-                "Bill Sheets regenerated successfully for {$className}. "
-                . "{$updatedCount} updated and "
-                . "{$createdCount} created.";
+            $message = "Bill Sheets regenerated successfully for {$className}. "
+                . "{$updatedCount} updated and {$createdCount} created.";
+
+            if ($preparedAssignmentCount > 0) {
+                $message .= " {$preparedAssignmentCount} pending assignment"
+                    . ($preparedAssignmentCount === 1 ? '' : 's')
+                    . " prepared for the selected period.";
+            }
 
             if ($skippedPaidCount > 0) {
-                $message .=
-                    " {$skippedPaidCount} skipped because payments already exist.";
+                $message .= " {$skippedPaidCount} skipped because payments already exist.";
             }
 
             if ($skippedStatusCount > 0) {
-                $message .=
-                    " {$skippedStatusCount} skipped because they are not draft Bill Sheets.";
+                $message .= " {$skippedStatusCount} skipped because they are protected Bill Sheets.";
+            }
+
+            if ($skippedExistingCount > 0) {
+                $message .= " {$skippedExistingCount} existing Bill Sheet"
+                    . ($skippedExistingCount === 1 ? '' : 's')
+                    . " were left unchanged.";
             }
 
             return redirect()
-                ->route(
-                    'bill-sheets.index',
-                    [
-                        'class_id' =>
-                            $classId,
-
-                        'academic_year_id' =>
-                            $academicYearId,
-
-                        'term_id' =>
-                            $termId,
-                    ]
-                )
-                ->with(
-                    'success',
-                    $message
-                );
-
+                ->route('bill-sheets.index', [
+                    'class_id' => $classId,
+                    'academic_year_id' => $academicYearId,
+                    'term_id' => $termId,
+                ])
+                ->with('success', $message);
         } catch (\Throwable $e) {
-
             DB::rollBack();
-
             report($e);
 
             return back()->with(
@@ -1787,196 +1498,156 @@ class BillSheetController extends Controller
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | GET STUDENT COUNT
-    |--------------------------------------------------------------------------
-    |
-    | Used by create.blade.php.
-    |
-    */
-
-    public function getStudentCount(Request $request)
+        public function getStudentCount(Request $request)
     {
         $validated = $request->validate([
-            'student_class_id' => [
-                'required',
-                'exists:student_classes,id',
-            ],
-
-            'academic_year_id' => [
-                'required',
-                'exists:academic_years,id',
-            ],
-
+            'student_class_id' => ['required', 'exists:student_classes,id'],
+            'academic_year_id' => ['required', 'exists:academic_years,id'],
             'term_id' => [
-                'nullable',
-                'exists:terms,id',
+                'required',
+                'integer',
+                Rule::exists('terms', 'id')->where(function ($query) use ($request) {
+                    $query->where('academic_year_id', $request->input('academic_year_id'));
+                }),
             ],
         ]);
 
-        $assignmentQuery =
-            StudentClassAssignment::query()
-                ->where(
-                    'student_class_id',
-                    $validated['student_class_id']
-                )
-                ->where(
-                    'academic_year_id',
-                    $validated['academic_year_id']
-                )
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->where(
-                    'is_current',
-                    true
-                );
-
-        $studentCount =
-            $assignmentQuery->count();
-
-        $existingCount = 0;
-
-        if (!empty($validated['term_id'])) {
-
-            $assignmentIds =
-                $assignmentQuery
-                    ->pluck('id');
-
-            $existingCount =
-                BillSheet::query()
-                    ->whereIn(
-                        'student_class_assignment_id',
-                        $assignmentIds
-                    )
-                    ->where(
-                        'academic_year_id',
-                        $validated['academic_year_id']
-                    )
-                    ->where(
-                        'term_id',
-                        $validated['term_id']
-                    )
-                    ->count();
+        if (!$this->termBelongsToAcademicYear(
+            (int) $validated['academic_year_id'],
+            (int) $validated['term_id']
+        )) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The selected term does not belong to the selected academic year.',
+            ], 422);
         }
 
+        /*
+         * This endpoint is a PREVIEW. It never creates assignments.
+         * It counts students who either already have a target-period
+         * assignment or can legitimately be carried into a future/current
+         * period from the school's current assignment set.
+         */
+        $assignments = $this->previewBillableAssignments(
+            (int) $validated['student_class_id'],
+            (int) $validated['academic_year_id'],
+            (int) $validated['term_id']
+        );
+
+        $assignmentIds = $assignments
+            ->whereNotNull('id')
+            ->pluck('id');
+
+        $existingBillStudentIds = BillSheet::query()
+            ->where('academic_year_id', $validated['academic_year_id'])
+            ->where('term_id', $validated['term_id'])
+            ->whereIn('student_class_assignment_id', $assignmentIds)
+            ->with('studentClassAssignment:id,student_id')
+            ->get()
+            ->pluck('studentClassAssignment.student_id')
+            ->filter()
+            ->unique();
+
+        /*
+         * Also count bills attached to legacy assignments for the same
+         * student/class/year/term, so the UI does not report them as new.
+         */
+        $legacyBillStudentIds = BillSheet::query()
+            ->where('academic_year_id', $validated['academic_year_id'])
+            ->where('term_id', $validated['term_id'])
+            ->whereHas('studentClassAssignment', function ($query) use ($validated) {
+                $query->where('student_class_id', $validated['student_class_id']);
+            })
+            ->with('studentClassAssignment:id,student_id')
+            ->get()
+            ->pluck('studentClassAssignment.student_id')
+            ->filter()
+            ->unique();
+
+        $existingBillStudentIds = $existingBillStudentIds
+            ->merge($legacyBillStudentIds)
+            ->unique();
+
+        $studentCount = $assignments->count();
+
+        $newCount = $assignments
+            ->filter(fn ($assignment) => !$existingBillStudentIds->contains($assignment->student_id))
+            ->count();
+
         return response()->json([
-            'success' =>
-                true,
-
-            'count' =>
-                $studentCount,
-
-            'student_count' =>
-                $studentCount,
-
-            'existing_count' =>
-                $existingCount,
-
-            'new_count' =>
-                max(
-                    0,
-                    $studentCount - $existingCount
-                ),
+            'success' => true,
+            'count' => $studentCount,
+            'student_count' => $studentCount,
+            'existing_count' => $studentCount - $newCount,
+            'new_count' => $newCount,
+            'historical_period' => $this->isHistoricalPeriod(
+                (int) $validated['academic_year_id'],
+                (int) $validated['term_id']
+            ),
         ]);
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | ASSIGNMENTS
-    |--------------------------------------------------------------------------
-    |
-    | Returns active assignments for AJAX.
-    |
-    */
-
-    public function assignments(Request $request)
+        public function assignments(Request $request)
     {
         $validated = $request->validate([
-            'student_class_id' => [
+            'student_class_id' => ['required', 'exists:student_classes,id'],
+            'academic_year_id' => ['required', 'exists:academic_years,id'],
+            'term_id' => [
                 'required',
-                'exists:student_classes,id',
-            ],
-
-            'academic_year_id' => [
-                'required',
-                'exists:academic_years,id',
+                'integer',
+                Rule::exists('terms', 'id')->where(function ($query) use ($request) {
+                    $query->where('academic_year_id', $request->input('academic_year_id'));
+                }),
             ],
         ]);
 
-        $assignments =
-            StudentClassAssignment::query()
-                ->with('student')
-                ->where(
-                    'student_class_id',
-                    $validated['student_class_id']
-                )
-                ->where(
-                    'academic_year_id',
-                    $validated['academic_year_id']
-                )
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->where(
-                    'is_current',
-                    true
-                )
-                ->get();
+        if (!$this->termBelongsToAcademicYear(
+            (int) $validated['academic_year_id'],
+            (int) $validated['term_id']
+        )) {
+            return response()->json([
+                'success' => false,
+                'message' => 'The selected term does not belong to the selected academic year.',
+            ], 422);
+        }
+
+        /*
+         * AJAX preview only. Do not create pending assignments here.
+         */
+        $assignments = $this->previewBillableAssignments(
+            (int) $validated['student_class_id'],
+            (int) $validated['academic_year_id'],
+            (int) $validated['term_id']
+        );
 
         return response()->json([
-            'success' =>
-                true,
+            'success' => true,
+            'count' => $assignments->count(),
+            'students' => $assignments->map(function ($assignment) {
+                $student = $assignment->student;
 
-            'count' =>
-                $assignments->count(),
+                $name = $student
+                    ? trim(collect([
+                        $student->first_name ?? null,
+                        $student->middle_name ?? null,
+                        $student->last_name ?? null,
+                    ])->filter()->implode(' '))
+                    : 'Student';
 
-            'students' =>
-                $assignments->map(
-                    function ($assignment) {
-
-                        $student =
-                            $assignment->student;
-
-                        $name = $student
-                            ? trim(
-                                collect([
-                                    $student->first_name ?? null,
-                                    $student->middle_name ?? null,
-                                    $student->last_name ?? null,
-                                ])
-                                    ->filter()
-                                    ->implode(' ')
-                            )
-                            : 'Student';
-
-                        return [
-                            'assignment_id' =>
-                                $assignment->id,
-
-                            'student_id' =>
-                                $assignment->student_id,
-
-                            'name' =>
-                                $name,
-                        ];
-                    }
-                ),
+                return [
+                    'assignment_id' => $assignment->id,
+                    'student_id' => $assignment->student_id,
+                    'name' => $name,
+                    'assignment_status' => $assignment->status,
+                    'is_current' => (bool) $assignment->is_current,
+                ];
+            }),
         ]);
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | PDF
-    |--------------------------------------------------------------------------
-    */
-
-    public function pdf($id)
+        public function pdf($id)
     {
         $billSheet =
             BillSheet::with([
@@ -2287,13 +1958,12 @@ class BillSheetController extends Controller
 
     public function duplicate($id)
     {
-        $source =
-            BillSheet::with([
-                'studentClassAssignment.studentClass',
-                'academicYear',
-                'term',
-                'items',
-            ])->findOrFail($id);
+        $source = BillSheet::with([
+            'studentClassAssignment.studentClass',
+            'academicYear',
+            'term',
+            'items',
+        ])->findOrFail($id);
 
         if (!$source->studentClassAssignment) {
             return back()->with(
@@ -2302,201 +1972,126 @@ class BillSheetController extends Controller
             );
         }
 
-        $classId =
-            $source
-                ->studentClassAssignment
-                ->student_class_id;
+        $classId = (int) $source->studentClassAssignment->student_class_id;
+        $academicYearId = (int) $source->academic_year_id;
+        $termId = (int) $source->term_id;
 
-        $academicYearId =
-            $source->academic_year_id;
-
-        $termId =
-            $source->term_id;
-
-        /*
-        |--------------------------------------------------------------------------
-        | FIND ELIGIBLE ASSIGNMENTS WITHOUT BILLS
-        |--------------------------------------------------------------------------
-        */
-
-        $assignment =
-            StudentClassAssignment::query()
-                ->with('student')
-                ->where(
-                    'student_class_id',
-                    $classId
-                )
-                ->where(
-                    'academic_year_id',
-                    $academicYearId
-                )
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->where(
-                    'is_current',
-                    true
-                )
-                ->whereNotIn(
-                    'id',
-                    BillSheet::query()
-                        ->where(
-                            'academic_year_id',
-                            $academicYearId
-                        )
-                        ->where(
-                            'term_id',
-                            $termId
-                        )
-                        ->pluck(
-                            'student_class_assignment_id'
-                        )
-                )
-                ->first();
-
-        if (!$assignment) {
+        if (!$this->termBelongsToAcademicYear($academicYearId, $termId)) {
             return back()->with(
                 'error',
-                'There is no eligible student without a Bill Sheet in this class for the selected academic year and term. Use Regenerate if you need to correct the class bills.'
+                'The selected Bill Sheet has an invalid academic year and term combination and cannot be duplicated.'
             );
         }
 
         DB::beginTransaction();
 
         try {
+            $preparedAssignmentCount = 0;
 
-            $student =
-                $assignment->student;
+            $assignments = $this->resolveBillableAssignments(
+                $classId,
+                $academicYearId,
+                $termId,
+                true,
+                $preparedAssignmentCount
+            );
 
-            $studentName =
-                $student
-                    ? trim(
-                        collect([
-                            $student->first_name ?? null,
-                            $student->middle_name ?? null,
-                            $student->last_name ?? null,
-                        ])
-                            ->filter()
-                            ->implode(' ')
-                    )
-                    : 'Student';
+            $assignment = $assignments->first(function ($candidate) use (
+                $source,
+                $academicYearId,
+                $termId
+            ) {
+                if ((int) $candidate->id === (int) $source->student_class_assignment_id) {
+                    return false;
+                }
 
-            $className =
-                $assignment
-                    ->studentClass
-                    ?->name
-                ?? 'Class';
+                return !BillSheet::query()
+                    ->where('student_class_assignment_id', $candidate->id)
+                    ->where('academic_year_id', $academicYearId)
+                    ->where('term_id', $termId)
+                    ->exists()
+                    &&
+                    !BillSheet::query()
+                        ->where('academic_year_id', $academicYearId)
+                        ->where('term_id', $termId)
+                        ->whereHas('studentClassAssignment', function ($query) use ($candidate) {
+                            $query
+                                ->where('student_id', $candidate->student_id)
+                                ->where('student_class_id', $candidate->student_class_id)
+                                ->where('id', '!=', $candidate->id);
+                        })
+                        ->exists();
+            });
 
-            $termName =
-                $source->term?->name
-                ?? 'Term';
+            if (!$assignment) {
+                DB::rollBack();
 
-            $newBill =
-                BillSheet::create([
-                    'name' =>
-                        $className
-                        . ' - '
-                        . $studentName
-                        . ' - '
-                        . $termName,
+                return back()->with(
+                    'error',
+                    'There is no eligible student without a Bill Sheet in this class for the selected academic year and term.'
+                );
+            }
 
-                    'student_class_assignment_id' =>
-                        $assignment->id,
+            $student = $assignment->student;
 
-                    'academic_year_id' =>
-                        $source->academic_year_id,
+            $studentName = $student
+                ? trim(collect([
+                    $student->first_name ?? null,
+                    $student->middle_name ?? null,
+                    $student->last_name ?? null,
+                ])->filter()->implode(' '))
+                : 'Student';
 
-                    'term_id' =>
-                        $source->term_id,
+            $className = $assignment->studentClass?->name ?? 'Class';
+            $termName = $source->term?->name ?? 'Term';
 
-                    'generated_date' =>
-                        $source->generated_date,
-
-                    'due_date' =>
-                        $source->due_date,
-
-                    'description' =>
-                        $source->description,
-
-                    'total_amount' =>
-                        $source->total_amount,
-
-                    'discount_amount' =>
-                        $source->discount_amount,
-
-                    'tax_amount' =>
-                        $source->tax_amount,
-
-                    'net_amount' =>
-                        $source->net_amount,
-
-                    'status' =>
-                        'draft',
-
-                    'generated_by' =>
-                        Auth::id(),
-
-                    'is_active' =>
-                        true,
-
-                    'metadata' => [
-                        'duplicated_from_bill_sheet_id' =>
-                            $source->id,
-
-                        'student_assignment_id' =>
-                            $assignment->id,
-
-                        'student_id' =>
-                            $assignment->student_id,
-
-                        'duplicated_at' =>
-                            now()->toDateTimeString(),
-                    ],
-                ]);
+            $newBill = BillSheet::create([
+                'name' => $className . ' - ' . $studentName . ' - ' . $termName,
+                'student_class_assignment_id' => $assignment->id,
+                'academic_year_id' => $source->academic_year_id,
+                'term_id' => $source->term_id,
+                'generated_date' => $source->generated_date,
+                'due_date' => $source->due_date,
+                'description' => $source->description,
+                'total_amount' => $source->total_amount,
+                'discount_amount' => $source->discount_amount,
+                'tax_amount' => $source->tax_amount,
+                'net_amount' => $source->net_amount,
+                'status' => 'draft',
+                'generated_by' => Auth::id(),
+                'is_active' => true,
+                'metadata' => [
+                    'duplicated_from_bill_sheet_id' => $source->id,
+                    'student_assignment_id' => $assignment->id,
+                    'student_id' => $assignment->student_id,
+                    'assignment_status_at_generation' => $assignment->status,
+                    'assignment_is_current_at_generation' => (bool) $assignment->is_current,
+                    'duplicated_at' => now()->toDateTimeString(),
+                ],
+            ]);
 
             foreach ($source->items as $item) {
-
                 BillSheetItem::create([
-                    'bill_sheet_id' =>
-                        $newBill->id,
-
-                    'fee_category_id' =>
-                        $item->fee_category_id,
-
-                    'name' =>
-                        $item->name,
-
-                    'amount' =>
-                        $item->amount,
-
-                    'quantity' =>
-                        $item->quantity,
-
-                    'total_amount' =>
-                        $item->total_amount,
-
-                    'is_optional' =>
-                        $item->is_optional,
+                    'bill_sheet_id' => $newBill->id,
+                    'fee_category_id' => $item->fee_category_id,
+                    'name' => $item->name,
+                    'amount' => $item->amount,
+                    'quantity' => $item->quantity,
+                    'total_amount' => $item->total_amount,
+                    'is_optional' => $item->is_optional,
                 ]);
             }
 
             DB::commit();
 
             return redirect()
-                ->route(
-                    'bill-sheets.show',
-                    $newBill
-                )
+                ->route('bill-sheets.show', $newBill)
                 ->with(
                     'success',
                     "Bill Sheet copied successfully for {$studentName}."
                 );
-
         } catch (\Throwable $e) {
-
             DB::rollBack();
-
             report($e);
 
             return back()->with(
@@ -2507,16 +2102,7 @@ class BillSheetController extends Controller
     }
 
 
-    /*
-    |--------------------------------------------------------------------------
-    | STATUS CHANGE
-    |--------------------------------------------------------------------------
-    |
-    | Allows controlled status changes from the UI.
-    |
-    */
-
-    public function changeStatus(
+        public function changeStatus(
         Request $request,
         BillSheet $billSheet
     ) {
@@ -2587,4 +2173,413 @@ class BillSheetController extends Controller
             'Bill Sheet status updated successfully.'
         );
     }
+    /*
+    |--------------------------------------------------------------------------
+    | VERIFY ACADEMIC YEAR / TERM RELATIONSHIP
+    |--------------------------------------------------------------------------
+    |
+    | A Term belongs to one Academic Year. This helper prevents invalid
+    | combinations such as:
+    |
+    |   Academic Year 4 + Term 8
+    |
+    | when Term 8 belongs to another academic year.
+    |
+    |--------------------------------------------------------------------------
+    */
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | RESOLVE BILLABLE ASSIGNMENTS
+    |--------------------------------------------------------------------------
+    |
+    | This is the central assignment resolver for Bill Sheet preparation.
+    |
+    | Rules:
+    |
+    | 1. Bill Sheets are controlled by the year/term selected on the
+    |    Bill Sheet screen, not by System Settings' viewing period.
+    |
+    | 2. Existing assignments for the exact target period are preferred.
+    |
+    | 3. For the current/future period, students currently assigned to the
+    |    selected class/year may receive a PENDING target-period assignment.
+    |
+    | 4. PENDING means the student is prepared for billing but is NOT yet
+    |    the current student for that term.
+    |
+    | 5. Historical periods never receive automatically-created assignments.
+    |
+    | 6. Existing completed historical assignments are not rewritten.
+    |
+    */
+    private function resolveBillableAssignments(
+        int $classId,
+        int $academicYearId,
+        int $termId,
+        bool $createPendingAssignments = true,
+        int &$preparedAssignmentCount = 0
+    ) {
+        $preparedAssignmentCount = 0;
+
+        $exactAssignments = StudentClassAssignment::query()
+            ->with(['student', 'studentClass', 'academicYear'])
+            ->where('student_class_id', $classId)
+            ->where('academic_year_id', $academicYearId)
+            ->where('term_id', $termId)
+            ->orderByDesc('id')
+            ->get();
+
+        /*
+         * Prefer one usable assignment per student.
+         *
+         * Active/current and pending assignments are preferred over
+         * completed historical records.
+         */
+        $selected = collect();
+
+        foreach ($exactAssignments->groupBy('student_id') as $studentAssignments) {
+            $preferred = $studentAssignments->first(function ($assignment) {
+                return in_array($assignment->status, ['active', 'repeated', 'pending'], true);
+            });
+
+            if (!$preferred) {
+                $preferred = $studentAssignments->first();
+            }
+
+            if ($preferred) {
+                $selected->put($preferred->student_id, $preferred);
+            }
+        }
+
+        /*
+         * Students who are current in this class/year are candidates for
+         * preparation of a current/future term.
+         *
+         * We deliberately do not use System Settings' VIEWING period here.
+         * We use the school's OPERATIONAL period to decide whether the
+         * selected period is historical.
+         */
+        if (
+            $createPendingAssignments
+            && !$this->isHistoricalPeriod($academicYearId, $termId)
+        ) {
+            $sourceAssignments = StudentClassAssignment::query()
+                ->with(['student', 'studentClass', 'academicYear'])
+                ->where('student_class_id', $classId)
+                ->where('academic_year_id', $academicYearId)
+                ->where('is_current', true)
+                ->whereIn('status', ['active', 'repeated'])
+                ->orderByDesc('id')
+                ->get()
+                ->unique('student_id');
+
+            foreach ($sourceAssignments as $sourceAssignment) {
+                /*
+                 * If an exact target assignment already exists, use it.
+                 */
+                if ($selected->has($sourceAssignment->student_id)) {
+                    $existingTarget = $selected->get($sourceAssignment->student_id);
+
+                    /*
+                     * If a Bill Sheet already exists for this exact
+                     * student/class/year/term, preserve that financial record
+                     * and do not create another assignment merely because the
+                     * legacy assignment is completed.
+                     */
+                    $periodBillExists = BillSheet::query()
+                        ->where('academic_year_id', $academicYearId)
+                        ->where('term_id', $termId)
+                        ->whereHas('studentClassAssignment', function ($query) use (
+                            $sourceAssignment,
+                            $classId,
+                            $academicYearId,
+                            $termId
+                        ) {
+                            $query
+                                ->where('student_id', $sourceAssignment->student_id)
+                                ->where('student_class_id', $classId)
+                                ->where('academic_year_id', $academicYearId)
+                                ->where('term_id', $termId);
+                        })
+                        ->exists();
+
+                    if ($periodBillExists) {
+                        continue;
+                    }
+
+                    if (
+                        in_array(
+                            $existingTarget->status,
+                            ['active', 'repeated', 'pending'],
+                            true
+                        )
+                    ) {
+                        continue;
+                    }
+                }
+
+                $pendingAssignment = StudentClassAssignment::query()
+                    ->where('student_id', $sourceAssignment->student_id)
+                    ->where('student_class_id', $classId)
+                    ->where('academic_year_id', $academicYearId)
+                    ->where('term_id', $termId)
+                    ->where('status', 'pending')
+                    ->where('is_current', false)
+                    ->orderByDesc('id')
+                    ->first();
+
+                if (!$pendingAssignment) {
+                    $pendingAssignment = StudentClassAssignment::create([
+                        'student_id' => $sourceAssignment->student_id,
+                        'student_class_id' => $classId,
+                        'academic_year_id' => $academicYearId,
+                        'term_id' => $termId,
+                        'status' => 'pending',
+                        'assigned_date' => $this->getTermStartDate($termId),
+                        'promotion_date' => null,
+                        'is_current' => false,
+                    ]);
+
+                    $preparedAssignmentCount++;
+                }
+
+                $pendingAssignment->load([
+                    'student',
+                    'studentClass',
+                    'academicYear',
+                ]);
+
+                $selected->put(
+                    $sourceAssignment->student_id,
+                    $pendingAssignment
+                );
+            }
+        }
+
+        return $selected->values();
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | PREVIEW BILLABLE ASSIGNMENTS
+    |--------------------------------------------------------------------------
+    |
+    | Same eligibility rules as resolveBillableAssignments(), but NEVER
+    | creates database records. Used by AJAX/count endpoints.
+    |
+    */
+    private function previewBillableAssignments(
+        int $classId,
+        int $academicYearId,
+        int $termId
+    ) {
+        $exactAssignments = StudentClassAssignment::query()
+            ->with(['student', 'studentClass', 'academicYear'])
+            ->where('student_class_id', $classId)
+            ->where('academic_year_id', $academicYearId)
+            ->where('term_id', $termId)
+            ->orderByDesc('id')
+            ->get();
+
+        $selected = collect();
+
+        foreach ($exactAssignments->groupBy('student_id') as $studentAssignments) {
+            $preferred = $studentAssignments->first(function ($assignment) {
+                return in_array($assignment->status, ['active', 'repeated', 'pending'], true);
+            }) ?? $studentAssignments->first();
+
+            if ($preferred) {
+                $selected->put($preferred->student_id, $preferred);
+            }
+        }
+
+        if (!$this->isHistoricalPeriod($academicYearId, $termId)) {
+            $sourceAssignments = StudentClassAssignment::query()
+                ->with(['student', 'studentClass', 'academicYear'])
+                ->where('student_class_id', $classId)
+                ->where('academic_year_id', $academicYearId)
+                ->where('is_current', true)
+                ->whereIn('status', ['active', 'repeated'])
+                ->orderByDesc('id')
+                ->get()
+                ->unique('student_id');
+
+            foreach ($sourceAssignments as $sourceAssignment) {
+                if (!$selected->has($sourceAssignment->student_id)) {
+                    $selected->put($sourceAssignment->student_id, $sourceAssignment);
+                }
+            }
+        }
+
+        return $selected->values();
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | FIND EXISTING PERIOD BILL
+    |--------------------------------------------------------------------------
+    |
+    | If the exact selected assignment does not own the Bill Sheet, search
+    | for a Bill Sheet for the same student/class/year/term.
+    |
+    | Draft/rejected unpaid bills may be reattached to the selected
+    | assignment. Pending/approved/published/paid bills are protected.
+    |
+    */
+    private function findProtectedOrRepairablePeriodBill(
+        StudentClassAssignment $assignment,
+        int $classId,
+        int $academicYearId,
+        int $termId
+    ): ?BillSheet {
+        $bill = BillSheet::query()
+            ->where('academic_year_id', $academicYearId)
+            ->where('term_id', $termId)
+            ->whereHas('studentClassAssignment', function ($query) use (
+                $assignment,
+                $classId,
+                $academicYearId,
+                $termId
+            ) {
+                $query
+                    ->where('student_id', $assignment->student_id)
+                    ->where('student_class_id', $classId)
+                    ->where('academic_year_id', $academicYearId)
+                    ->where('term_id', $termId)
+                    ->where('id', '!=', $assignment->id);
+            })
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$bill) {
+            return null;
+        }
+
+        $hasPayments = FeePayment::query()
+            ->where('bill_sheet_id', $bill->id)
+            ->exists();
+
+        if (
+            !$hasPayments
+            && ($bill->isDraft() || $bill->isRejected())
+        ) {
+            $previousAssignmentId = $bill->student_class_assignment_id;
+
+            $bill->update([
+                'student_class_assignment_id' => $assignment->id,
+                'metadata' => array_merge(
+                    $bill->metadata ?? [],
+                    [
+                        'assignment_repaired_automatically' => true,
+                        'previous_assignment_id' => $previousAssignmentId,
+                        'repaired_to_assignment_id' => $assignment->id,
+                        'assignment_repaired_at' => now()->toDateTimeString(),
+                        'assignment_repaired_by' => Auth::id(),
+                    ]
+                ),
+            ]);
+        }
+
+        return $bill;
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | DETERMINE WHETHER A PERIOD IS HISTORICAL
+    |--------------------------------------------------------------------------
+    |
+    | The operational period is the reference point.
+    |
+    | A period before the operational period is historical.
+    | The operational period itself and future periods are billable/preparable.
+    |
+    */
+    private function getTermStartDate(int $termId): ?string
+    {
+        $term = Term::find($termId);
+
+        if (!$term || !$term->start_date) {
+            return now()->toDateTimeString();
+        }
+
+        return (string) $term->start_date;
+    }
+
+
+    private function isHistoricalPeriod(
+        int $academicYearId,
+        int $termId
+    ): bool {
+        $settings = SystemSetting::instance();
+
+        if (
+            !$settings->operational_academic_year_id
+            || !$settings->operational_term_id
+        ) {
+            /*
+             * Safe fallback for an incomplete installation: use the current
+             * viewing period as the reference point.
+             */
+            $referenceYearId = $settings->current_academic_year_id;
+            $referenceTermId = $settings->current_term_id;
+        } else {
+            $referenceYearId = $settings->operational_academic_year_id;
+            $referenceTermId = $settings->operational_term_id;
+        }
+
+        if (!$referenceYearId || !$referenceTermId) {
+            return false;
+        }
+
+        $selectedYear = AcademicYear::find($academicYearId);
+        $referenceYear = AcademicYear::find($referenceYearId);
+        $selectedTerm = Term::find($termId);
+        $referenceTerm = Term::find($referenceTermId);
+
+        if (
+            !$selectedYear
+            || !$referenceYear
+            || !$selectedTerm
+            || !$referenceTerm
+        ) {
+            return false;
+        }
+
+        $selectedYearStart = strtotime((string) $selectedYear->start_date);
+        $referenceYearStart = strtotime((string) $referenceYear->start_date);
+
+        if ($selectedYearStart !== $referenceYearStart) {
+            return $selectedYearStart < $referenceYearStart;
+        }
+
+        $selectedTermStart = strtotime((string) $selectedTerm->start_date);
+        $referenceTermStart = strtotime((string) $referenceTerm->start_date);
+
+        if ($selectedTermStart !== $referenceTermStart) {
+            return $selectedTermStart < $referenceTermStart;
+        }
+
+        return $academicYearId < $referenceYearId
+            || (
+                $academicYearId === $referenceYearId
+                && $termId < $referenceTermId
+            );
+    }
+
+
+    private function termBelongsToAcademicYear(
+        int $academicYearId,
+        int $termId
+    ): bool {
+        return Term::query()
+            ->where('id', $termId)
+            ->where('academic_year_id', $academicYearId)
+            ->exists();
+    }
+
 }

@@ -618,31 +618,17 @@
                 </tbody>
 
                 @if($recordCount > 0)
-
                     <tfoot>
                         <tr class="fw-bold">
-
                             <th colspan="4" class="text-end">
-                                TOTAL
+                                FILTERED TOTAL
                             </th>
 
-                            <th class="text-end">
-                                GHS {{ number_format($outstandingFees->sum('total_fees'), 2) }}
+                            <th colspan="5" class="text-muted">
+                                See the summary above for the complete filtered outstanding balance.
                             </th>
-
-                            <th class="text-end text-success">
-                                GHS {{ number_format($outstandingFees->sum('amount_paid'), 2) }}
-                            </th>
-
-                            <th class="text-end text-danger">
-                                GHS {{ number_format($outstandingFees->sum('balance'), 2) }}
-                            </th>
-
-                            <th colspan="3"></th>
-
                         </tr>
                     </tfoot>
-
                 @endif
 
             </table>

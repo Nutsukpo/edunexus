@@ -13,41 +13,6 @@
                 </h5>
             </div>
             <div class="card-body">
-                <!-- Summary Cards -->
-                <div class="row g-3 mb-4">
-                    <div class="col-md-3">
-                        <div class="card bg-info bg-opacity-10 border-0">
-                            <div class="card-body text-center">
-                                <h3 class="fw-bold text-info">{{ number_format($summary['average_score'] ?? 0, 2) }}</h3>
-                                <small class="text-muted">Average Score</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-success bg-opacity-10 border-0">
-                            <div class="card-body text-center">
-                                <h3 class="fw-bold text-success">{{ $summary['highest_score'] ?? 0 }}</h3>
-                                <small class="text-muted">Highest Score</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-danger bg-opacity-10 border-0">
-                            <div class="card-body text-center">
-                                <h3 class="fw-bold text-danger">{{ $summary['lowest_score'] ?? 0 }}</h3>
-                                <small class="text-muted">Lowest Score</small>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="card bg-primary bg-opacity-10 border-0">
-                            <div class="card-body text-center">
-                                <h3 class="fw-bold text-primary">{{ $summary['total_subjects'] ?? 0 }}</h3>
-                                <small class="text-muted">Total Subjects</small>
-                            </div>
-                        </div>
-                    </div>
-                </div>
 
                 {{-- ================= ACADEMIC RESULTS (REPORT CARD STYLE) ================= --}}
                 <h5 class="text-dark mt-4">Academic Results</h5>

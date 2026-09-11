@@ -1,227 +1,586 @@
 @extends('layouts.master')
 
-@section('title', 'Assign Student To Class')
+@section('title', 'Assign Student to Class')
 
 @section('content')
-<div class="container-fluid">
 
-    {{-- HEADER --}}
-    <div class="mb-4 mt-3">
-        <h3 class="fw-bold mb-1">
-            <i class="fas fa-user-plus me-2 text-primary"></i>
-            Assign Student To Class
-        </h3>
-        <p class="text-muted mb-0">
-            Create new student class assignment
-        </p>
+<div class="container-fluid py-4">
+
+    {{-- Header --}}
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bold mb-1">
+                <i class="fas fa-user-plus me-2 text-primary"></i>
+                Assign Student to Class
+            </h4>
+            <p class="text-muted mb-0">
+                Assign a student to a class for a specific academic period.
+            </p>
+        </div>
+
+        <a href="{{ route('student-class-assignments.index') }}"
+           class="btn btn-outline-secondary">
+            <i class="fas fa-arrow-left me-1"></i>
+            Back to Assignments
+        </a>
     </div>
 
-    {{-- ERRORS --}}
-    @if ($errors->any())
-        <div class="alert alert-danger alert-dismissible fade show" role="alert">
-            <i class="fas fa-exclamation-circle me-2"></i>
-            <strong>Please fix the following errors:</strong>
-            <ul class="mb-0 mt-2">
-                @foreach ($errors->all() as $error)
-                    <li>{{ $error }}</li>
-                @endforeach
-            </ul>
-            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+
+    {{-- Alerts --}}
+    @if(session('success'))
+        <div class="alert alert-success alert-dismissible fade show">
+            <i class="fas fa-check-circle me-2"></i>
+            {{ session('success') }}
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert"></button>
         </div>
     @endif
 
-    <form action="{{ route('student-class-assignments.store') }}" method="POST">
-        @csrf
+    @if(session('error'))
+        <div class="alert alert-danger alert-dismissible fade show">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            {{ session('error') }}
+            <button type="button"
+                    class="btn-close"
+                    data-bs-dismiss="alert"></button>
+        </div>
+    @endif
 
-        <div class="card border-0 shadow-sm">
-            <div class="card-body">
-                <div class="row">
+    @if($errors->any())
+        <div class="alert alert-danger">
+            <div class="fw-semibold mb-2">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Please correct the following:
+            </div>
 
-                    {{-- STUDENT --}}
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label fw-semibold">
-                            <i class="fas fa-user me-1 text-primary"></i>
-                            Student <span class="text-danger">*</span>
+            <ul class="mb-0">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
+        </div>
+    @endif
+
+
+    {{-- Current Period --}}
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+
+            <div class="d-flex align-items-center mb-3">
+                <div class="bg-primary bg-opacity-10 rounded-circle p-2 me-3">
+                    <i class="fas fa-calendar-alt text-primary"></i>
+                </div>
+
+                <div>
+                    <h6 class="fw-bold mb-0">
+                        Current Academic Period
+                    </h6>
+
+                    <small class="text-muted">
+                        Defined centrally in System Settings
+                    </small>
+                </div>
+            </div>
+
+            <div class="row g-3">
+
+                <div class="col-md-6">
+                    <div class="border rounded p-3 h-100">
+                        <small class="text-muted d-block mb-1">
+                            Academic Year
+                        </small>
+
+                        <div class="fw-semibold">
+                            @if($currentAcademicYear)
+                                {{ $currentAcademicYear->name }}
+                            @else
+                                <span class="text-danger">
+                                    Not configured
+                                </span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-6">
+                    <div class="border rounded p-3 h-100">
+                        <small class="text-muted d-block mb-1">
+                            Current Term
+                        </small>
+
+                        <div class="fw-semibold">
+                            @if($currentTerm)
+                                {{ $currentTerm->name }}
+                            @else
+                                <span class="text-danger">
+                                    Not configured
+                                </span>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            @if(!$currentAcademicYear || !$currentTerm)
+                <div class="alert alert-warning mt-3 mb-0">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+
+                    The current academic period has not been completely
+                    configured.
+
+                    Please configure the current academic year and term
+                    in System Settings before creating a new assignment.
+                </div>
+            @endif
+
+        </div>
+    </div>
+
+
+    {{-- Assignment Form --}}
+    <div class="card border-0 shadow-sm">
+
+        <div class="card-header bg-white border-bottom py-3">
+            <h6 class="fw-bold mb-0">
+                <i class="fas fa-user-graduate me-2 text-primary"></i>
+                Assignment Details
+            </h6>
+        </div>
+
+        <div class="card-body">
+
+            <form method="POST"
+                  action="{{ route('student-class-assignments.store') }}">
+
+                @csrf
+
+                <div class="row g-4">
+
+                    {{-- Student --}}
+                    <div class="col-md-6">
+
+                        <label for="student_id"
+                               class="form-label fw-semibold">
+                            Student
+                            <span class="text-danger">*</span>
                         </label>
 
                         <select name="student_id"
-                                id="student-select"
+                                id="student_id"
                                 class="form-select @error('student_id') is-invalid @enderror"
                                 required>
+
                             <option value="">
-                                -- Select Student --
+                                Select student
                             </option>
+
                             @foreach($students as $student)
-                                <option value="{{ $student->id }}" 
-                                        {{ old('student_id') == $student->id ? 'selected' : '' }}>
-                                    [{{ $student->student_id ?? 'No ID' }}] - {{ $student->first_name }} {{ $student->last_name }}
+
+                                <option value="{{ $student->id }}"
+                                    {{ old('student_id') == $student->id ? 'selected' : '' }}>
+
+                                    {{ $student->student_id }}
+                                    -
+                                    {{ $student->first_name }}
+                                    {{ $student->middle_name ?? '' }}
+                                    {{ $student->last_name }}
+
                                 </option>
+
                             @endforeach
+
                         </select>
 
                         @error('student_id')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">
+                                {{ $message }}
+                            </div>
                         @enderror
+
                     </div>
 
-                    {{-- CLASS --}}
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label fw-semibold">
-                            <i class="fas fa-chalkboard me-1 text-success"></i>
-                            Class <span class="text-danger">*</span>
+
+                    {{-- Class --}}
+                    <div class="col-md-6">
+
+                        <label for="student_class_id"
+                               class="form-label fw-semibold">
+
+                            Class
+                            <span class="text-danger">*</span>
+
                         </label>
 
                         <select name="student_class_id"
+                                id="student_class_id"
                                 class="form-select @error('student_class_id') is-invalid @enderror"
                                 required>
+
                             <option value="">
-                                Select Class
+                                Select class
                             </option>
+
                             @foreach($classes as $class)
-                                <option value="{{ $class->id }}" 
-                                        {{ old('student_class_id') == $class->id ? 'selected' : '' }}>
+
+                                <option value="{{ $class->id }}"
+                                    {{ old('student_class_id') == $class->id ? 'selected' : '' }}>
+
                                     {{ $class->name }}
+
+                                    @if(!empty($class->stream))
+                                        — {{ $class->stream }}
+                                    @endif
+
                                 </option>
+
                             @endforeach
+
                         </select>
 
                         @error('student_class_id')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">
+                                {{ $message }}
+                            </div>
                         @enderror
+
                     </div>
 
-                    {{-- ACADEMIC YEAR --}}
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label fw-semibold">
-                            <i class="fas fa-calendar-alt me-1 text-info"></i>
+
+                    {{-- Academic Year --}}
+                    <div class="col-md-6">
+
+                        <label for="academic_year_id"
+                               class="form-label fw-semibold">
+
                             Academic Year
+                            <span class="text-danger">*</span>
+
                         </label>
 
                         <select name="academic_year_id"
-                                class="form-select @error('academic_year_id') is-invalid @enderror">
+                                id="academic_year_id"
+                                class="form-select @error('academic_year_id') is-invalid @enderror"
+                                required>
+
                             <option value="">
-                                Select Academic Year
+                                Select academic year
                             </option>
+
                             @foreach($academicYears as $year)
-                                <option value="{{ $year->id }}" 
-                                        {{ old('academic_year_id') == $year->id ? 'selected' : '' }}>
+
+                                <option value="{{ $year->id }}"
+                                    {{ old('academic_year_id', optional($currentAcademicYear)->id) == $year->id ? 'selected' : '' }}>
+
                                     {{ $year->name }}
+
+                                    @if($currentAcademicYear && $currentAcademicYear->id == $year->id)
+                                        — Current
+                                    @endif
+
                                 </option>
+
                             @endforeach
+
                         </select>
 
                         @error('academic_year_id')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">
+                                {{ $message }}
+                            </div>
                         @enderror
+
+                        <small class="text-muted">
+                            Defaults to the academic year configured in
+                            System Settings.
+                        </small>
+
                     </div>
 
-                    {{-- STATUS --}}
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label fw-semibold">
-                            <i class="fas fa-circle me-1" style="color: #28a745;"></i>
-                            Status
+
+                    {{-- Term --}}
+                    <div class="col-md-6">
+
+                        <label for="term_id"
+                               class="form-label fw-semibold">
+
+                            Term
+                            <span class="text-danger">*</span>
+
+                        </label>
+
+                        <select name="term_id"
+                                id="term_id"
+                                class="form-select @error('term_id') is-invalid @enderror"
+                                required>
+
+                            <option value="">
+                                Select term
+                            </option>
+
+                            @foreach($terms as $term)
+
+                                <option value="{{ $term->id }}"
+                                    {{ old('term_id', optional($currentTerm)->id) == $term->id ? 'selected' : '' }}>
+
+                                    {{ $term->name }}
+
+                                    @if($currentTerm && $currentTerm->id == $term->id)
+                                        — Current
+                                    @endif
+
+                                </option>
+
+                            @endforeach
+
+                        </select>
+
+                        @error('term_id')
+                            <div class="invalid-feedback">
+                                {{ $message }}
+                            </div>
+                        @enderror
+
+                        <small class="text-muted">
+                            Only terms belonging to the selected academic
+                            year are available.
+                        </small>
+
+                    </div>
+
+
+                    {{-- Status --}}
+                    <div class="col-md-6">
+
+                        <label for="status"
+                               class="form-label fw-semibold">
+
+                            Assignment Status
+
                         </label>
 
                         <select name="status"
-                                class="form-select @error('status') is-invalid @enderror">
-                            <option value="active" {{ old('status') == 'active' ? 'selected' : '' }}>
+                                id="status"
+                                class="form-select">
+
+                            <option value="active"
+                                {{ old('status', 'active') === 'active' ? 'selected' : '' }}>
                                 Active
                             </option>
-                            <option value="repeated" {{ old('status') == 'repeated' ? 'selected' : '' }}>
+
+                            <option value="repeated"
+                                {{ old('status') === 'repeated' ? 'selected' : '' }}>
                                 Repeated
                             </option>
+
                         </select>
 
-                        @error('status')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
                     </div>
 
-                    {{-- ASSIGNED DATE --}}
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label fw-semibold">
-                            <i class="fas fa-calendar-day me-1 text-secondary"></i>
+
+                    {{-- Assigned Date --}}
+                    <div class="col-md-6">
+
+                        <label for="assigned_date"
+                               class="form-label fw-semibold">
+
                             Assigned Date
+
                         </label>
 
                         <input type="date"
                                name="assigned_date"
+                               id="assigned_date"
                                class="form-control @error('assigned_date') is-invalid @enderror"
-                               value="{{ old('assigned_date', date('Y-m-d')) }}">
+                               value="{{ old('assigned_date', now()->format('Y-m-d')) }}">
 
                         @error('assigned_date')
-                            <div class="invalid-feedback">{{ $message }}</div>
+                            <div class="invalid-feedback">
+                                {{ $message }}
+                            </div>
                         @enderror
+
                     </div>
 
                 </div>
-            </div>
 
-            <div class="card-footer bg-white text-end border-0">
-                <a href="{{ route('student-class-assignments.index') }}" 
-                   class="btn btn-secondary me-2">
-                    <i class="fas fa-times me-1"></i>
-                    Cancel
-                </a>
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-save me-1"></i>
-                    Save Assignment
-                </button>
-            </div>
+
+                {{-- Information --}}
+                <div class="alert alert-info mt-4 mb-0">
+
+                    <div class="d-flex">
+
+                        <i class="fas fa-info-circle mt-1 me-2"></i>
+
+                        <div>
+
+                            <strong>Assignment history is preserved.</strong>
+
+                            <div class="small mt-1">
+
+                                Creating a new current assignment does not
+                                delete the student's previous academic
+                                assignment. The previous record remains in
+                                the student's historical records.
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+
+                {{-- Buttons --}}
+                <div class="d-flex justify-content-end gap-2 mt-4">
+
+                    <a href="{{ route('student-class-assignments.index') }}"
+                       class="btn btn-light border">
+
+                        <i class="fas fa-times me-1"></i>
+                        Cancel
+
+                    </a>
+
+                    <button type="submit"
+                            class="btn btn-primary">
+
+                        <i class="fas fa-save me-1"></i>
+                        Save Assignment
+
+                    </button>
+
+                </div>
+
+            </form>
 
         </div>
-    </form>
+
+    </div>
 
 </div>
+
 @endsection
 
-{{-- Add scripts at the bottom --}}
-@section('scripts')
-<!-- jQuery (if not already loaded) -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 
-<!-- Select2 CSS and JS -->
-<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+@push('styles')
 
 <style>
-    .select2-container--default .select2-selection--single {
-        height: 38px;
-        border: 1px solid #ced4da;
-        border-radius: 0.375rem;
+
+    .card {
+        border-radius: 12px;
     }
-    .select2-container--default .select2-selection--single .select2-selection__rendered {
-        line-height: 38px;
-        padding-left: 12px;
+
+    .form-label {
+        color: #344054;
     }
-    .select2-container--default .select2-selection--single .select2-selection__arrow {
-        height: 36px;
+
+    .form-select,
+    .form-control {
+        min-height: 44px;
+        border-radius: 8px;
     }
+
+    .form-select:focus,
+    .form-control:focus {
+        box-shadow: 0 0 0 .2rem rgba(13, 110, 253, .10);
+    }
+
 </style>
 
+@endpush
+
+
+@push('scripts')
+
 <script>
-    $(document).ready(function() {
-        console.log('Document ready - Initializing Select2');
-        
-        // Check if select element exists
-        if ($('#student-select').length === 0) {
-            console.error('Student select element not found!');
+
+document.addEventListener('DOMContentLoaded', function () {
+
+    const academicYear = document.getElementById('academic_year_id');
+    const term = document.getElementById('term_id');
+
+    if (!academicYear || !term) {
+        return;
+    }
+
+    academicYear.addEventListener('change', function () {
+
+        const yearId = this.value;
+
+        term.innerHTML = '<option value="">Loading terms...</option>';
+        term.disabled = true;
+
+        if (!yearId) {
+
+            term.innerHTML =
+                '<option value="">Select academic year first</option>';
+
+            term.disabled = false;
+
             return;
         }
-        
-        console.log('Student select found, initializing Select2...');
-        
-        try {
-            $('#student-select').select2({
-                placeholder: 'Search by name or ID...',
-                allowClear: true,
-                width: '100%'
+
+        const url =
+            "{{ route('settings.academic-years.terms', ['academicYear' => '__YEAR__']) }}"
+                .replace('__YEAR__', yearId);
+
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+
+        .then(response => {
+
+            if (!response.ok) {
+                throw new Error('Unable to load terms.');
+            }
+
+            return response.json();
+
+        })
+
+        .then(terms => {
+
+            term.innerHTML =
+                '<option value="">Select term</option>';
+
+            terms.forEach(function (item) {
+
+                const option =
+                    document.createElement('option');
+
+                option.value = item.id;
+                option.textContent = item.name;
+
+                term.appendChild(option);
+
             });
-            console.log('Select2 initialized successfully!');
-        } catch(e) {
-            console.error('Error initializing Select2:', e);
-            alert('Error loading Select2. Please check console for details.');
-        }
+
+            term.disabled = false;
+
+        })
+
+        .catch(error => {
+
+            console.error(error);
+
+            term.innerHTML =
+                '<option value="">Unable to load terms</option>';
+
+            term.disabled = false;
+
+        });
+
     });
+
+});
+
 </script>
-@endsection
+
+@endpush

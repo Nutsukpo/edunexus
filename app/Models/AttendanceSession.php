@@ -3,47 +3,92 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class AttendanceSession extends Model
 {
-    /*
-    |--------------------------------------------------------------------------
-    | MASS ASSIGNMENT
-    |--------------------------------------------------------------------------
-    */
     protected $fillable = [
         'student_class_id',
+        'academic_year_id',
+        'term_id',
         'attendance_date',
         'taken_by',
         'remarks',
         'status',
     ];
 
+    protected $casts = [
+        'attendance_date' => 'date',
+    ];
+
     /*
     |--------------------------------------------------------------------------
-    | RELATIONSHIPS
+    | CLASS
     |--------------------------------------------------------------------------
     */
 
-    public function studentClass()
+    public function studentClass(): BelongsTo
     {
-        return $this->belongsTo(StudentClass::class);
+        return $this->belongsTo(
+            StudentClass::class,
+            'student_class_id'
+        );
     }
 
-    public function attendances()
+    /*
+    |--------------------------------------------------------------------------
+    | ACADEMIC YEAR
+    |--------------------------------------------------------------------------
+    */
+
+    public function academicYear(): BelongsTo
     {
-        return $this->hasMany(Attendance::class);
+        return $this->belongsTo(
+            AcademicYear::class,
+            'academic_year_id'
+        );
     }
 
-    public function takenBy()
+    /*
+    |--------------------------------------------------------------------------
+    | TERM
+    |--------------------------------------------------------------------------
+    */
+
+    public function term(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'taken_by');
+        return $this->belongsTo(
+            Term::class,
+            'term_id'
+        );
     }
 
-    public function records()
+    /*
+    |--------------------------------------------------------------------------
+    | STAFF WHO TOOK ATTENDANCE
+    |--------------------------------------------------------------------------
+    */
+
+    public function takenBy(): BelongsTo
     {
-        return $this->hasMany(AttendanceRecord::class);
+        return $this->belongsTo(
+            User::class,
+            'taken_by'
+        );
     }
 
-    
+    /*
+    |--------------------------------------------------------------------------
+    | ATTENDANCE RECORDS
+    |--------------------------------------------------------------------------
+    */
+
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(
+            Attendance::class,
+            'attendance_session_id'
+        );
+    }
 }

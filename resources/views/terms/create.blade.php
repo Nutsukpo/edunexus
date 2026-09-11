@@ -4,28 +4,38 @@
 
 @section('content')
 
-<div class="container-fluid">
+<div class="container-fluid py-4">
 
-    <div class="card shadow-sm border-0">
+    <div class="d-flex justify-content-between align-items-center mb-4">
 
-        <div class="card-header bg-white text-dark">
-            <h4 class="mb-0">Create Term</h4>
+        <div>
+            <h4 class="fw-bold mb-1">
+                Create Term
+            </h4>
+
+            <p class="text-muted mb-0">
+                Add an academic term to an academic year.
+            </p>
         </div>
 
-        <div class="card-body">
+        <a href="{{ route('terms.index') }}"
+           class="btn btn-outline-secondary">
 
-            <form action="{{ route('terms.store') }}"
-                  method="POST">
+            <i class="fas fa-arrow-left me-1"></i>
+            Back to Terms
 
-                @csrf
-
-                @include('terms.form')
-
-            </form>
-
-        </div>
+        </a>
 
     </div>
+
+    <form action="{{ route('terms.store') }}"
+          method="POST">
+
+        @csrf
+
+        @include('terms.form')
+
+    </form>
 
 </div>
 

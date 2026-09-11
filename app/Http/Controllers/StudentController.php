@@ -122,34 +122,27 @@ class StudentController extends Controller
      */
     private function generateStudentId(): string
     {
-        $year = date('Y');
-        $prefix = 'STD-' . $year;
+        $number = 1;
 
-        $latestStudent = Student::where(
-            'student_id',
-            'like',
-            $prefix . '%'
-        )
-            ->orderBy('student_id', 'desc')
-            ->first();
+        do {
 
-        if ($latestStudent) {
-            $lastNumber = (int) substr(
-                $latestStudent->student_id,
-                -4
+            $studentId = 'STD-' . str_pad(
+                $number,
+                6,
+                '0',
+                STR_PAD_LEFT
             );
 
-            $nextNumber = $lastNumber + 1;
-        } else {
-            $nextNumber = 1;
-        }
+            $exists = Student::where(
+                'student_id',
+                $studentId
+            )->exists();
 
-        return $prefix . str_pad(
-            $nextNumber,
-            4,
-            '0',
-            STR_PAD_LEFT
-        );
+            $number++;
+
+        } while ($exists);
+
+        return $studentId;
     }
 
     /**

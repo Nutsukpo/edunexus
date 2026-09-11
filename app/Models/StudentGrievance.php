@@ -176,15 +176,41 @@ class StudentGrievance extends Model
         return $this->status === 'rejected' && $this->appeal_deadline && now()->lte($this->appeal_deadline);
     }
 
-    public function addHistory($action, $description, $oldValues = null, $newValues = null, $performerType = 'staff')
-    {
-        // Get the authenticated user's ID based on role
+    
+    public function addHistory(
+        $action,
+        $description,
+        $oldValues = null,
+        $newValues = null,
+        $performerType = 'staff'
+    ) {
         $performedBy = null;
-        if (auth()->check()) {
-            if (auth()->user()->role === 'student' && auth()->user()->student_id) {
-                $performedBy = auth()->user()->student_id;
-            } elseif (auth()->user()->staff_id) {
-                $performedBy = auth()->user()->staff_id;
+
+        /*
+        * Student portal
+        *
+        * Students are authenticated through the dedicated
+        * student guard, so never use the default auth() guard
+        * here.
+        */
+        if ($performerType === 'student') {
+
+            $student = auth('student')->user();
+
+            if ($student) {
+                $performedBy = $student->id;
+            }
+
+        } else {
+
+            /*
+            * Staff/admin authentication remains on the
+            * default web guard.
+            */
+            $user = auth('web')->user();
+
+            if ($user) {
+                $performedBy = $user->staff_id ?? $user->id;
             }
         }
 
@@ -197,4 +223,5 @@ class StudentGrievance extends Model
             'performer_type' => $performerType,
         ]);
     }
+
 }

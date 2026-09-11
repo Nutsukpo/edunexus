@@ -6,15 +6,57 @@
 @section('content')
 
 @php
-    $selectedYearLabel = 'All Academic Years';
+    /*
+    |--------------------------------------------------------------------------
+    | Safe page defaults
+    |--------------------------------------------------------------------------
+    | These values are supplied by FeePaymentReportController.
+    */
+    $academicYears = $academicYears ?? [];
+    $terms = $terms ?? collect();
+    $classReports = collect($classReports ?? []);
 
-    if (
-        $selectedAcademicYear &&
-        $selectedAcademicYear !== 'all'
-    ) {
-        $selectedYearLabel =
-            $academicYears[$selectedAcademicYear]
+    $selectedAcademicYear = $selectedAcademicYear
+        ?? request()->query('academic_year_id', 'all');
+
+    $selectedTerm = $selectedTerm
+        ?? request()->query('term_id', 'all');
+
+    $totalExpectedFees = (float) ($totalExpectedFees ?? 0);
+    $totalFeesPaid = (float) ($totalFeesPaid ?? 0);
+    $totalOutstandingFees = (float) ($totalOutstandingFees ?? 0);
+    $schoolCollectionRate = (float) ($schoolCollectionRate ?? 0);
+    $totalClassCount = (int) ($totalClassCount ?? $classReports->count());
+
+    $selectedYearLabel = 'All Academic Years';
+    $selectedTermLabel = 'All Terms';
+
+    if ($selectedAcademicYear !== null && $selectedAcademicYear !== 'all') {
+        $selectedYearLabel = $academicYears[$selectedAcademicYear]
+            ?? $academicYears[(string) $selectedAcademicYear]
             ?? 'Selected Academic Year';
+    }
+
+    if ($selectedTerm !== null && $selectedTerm !== 'all') {
+        $selectedTermModel = $classReports->isNotEmpty()
+            ? collect($terms)->first(
+                fn ($term) => (string) ($term->id ?? '') === (string) $selectedTerm
+            )
+            : collect($terms)->first(
+                fn ($term) => (string) ($term->id ?? '') === (string) $selectedTerm
+            );
+
+        if ($selectedTermModel) {
+            $selectedTermLabel = $selectedTermModel->name
+                ?? $selectedTermModel->term_name
+                ?? ('Term ' . ($selectedTermModel->id ?? ''));
+        }
+    }
+
+    $periodLabel = $selectedYearLabel;
+
+    if ($selectedTerm !== null && $selectedTerm !== 'all') {
+        $periodLabel .= ' • ' . $selectedTermLabel;
     }
 
     $classLabels = [];
@@ -23,15 +65,15 @@
     $classOutstanding = [];
 
     foreach ($classReports as $classReport) {
-        $classLabels[] = $classReport->class_name;
-        $classExpected[] = (float) $classReport->expected_fees;
-        $classPaid[] = (float) $classReport->fees_paid;
-        $classOutstanding[] = (float) $classReport->outstanding_fees;
+        $classLabels[] = $classReport->class_name ?? 'Unknown Class';
+        $classExpected[] = (float) ($classReport->expected_fees ?? 0);
+        $classPaid[] = (float) ($classReport->fees_paid ?? 0);
+        $classOutstanding[] = (float) ($classReport->outstanding_fees ?? 0);
     }
 
     $schoolDonutValues = [
-        (float) $totalFeesPaid,
-        (float) $totalOutstandingFees,
+        $totalFeesPaid,
+        $totalOutstandingFees,
     ];
 @endphp
 
@@ -351,94 +393,57 @@
 
 
     {{-- =========================================================
-         PERIOD FILTER
+         ACADEMIC PERIOD FILTER
     ========================================================== --}}
     <div class="filter-panel mb-4">
-
         <div class="card-body">
-
-            <form
-                method="GET"
-                action="{{ route('fee.payment.reports.school-overview') }}">
-
+            <form method="GET" action="{{ route('fee.payment.reports.school-overview') }}" id="periodFilterForm">
                 <div class="row g-3 align-items-end">
-
-                    <div class="col-lg-5 col-md-6">
-
-                        <label
-                            for="academic_year_id"
-                            class="form-label">
-
-                            Academic Year
-
-                        </label>
-
-                        <select
-                            name="academic_year_id"
-                            id="academic_year_id"
-                            class="form-select">
-
-                            <option value="all"
-                                {{ $selectedAcademicYear === 'all' ? 'selected' : '' }}>
-
+                    <div class="col-lg-4 col-md-6">
+                        <label for="academic_year_id" class="form-label">Academic Year</label>
+                        <select name="academic_year_id" id="academic_year_id" class="form-select">
+                            <option value="all" {{ (string) $selectedAcademicYear === 'all' ? 'selected' : '' }}>
                                 All Academic Years
-
                             </option>
-
                             @foreach($academicYears as $id => $year)
-
-                                <option
-                                    value="{{ $id }}"
-                                    {{ (string) $selectedAcademicYear === (string) $id ? 'selected' : '' }}>
-
+                                <option value="{{ $id }}" {{ (string) $selectedAcademicYear === (string) $id ? 'selected' : '' }}>
                                     {{ $year }}
-
                                 </option>
-
                             @endforeach
-
                         </select>
-
                     </div>
-
 
                     <div class="col-lg-4 col-md-6">
-
-                        <div class="small text-muted mb-1">
-                            Report scope
+                        <label for="term_id" class="form-label">Term</label>
+                        <select name="term_id" id="term_id" class="form-select"
+                            {{ (!$selectedAcademicYear || $selectedAcademicYear === 'all') ? 'disabled' : '' }}>
+                            <option value="all">All Terms</option>
+                            @foreach(($terms ?? collect()) as $term)
+                                @php
+                                    $termName = $term->name ?? $term->term_name ?? ('Term ' . $term->id);
+                                @endphp
+                                <option value="{{ $term->id }}" {{ (string) $selectedTerm === (string) $term->id ? 'selected' : '' }}>
+                                    {{ $termName }}
+                                </option>
+                            @endforeach
+                        </select>
+                        <div class="form-text" id="termHelp">
+                            Select an academic year to view its configured terms.
                         </div>
-
-                        <div class="fw-semibold">
-
-                            {{ $selectedYearLabel }}
-
-                        </div>
-
                     </div>
 
-
-                    <div class="col-lg-3 col-md-12">
-
-                        <button
-                            type="submit"
-                            class="btn btn-primary w-100">
-
+                    <div class="col-lg-4 col-md-12">
+                        <div class="small text-muted mb-1">Report scope</div>
+                        <div class="fw-semibold mb-2">{{ $periodLabel }}</div>
+                        <button type="submit" class="btn btn-primary w-100">
                             <i class="fas fa-filter me-1"></i>
-
-                            Apply Academic Year
-
+                            Apply Academic Period
                         </button>
-
                     </div>
-
                 </div>
-
             </form>
-
         </div>
-
     </div>
-
 
     {{-- =========================================================
          SCHOOL-WIDE KPI CARDS
@@ -464,7 +469,7 @@
                             </div>
 
                             <div class="metric-note">
-                                Fees billed across the school
+                                Fees billed for the selected academic period
                             </div>
 
                         </div>
@@ -696,9 +701,9 @@
          TOP / LOW COLLECTION CLASSES
     ========================================================== --}}
     @php
-        $rankedClasses = $classReports
-            ->filter(fn ($class) => $class->expected_fees > 0)
-            ->sortByDesc('collection_rate')
+        $rankedClasses = collect($classReports)
+            ->filter(fn ($class) => (float) ($class->expected_fees ?? 0) > 0)
+            ->sortByDesc(fn ($class) => (float) ($class->collection_rate ?? 0))
             ->values();
 
         $topClasses = $rankedClasses->take(5);
@@ -852,7 +857,7 @@
                     </div>
 
                     <div class="section-subtitle">
-                        Expected fees are calculated from the class bill amount multiplied by the active student count.
+                        Expected fees are calculated from the selected academic period and the applicable class bill amount multiplied by the active student count.
                     </div>
 
                 </div>
@@ -994,7 +999,7 @@
                                 </div>
 
                                 <div>
-                                    There are no fee accounts for the selected academic year.
+                                    There are no fee records for the selected academic year and term.
                                 </div>
 
                             </div>
@@ -1099,6 +1104,127 @@
 
 
 @push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const academicYearSelect = document.getElementById('academic_year_id');
+    const termSelect = document.getElementById('term_id');
+    const termHelp = document.getElementById('termHelp');
+
+    if (!academicYearSelect || !termSelect) {
+        return;
+    }
+
+    const termsUrlTemplate = @json(
+        route('settings.academic-years.terms', ['academicYear' => '__YEAR__'])
+    );
+
+    function setAllTerms(disabled) {
+        termSelect.innerHTML = '<option value="all">All Terms</option>';
+        termSelect.value = 'all';
+        termSelect.disabled = disabled;
+
+        if (termHelp) {
+            termHelp.textContent = disabled
+                ? 'Select an academic year to view its configured terms.'
+                : 'All terms are included in this report.';
+        }
+    }
+
+    function loadTerms(academicYearId) {
+        if (!academicYearId || academicYearId === 'all') {
+            setAllTerms(true);
+            return;
+        }
+
+        termSelect.disabled = true;
+        termSelect.innerHTML = '<option value="">Loading terms...</option>';
+
+        if (termHelp) {
+            termHelp.textContent = 'Loading terms for the selected academic year...';
+        }
+
+        const url = termsUrlTemplate.replace(
+            '__YEAR__',
+            encodeURIComponent(academicYearId)
+        );
+
+        fetch(url, {
+            method: 'GET',
+            headers: {
+                'Accept': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            }
+        })
+            .then(function (response) {
+                if (!response.ok) {
+                    throw new Error('Unable to load terms.');
+                }
+
+                return response.json();
+            })
+            .then(function (payload) {
+                const loadedTerms = Array.isArray(payload)
+                    ? payload
+                    : (
+                        Array.isArray(payload.terms)
+                            ? payload.terms
+                            : (
+                                Array.isArray(payload.data)
+                                    ? payload.data
+                                    : []
+                            )
+                    );
+
+                termSelect.innerHTML =
+                    '<option value="all">All Terms</option>';
+
+                loadedTerms.forEach(function (item) {
+                    if (!item || item.id === undefined || item.id === null) {
+                        return;
+                    }
+
+                    const option = document.createElement('option');
+                    option.value = item.id;
+                    option.textContent =
+                        item.name ||
+                        item.term_name ||
+                        ('Term ' + item.id);
+
+                    termSelect.appendChild(option);
+                });
+
+                termSelect.disabled = false;
+
+                if (termHelp) {
+                    termHelp.textContent = loadedTerms.length
+                        ? 'Select a term or keep All Terms.'
+                        : 'No terms are configured for this academic year.';
+                }
+            })
+            .catch(function (error) {
+                console.error('Academic terms could not be loaded:', error);
+
+                setAllTerms(false);
+
+                if (termHelp) {
+                    termHelp.textContent =
+                        'Terms could not be loaded. You can still view all terms.';
+                }
+            });
+    }
+
+    academicYearSelect.addEventListener('change', function () {
+        loadTerms(this.value);
+    });
+
+    // Terms supplied by the controller are already rendered on first load.
+    if (!academicYearSelect.value || academicYearSelect.value === 'all') {
+        termSelect.disabled = true;
+    } else {
+        termSelect.disabled = false;
+    }
+});</script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
 

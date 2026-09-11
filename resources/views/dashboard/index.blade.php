@@ -1,6 +1,6 @@
 @extends('layouts.master')
 
-@section('title', 'Dashboard - Kabore USMS')
+@section('title', 'Dashboard - EduNexus USMS')
 
 @section('content')
 
@@ -10,16 +10,58 @@
     | DASHBOARD DISPLAY DATA
     |--------------------------------------------------------------------------
     |
-    | All fee and attendance database work is performed by the controller.
-    | This Blade is deliberately presentation-only.
+    | IMPORTANT:
+    | All academic year, term, attendance and fee calculations are handled
+    | by DashboardController.
+    |
+    | This Blade is presentation-only.
+    |
+    | The dashboard period comes from the central System Settings.
     |--------------------------------------------------------------------------
     */
 
     $dashboardToday = \Carbon\Carbon::today();
 
+    /*
+    |--------------------------------------------------------------------------
+    | CENTRAL ACADEMIC PERIOD
+    |--------------------------------------------------------------------------
+    */
+
+    $centralAcademicYear =
+        $currentAcademicYear
+        ?? $latestAcademicYear
+        ?? null;
+
+    $centralTerm =
+        $currentTerm
+        ?? $term
+        ?? null;
+
+    $academicYearName =
+        $centralAcademicYear?->name
+        ?? $centralAcademicYear?->year_name
+        ?? 'No Academic Year Selected';
+
+    $termName =
+        $centralTerm?->name
+        ?? 'No Term Selected';
+
+    /*
+    |--------------------------------------------------------------------------
+    | ATTENDANCE DATE
+    |--------------------------------------------------------------------------
+    */
+
     $attendanceDate = !empty($attendanceDate)
         ? \Carbon\Carbon::parse($attendanceDate)
         : $dashboardToday->copy();
+
+    /*
+    |--------------------------------------------------------------------------
+    | FEE VALUES
+    |--------------------------------------------------------------------------
+    */
 
     $dashboardTotalFees =
         (float) ($dashboardTotalFees ?? 0);
@@ -42,18 +84,45 @@
     $dashboardPreviousMonthPaid =
         (float) ($dashboardPreviousMonthPaid ?? 0);
 
-    $dashboardTodayAttended =
-        (int) ($todayPresent ?? 0) +
+    /*
+    |--------------------------------------------------------------------------
+    | ATTENDANCE VALUES
+    |--------------------------------------------------------------------------
+    */
+
+    $studentAttendanceRate =
+        (float) ($studentAttendanceRate ?? 0);
+
+    $staffAttendanceRate =
+        (float) ($staffAttendanceRate ?? 0);
+
+    $todayPresent =
+        (int) ($todayPresent ?? 0);
+
+    $todayAbsent =
+        (int) ($todayAbsent ?? 0);
+
+    $todayLate =
         (int) ($todayLate ?? 0);
 
-    $dashboardTodayTotal =
+    $todayExcused =
+        (int) ($todayExcused ?? 0);
+
+    $todayTotal =
         (int) ($todayTotal ?? 0);
 
-    $dashboardTodayRate =
-        (float) ($todayRate ?? 0);
+    $todayAttendanceRate =
+        (float) (
+            $todayAttendanceRate
+            ?? $todayRate
+            ?? 0
+        );
 
-    $dashboardAttendanceRows =
-        (int) ($dashboardAttendanceRows ?? 0);
+    /*
+    |--------------------------------------------------------------------------
+    | CLASS FEE DATA
+    |--------------------------------------------------------------------------
+    */
 
     $classFeeRows =
         collect($classFeeData ?? []);
@@ -74,147 +143,82 @@
             ->pluck('fees_paid')
             ->map(fn ($value) => (float) $value)
             ->values();
+
 @endphp
 
 
+{{-- =========================================================
+     MAIN DASHBOARD
+========================================================== --}}
+
 <div class="container-fluid py-4 px-4">
 
+
     {{-- =========================================================
-         ACADEMIC YEAR FILTER
+         CENTRAL ACADEMIC PERIOD
     ========================================================== --}}
-    <div class="card border-0 shadow-sm mb-4 no-print">
+
+    <div class="card border-0 shadow-sm mb-4">
 
         <div class="card-body py-3">
 
-            <form
-                method="GET"
-                action="{{ route('dashboard') }}"
-                class="row g-2 align-items-end">
+            <div class="row g-3 align-items-center">
 
                 <div class="col-md-5 col-lg-4">
 
-                    <label
-                        for="dashboardAcademicYear"
-                        class="form-label small fw-semibold mb-1">
+                    <div class="text-uppercase fw-bold small text-muted">
 
                         <i class="fas fa-calendar-alt text-primary me-1"></i>
+
                         Academic Year
 
-                    </label>
+                    </div>
 
-                    <select
-                        id="dashboardAcademicYear"
-                        name="academic_year_id"
-                        class="form-select form-select-sm">
+                    <div class="fw-bold text-dark mt-1">
 
-                        @forelse(($academicYears ?? collect()) as $year)
-
-                            <option
-                                value="{{ $year->id }}"
-                                {{ (int) ($selectedAcademicYear?->id ?? 0) === (int) $year->id ? 'selected' : '' }}>
-
-                                {{ $year->name ?? $year->year_name ?? 'Academic Year #' . $year->id }}
-
-                            </option>
-
-                        @empty
-
-                            <option value="">
-                                No academic years found
-                            </option>
-
-                        @endforelse
-
-                    </select>
-
-                </div>
-
-                <input
-                    type="hidden"
-                    name="attendance_date"
-                    value="{{ $attendanceDate->format('Y-m-d') }}">
-
-                <div class="col-auto">
-
-                    <button
-                        type="submit"
-                        class="btn btn-primary btn-sm">
-
-                        <i class="fas fa-filter me-1"></i>
-                        Apply
-
-                    </button>
-
-                </div>
-
-                <div class="col-auto">
-
-                    <span class="small text-muted">
-                        Financial figures use the selected academic year.
-                    </span>
-
-                </div>
-
-            </form>
-
-        </div>
-
-    </div>
-
-
-
-    {{-- =========================================================
-         TOP METRICS
-    ========================================================== --}}
-    <div class="row g-4 mb-4">
-
-        <div class="col-md-6 col-xl-3">
-
-            <div class="card stats-card shadow-sm h-100 border-0">
-
-                <div class="card-body p-4">
-
-                    <div class="d-flex justify-content-between align-items-start mb-3">
-
-                        <div>
-
-                            <small class="text-uppercase fw-bold text-muted">
-                                <i class="fas fa-chalkboard-user me-1 text-dark"></i>
-                                Total Students
-                            </small>
-
-                            <h1 class="fw-bold display-5 mt-2 mb-1">
-                                {{ number_format($totalStudents) }}
-                            </h1>
-
-                        </div>
-
-                        <div class="bg-primary bg-opacity-10 rounded-circle p-3">
-                            <i class="fas fa-user-graduate text-dark fs-3"></i>
-                        </div>
+                        {{ $academicYearName }}
 
                     </div>
 
-                    <div class="d-flex gap-2 flex-wrap mt-3">
+                </div>
 
-                        <span class="badge bg-light text-dark px-3 py-2">
-                            <i class="fas fa-male me-1"></i>
-                            Male: {{ number_format($maleCount) }}
-                        </span>
 
-                        <span class="badge bg-light text-dark px-3 py-2">
-                            <i class="fas fa-female me-1"></i>
-                            Female: {{ number_format($femaleCount) }}
-                        </span>
+                <div class="col-md-4 col-lg-3">
+
+                    <div class="text-uppercase fw-bold small text-muted">
+
+                        <i class="fas fa-calendar-week text-info me-1"></i>
+
+                        Current Term
 
                     </div>
 
-                    <div class="mt-3">
+                    <div class="fw-bold text-dark mt-1">
 
-                        <small class="text-primary fw-semibold">
-                            <i class="fas fa-arrow-up me-1"></i>
-                            +{{ number_format($studentsThisYear) }}
-                            new this Academic Year
+                        {{ $termName }}
+
+                    </div>
+
+                </div>
+
+
+                <div class="col-md-3 col-lg-5">
+
+                    <div class="d-flex justify-content-md-end align-items-center">
+
+                        <span
+                            class="badge rounded-pill bg-success bg-opacity-10 text-success border border-success-subtle px-3 py-2">
+
+                            <i class="fas fa-lock me-1"></i>
+
+                            Central System Period
+
+                        </span>
+
+                        <small class="text-muted ms-2">
+
+                            Controlled by System Settings
+
                         </small>
 
                     </div>
@@ -225,125 +229,300 @@
 
         </div>
 
+    </div>
+
+
+    {{-- =========================================================
+         TOP METRICS
+    ========================================================== --}}
+
+    <div class="row g-4 mb-4">
+
+
+        {{-- TOTAL STUDENTS --}}
 
         <div class="col-md-6 col-xl-3">
 
-            <div class="card stats-card border-0 shadow-sm h-100">
+            <div class="card stats-card shadow-sm h-100 border-0">
 
                 <div class="card-body p-4">
 
-                    <div class="d-flex justify-content-between align-items-start">
+                    <div
+                        class="d-flex justify-content-between align-items-start mb-3">
 
                         <div>
 
-                            <div class="text-uppercase fw-bold small text-muted">
-                                <i class="fas fa-chalkboard-user me-1 text-primary"></i>
+                            <small class="text-uppercase fw-bold text-muted">
+
+                                <i class="fas fa-chalkboard-user me-1 text-dark"></i>
+
+                                Total Students
+
+                            </small>
+
+                            <h1 class="fw-bold display-5 mt-2 mb-1">
+
+                                {{ number_format($totalStudents ?? 0) }}
+
+                            </h1>
+
+                        </div>
+
+
+                        <div
+                            class="bg-primary bg-opacity-10 rounded-circle p-3">
+
+                            <i
+                                class="fas fa-user-graduate text-dark fs-3">
+                            </i>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="d-flex gap-2 flex-wrap mt-3">
+
+                        <span class="badge bg-light text-dark">
+
+                            <i class="fas fa-mars me-1 text-primary"></i>
+
+                            {{ number_format($maleCount ?? 0) }} Male
+
+                        </span>
+
+
+                        <span class="badge bg-light text-dark">
+
+                            <i class="fas fa-venus me-1 text-danger"></i>
+
+                            {{ number_format($femaleCount ?? 0) }} Female
+
+                        </span>
+
+                    </div>
+
+
+                    <small class="text-muted d-block mt-3">
+
+                        <i class="fas fa-user-plus me-1"></i>
+
+                        {{ number_format($studentsThisYear ?? 0) }}
+
+                        registered this year
+
+                    </small>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        {{-- TOTAL STAFF --}}
+
+        <div class="col-md-6 col-xl-3">
+
+            <div class="card stats-card shadow-sm h-100 border-0">
+
+                <div class="card-body p-4">
+
+                    <div
+                        class="d-flex justify-content-between align-items-start mb-3">
+
+                        <div>
+
+                            <small class="text-uppercase fw-bold text-muted">
+
+                                <i class="fas fa-users me-1 text-success"></i>
+
                                 Total Staff
-                            </div>
 
-                            <h1 class="fw-bold display-4 mt-3 mb-1">
-                                {{ number_format($totalStaff) }}
-                            </h1>
-
-                            <small class="fw-semibold text-primary">
-                                <i class="fas fa-arrow-up me-1"></i>
-                                +{{ number_format($staffThisYear) }}
-                                new this Academic Year
                             </small>
+
+                            <h1 class="fw-bold display-5 mt-2 mb-1">
+
+                                {{ number_format($totalStaff ?? 0) }}
+
+                            </h1>
 
                         </div>
 
-                        <div
-                            class="rounded-circle bg-primary bg-opacity-10 d-flex align-items-center justify-content-center"
-                            style="width:70px;height:70px;">
 
-                            <i class="fas fa-user-tie text-primary fs-2"></i>
+                        <div
+                            class="bg-success bg-opacity-10 rounded-circle p-3">
+
+                            <i class="fas fa-user-tie text-success fs-3"></i>
 
                         </div>
 
                     </div>
 
-                </div>
 
-            </div>
-
-        </div>
-
-
-        <div class="col-md-6 col-xl-3">
-
-            <div class="card stats-card border-0 shadow-sm h-100">
-
-                <div class="card-body p-4">
-
-                    <div class="d-flex justify-content-between align-items-start">
-
-                        <div>
-
-                            <div class="text-uppercase fw-bold small text-muted">
-                                <i class="fas fa-chalkboard me-1 text-info"></i>
-                                Active Classes
-                            </div>
-
-                            <h1 class="fw-bold display-4 mt-3 mb-1">
-                                {{ number_format($activeClasses) }}
-                            </h1>
-
-                            <small class="fw-semibold text-dark">
-                                <i class="fas fa-calendar-week me-1"></i>
-                                Current Academic Term
-                            </small>
-
-                        </div>
+                    <div class="mt-3">
 
                         <div
-                            class="rounded-circle bg-info bg-opacity-10 d-flex align-items-center justify-content-center"
-                            style="width:70px;height:70px;">
+                            class="d-flex justify-content-between small mb-1">
 
-                            <i class="fas fa-school text-info fs-2"></i>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-        </div>
-
-
-        <div class="col-md-6 col-xl-3">
-
-            <div class="card stats-card border-0 shadow-sm h-100">
-
-                <div class="card-body p-4">
-
-                    <div class="d-flex justify-content-between align-items-start">
-
-                        <div>
-
-                            <div class="text-uppercase fw-bold small text-muted">
-                                <i class="fas fa-percent me-1 text-danger"></i>
+                            <span class="text-muted">
                                 Attendance Rate
+                            </span>
+
+                            <strong>
+                                {{ number_format($staffAttendanceRate, 1) }}%
+                            </strong>
+
+                        </div>
+
+
+                        <div
+                            class="progress"
+                            style="height:7px;">
+
+                            <div
+                                class="progress-bar bg-success"
+                                style="
+                                    width:
+                                    {{ min(100, max(0, $staffAttendanceRate)) }}%;
+                                ">
                             </div>
 
+                        </div>
+
+                    </div>
+
+
+                    <small class="text-muted d-block mt-3">
+
+                        <i class="fas fa-user-plus me-1"></i>
+
+                        {{ number_format($staffThisYear ?? 0) }}
+
+                        registered this year
+
+                    </small>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        {{-- ACTIVE CLASSES --}}
+
+        <div class="col-md-6 col-xl-3">
+
+            <div class="card stats-card shadow-sm h-100 border-0">
+
+                <div class="card-body p-4">
+
+                    <div
+                        class="d-flex justify-content-between align-items-start mb-3">
+
+                        <div>
+
+                            <small class="text-uppercase fw-bold text-muted">
+
+                                <i class="fas fa-school me-1 text-info"></i>
+
+                                Active Classes
+
+                            </small>
+
+                            <h1 class="fw-bold display-5 mt-2 mb-1">
+
+                                {{ number_format($activeClasses ?? 0) }}
+
+                            </h1>
+
+                        </div>
+
+
+                        <div
+                            class="bg-info bg-opacity-10 rounded-circle p-3">
+
+                            <i class="fas fa-chalkboard text-info fs-3"></i>
+
+                        </div>
+
+                    </div>
+
+
+                    <small class="fw-semibold text-dark">
+
+                        <i class="fas fa-calendar-week me-1"></i>
+
+                        Current Academic Term
+
+                    </small>
+
+
+                    <div class="mt-3">
+
+                        <span class="badge bg-light text-dark">
+
+                            {{ number_format($totalClasses ?? 0) }}
+
+                            total classes
+
+                        </span>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        {{-- ATTENDANCE RATE --}}
+
+        <div class="col-md-6 col-xl-3">
+
+            <div class="card stats-card shadow-sm h-100 border-0">
+
+                <div class="card-body p-4">
+
+                    <div
+                        class="d-flex justify-content-between align-items-start mb-3">
+
+                        <div>
+
+                            <small class="text-uppercase fw-bold text-muted">
+
+                                <i class="fas fa-percent me-1 text-danger"></i>
+
+                                Attendance Rate
+
+                            </small>
+
                             <h1 class="fw-bold display-4 mt-3 mb-1">
-                                {{ number_format($studentAttendanceRate ?? 0, 1) }}%
+
+                                {{ number_format($studentAttendanceRate, 1) }}%
+
                             </h1>
 
                             <small class="fw-semibold text-dark">
+
                                 <i class="fas fa-chart-line me-1"></i>
+
                                 Student Attendance Performance
+
                             </small>
 
                         </div>
+
 
                         <div
                             class="rounded-circle bg-danger bg-opacity-10 d-flex align-items-center justify-content-center"
                             style="width:70px;height:70px;">
 
-                            <i class="fas fa-calendar-check text-danger fs-2"></i>
+                            <i
+                                class="fas fa-calendar-check text-danger fs-2">
+                            </i>
 
                         </div>
 
@@ -359,33 +538,244 @@
 
 
     {{-- =========================================================
-         DAILY ATTENDANCE CHART
+         FEE SUMMARY CARDS
     ========================================================== --}}
-    <div class="row mb-4">
 
-        <div class="col-12">
+    <div class="row g-4 mb-4">
 
-            <div class="card dashboard-card border-0 shadow-sm overflow-hidden">
+
+        {{-- TOTAL FEES EXPECTED --}}
+
+        <div class="col-md-6 col-xl-3">
+
+            <div class="card stats-card shadow-sm h-100 border-0">
 
                 <div class="card-body p-4">
 
-                    <div class="d-flex flex-wrap justify-content-between align-items-center mb-2">
+                    <div class="analytics-header">
+
+                        <i class="fas fa-file-invoice-dollar me-1 text-primary"></i>
+
+                        TOTAL FEES EXPECTED
+
+                    </div>
+
+
+                    <h1 class="fw-bold display-5 mt-2">
+
+                        GHS
+                        {{ number_format($dashboardTotalFees, 2) }}
+
+                    </h1>
+
+
+                    <small class="text-muted">
+
+                        Current academic period
+
+                    </small>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        {{-- TOTAL FEES PAID --}}
+
+        <div class="col-md-6 col-xl-3">
+
+            <div class="card stats-card shadow-sm h-100 border-0">
+
+                <div class="card-body p-4">
+
+                    <div class="analytics-header">
+
+                        <i class="fas fa-coins me-1 text-success"></i>
+
+                        TOTAL FEES PAID
+
+                    </div>
+
+
+                    <h1 class="fw-bold display-5 mt-2">
+
+                        GHS
+                        {{ number_format($dashboardTotalFeesPaid, 2) }}
+
+                    </h1>
+
+
+                    <small
+                        class="
+                            {{ $dashboardMonthlyChange >= 0
+                                ? 'text-success'
+                                : 'text-danger' }}
+                        ">
+
+                        <i
+                            class="
+                                fas
+                                {{
+                                    $dashboardMonthlyChange >= 0
+                                        ? 'fa-arrow-up'
+                                        : 'fa-arrow-down'
+                                }}
+                                me-1
+                            ">
+                        </i>
+
+                        {{ number_format(abs($dashboardMonthlyChange), 1) }}%
+
+                        monthly change
+
+                    </small>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        {{-- OUTSTANDING FEES --}}
+
+        <div class="col-md-6 col-xl-3">
+
+            <div class="card stats-card shadow-sm h-100 border-0">
+
+                <div class="card-body p-4">
+
+                    <div class="analytics-header">
+
+                        <i class="fas fa-triangle-exclamation me-1 text-danger"></i>
+
+                        OUTSTANDING FEES
+
+                    </div>
+
+
+                    <h1 class="fw-bold display-5 mt-2 text-danger">
+
+                        GHS
+                        {{ number_format($dashboardOutstandingFees, 2) }}
+
+                    </h1>
+
+
+                    <small class="text-muted">
+
+                        Amount still to be collected
+
+                    </small>
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        {{-- COLLECTION RATE --}}
+
+        <div class="col-md-6 col-xl-3">
+
+            <div class="card stats-card shadow-sm h-100 border-0">
+
+                <div class="card-body p-4">
+
+                    <div class="analytics-header">
+
+                        <i class="fas fa-chart-pie me-1 text-info"></i>
+
+                        COLLECTION RATE
+
+                    </div>
+
+
+                    <h1 class="fw-bold display-5 mt-2">
+
+                        {{ number_format($dashboardCollectionRate, 1) }}%
+
+                    </h1>
+
+
+                    <div
+                        class="progress mt-3"
+                        style="height:8px;">
+
+                        <div
+                            class="progress-bar bg-success"
+                            style="
+                                width:
+                                {{ min(
+                                    100,
+                                    max(
+                                        0,
+                                        $dashboardCollectionRate
+                                    )
+                                ) }}%;
+                            ">
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    {{-- =========================================================
+         DAILY ATTENDANCE CHART + SCHOOL FEE POSITION
+    ========================================================== --}}
+
+    <div class="row g-4 mb-4">
+
+
+        {{-- ATTENDANCE --}}
+
+        <div class="col-xl-8">
+
+            <div
+                class="card dashboard-card border-0 shadow-sm overflow-hidden">
+
+                <div class="card-body p-4">
+
+
+                    <div
+                        class="d-flex flex-wrap justify-content-between align-items-center mb-2">
 
                         <div>
 
                             <h2 class="fw-light mb-1 fs-3">
-                                <i class="fas fa-chart-line text-primary me-2"></i>
+
+                                <i
+                                    class="fas fa-chart-line text-primary me-2">
+                                </i>
+
                                 Daily Attendance Analysis
+
                             </h2>
 
+
                             <small class="text-secondary">
-                                Students present and late per day from database
+
+                                Students present and late per day
+                                from the current academic term
+
                             </small>
 
                         </div>
 
 
-                        <div class="d-flex gap-2 mt-2 mt-lg-0 flex-wrap no-print">
+                        <div
+                            class="d-flex gap-2 mt-2 mt-lg-0 flex-wrap no-print">
+
 
                             <select
                                 class="form-select"
@@ -396,8 +786,12 @@
                                     Last 90 Days
                                 </option>
 
-                                <option value="30" selected>
+                                <option
+                                    value="30"
+                                    selected>
+
                                     Last 30 Days
+
                                 </option>
 
                                 <option value="7">
@@ -438,9 +832,13 @@
                             <div class="color-picker-group">
 
                                 <label>
+
                                     <i class="fas fa-palette me-1"></i>
+
                                     Color:
+
                                 </label>
+
 
                                 <input
                                     type="color"
@@ -455,9 +853,11 @@
                     </div>
 
 
-                    <div class="d-flex justify-content-between align-items-center flex-wrap">
+                    <div
+                        class="d-flex justify-content-between align-items-center flex-wrap">
 
                         <div class="custom-legend">
+
 
                             <div>
 
@@ -468,21 +868,28 @@
                                 </span>
 
                                 <span class="fw-semibold">
+
                                     Daily attendance
+
                                 </span>
 
                             </div>
+
 
                             <div>
 
                                 <span class="legend-dot-lightblue"></span>
 
                                 <span class="fw-semibold">
+
                                     Average benchmark
+
                                 </span>
 
                                 <span class="text-muted small">
+
                                     (average)
+
                                 </span>
 
                             </div>
@@ -494,7 +901,10 @@
                             class="attendance-insight mt-2 mt-sm-0"
                             id="attendanceInsight">
 
-                            <i class="fas fa-spinner fa-spin me-1 text-info"></i>
+                            <i
+                                class="fas fa-spinner fa-spin me-1 text-info">
+                            </i>
+
                             Loading attendance insight...
 
                         </div>
@@ -506,7 +916,9 @@
                         class="chart-container mt-3"
                         style="height:500px;">
 
-                        <canvas id="attendanceChartCanvas"></canvas>
+                        <canvas
+                            id="attendanceChartCanvas">
+                        </canvas>
 
                     </div>
 
@@ -519,7 +931,9 @@
                         Y-axis: number of students present/late |
 
                         <span id="chartTypeIndicator">
+
                             Line Chart
+
                         </span>
 
                         |
@@ -534,38 +948,241 @@
 
         </div>
 
+
+        {{-- SCHOOL FEE POSITION --}}
+
+        <div class="col-xl-4">
+
+            <div class="card dashboard-card border-0 shadow-sm h-100">
+
+                <div class="card-body p-4">
+
+
+                    <div
+                        class="d-flex justify-content-between align-items-start mb-3">
+
+                        <div>
+
+                            <h5 class="fw-bold mb-1">
+
+                                <i
+                                    class="fas fa-chart-pie text-success me-2">
+                                </i>
+
+                                School Fee Position
+
+                            </h5>
+
+
+                            <small class="text-muted">
+
+                                Paid versus outstanding fees
+
+                            </small>
+
+                        </div>
+
+
+                        <span
+                            class="badge bg-success bg-opacity-10 text-success">
+
+                            {{ number_format($dashboardCollectionRate, 1) }}%
+
+                        </span>
+
+                    </div>
+
+
+                    <div
+                        class="chart-container"
+                        style="height:280px;">
+
+                        <canvas id="feePositionChart"></canvas>
+
+                    </div>
+
+
+                    <div class="row g-2 mt-2">
+
+
+                        <div class="col-6">
+
+                            <div class="summary-box">
+
+                                <div class="label">
+                                    Paid
+                                </div>
+
+                                <div class="value text-success">
+
+                                    GHS
+                                    {{ number_format(
+                                        $dashboardTotalFeesPaid,
+                                        2
+                                    ) }}
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                        <div class="col-6">
+
+                            <div class="summary-box">
+
+                                <div class="label">
+                                    Outstanding
+                                </div>
+
+                                <div class="value text-danger">
+
+                                    GHS
+                                    {{ number_format(
+                                        $dashboardOutstandingFees,
+                                        2
+                                    ) }}
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="mt-3">
+
+                        <div
+                            class="d-flex justify-content-between small mb-1">
+
+                            <span>
+                                Collection Rate
+                            </span>
+
+                            <strong>
+
+                                {{ number_format(
+                                    $dashboardCollectionRate,
+                                    1
+                                ) }}%
+
+                            </strong>
+
+                        </div>
+
+
+                        <div
+                            class="progress fee-progress">
+
+                            <div
+                                class="progress-bar bg-success"
+                                style="
+                                    width:
+                                    {{ min(
+                                        100,
+                                        max(
+                                            0,
+                                            $dashboardCollectionRate
+                                        )
+                                    ) }}%;
+                                ">
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+
     </div>
 
 
     {{-- =========================================================
-         BOTTOM STAT CARDS
+         CLASS FEE ANALYTICS + RECENT ATTENDANCE
     ========================================================== --}}
-    <div class="row g-4">
 
-        <div class="col-md-6 col-xl-3">
+    <div class="row g-4 mb-4">
 
-            <div class="card stats-card shadow-sm h-100">
 
-                <div class="card-body p-4">
+        {{-- CLASS FEE ANALYTICS --}}
 
-                    <div class="analytics-header">
-                        <i class="fas fa-coins me-1 text-success"></i>
-                        TOTAL FEES PAID
+        <div class="col-xl-8">
+
+            <div class="dash-card">
+
+                <div class="section-header">
+
+                    <div class="section-title">
+
+                        <i
+                            class="fas fa-chart-column text-primary me-2">
+                        </i>
+
+                        Fee Performance by Class
+
                     </div>
 
-                    <h1 class="fw-bold display-5 mt-2">
-                        GHS {{ number_format($dashboardTotalFeesPaid, 2) }}
-                    </h1>
 
-                    <small class="{{ $dashboardMonthlyChange >= 0 ? 'text-success' : 'text-danger' }}">
+                    <div class="section-subtitle">
 
-                        <i class="fas {{ $dashboardMonthlyChange >= 0 ? 'fa-arrow-up' : 'fa-arrow-down' }} me-1"></i>
+                        Expected fees compared with actual collections
+                        for the current academic term
 
-                        {{ $dashboardMonthlyChange >= 0 ? '+' : '' }}
-                        {{ number_format($dashboardMonthlyChange, 1) }}%
-                        vs previous month
+                    </div>
 
-                    </small>
+                </div>
+
+
+                <div class="card-body">
+
+                    @if($classFeeLabels->isNotEmpty())
+
+                        <div
+                            class="chart-wrapper large">
+
+                            <canvas
+                                id="classFeeChart">
+                            </canvas>
+
+                        </div>
+
+                    @else
+
+                        <div class="empty-state">
+
+                            <div class="empty-icon">
+
+                                <i
+                                    class="fas fa-file-invoice-dollar">
+                                </i>
+
+                            </div>
+
+
+                            <strong class="text-dark">
+
+                                No class fee data
+
+                            </strong>
+
+
+                            <small>
+
+                                No current bill sheets are available
+                                for the dashboard.
+
+                            </small>
+
+                        </div>
+
+                    @endif
 
                 </div>
 
@@ -574,103 +1191,175 @@
         </div>
 
 
-        <div class="col-md-6 col-xl-3">
+        {{-- RECENT ATTENDANCE --}}
 
-            <div class="card stats-card shadow-sm h-100">
+        <div class="col-xl-4">
 
-                <div class="card-body p-4">
+            <div class="dash-card h-100">
 
-                    <div class="analytics-header">
-                        <i class="fas fa-exclamation-triangle me-1 text-warning"></i>
-                        OUTSTANDING FEES
+                <div class="section-header">
+
+                    <div class="section-title">
+
+                        <i
+                            class="fas fa-clock-rotate-left text-info me-2">
+                        </i>
+
+                        Recent Attendance Activity
+
                     </div>
 
-                    <h1 class="fw-bold display-5 mt-2">
-                        GHS {{ number_format($dashboardOutstandingFees, 2) }}
-                    </h1>
 
-                    <small class="text-dark">
+                    <div class="section-subtitle">
 
-                        <i class="fas fa-clock me-1"></i>
-
-                        Expected fees less completed payments
-
-                    </small>
-
-                    <div class="mt-3">
-
-                        <a
-                            href="{{ route('fee.payment.reports.outstanding') }}"
-                            class="btn btn-sm btn-outline-danger no-print">
-
-                            <i class="fas fa-arrow-right me-1"></i>
-                            View Outstanding Fees
-
-                        </a>
+                        Latest recorded attendance events
 
                     </div>
 
                 </div>
 
-            </div>
 
-        </div>
+                <div class="card-body">
+
+                    @forelse(($recentAttendance ?? collect()) as $record)
+
+                        @php
+
+                            $recordStatus =
+                                strtolower(
+                                    (string) (
+                                        $record->status ?? ''
+                                    )
+                                );
+
+                            $recordClass =
+                                match ($recordStatus) {
+
+                                    'present'
+                                        => 'text-success',
+
+                                    'late'
+                                        => 'text-warning',
+
+                                    'absent'
+                                        => 'text-danger',
+
+                                    'excused'
+                                        => 'text-info',
+
+                                    default
+                                        => 'text-info',
+
+                                };
+
+                        @endphp
 
 
-        <div class="col-md-6 col-xl-3">
-
-            <div class="card stats-card shadow-sm h-100">
-
-                <div class="card-body p-4">
-
-                    <div class="analytics-header">
-                        <i class="fas fa-user-friends me-1 text-info"></i>
-                        STAFF ATTENDANCE
-                    </div>
-
-                    <h1 class="fw-bold display-4 mt-2">
-                        {{ number_format($staffAttendanceRate ?? 0, 1) }}%
-                    </h1>
-
-                    <small class="text-dark">
-                        <i class="fas fa-arrow-up me-1"></i>
-                        Staff Attendance Performance
-                    </small>
-
-                </div>
-
-            </div>
-
-        </div>
+                        <div class="activity-item">
 
 
-        <div class="col-md-6 col-xl-3">
+                            <div class="activity-icon">
 
-            <div class="card stats-card shadow-sm h-100">
+                                <i class="fas fa-user-check"></i>
 
-                <div class="card-body p-4">
+                            </div>
 
-                    <div class="analytics-header">
-                        <i class="fas fa-chalkboard me-1 text-secondary"></i>
-                        STUDENT/TEACHER RATIO
-                    </div>
 
-                    <h1 class="fw-bold display-4 mt-2">
+                            <div class="flex-grow-1">
 
-                        {{ $totalStaff > 0
-                            ? round($totalStudents / $totalStaff)
-                            : 0 }}:1
+                                <div class="activity-name">
 
-                    </h1>
+                                    {{
+                                        trim(
+                                            ($record->first_name ?? '') .
+                                            ' ' .
+                                            ($record->last_name ?? '')
+                                        )
+                                        ?: 'Student'
+                                    }}
 
-                    <small class="text-primary fs-6">
+                                </div>
 
-                        <i class="fas fa-graduation-cap me-1"></i>
 
-                        {{ $totalStaff }} staff,
-                        {{ $totalStudents }} students
+                                <div class="activity-meta">
 
-                    </small>
+                                    ID:
+
+                                    {{
+                                        $record->student_number
+                                        ?? $record->student_id
+                                        ?? 'N/A'
+                                    }}
+
+
+                                    <span class="mx-1">
+                                        •
+                                    </span>
+
+
+                                    <span class="{{ $recordClass }} fw-semibold">
+
+                                        {{
+                                            ucfirst(
+                                                $recordStatus
+                                                ?: 'Recorded'
+                                            )
+                                        }}
+
+                                    </span>
+
+
+                                    @if(!empty($record->attendance_date))
+
+                                        <span class="mx-1">
+                                            •
+                                        </span>
+
+                                        {{
+                                            \Carbon\Carbon::parse(
+                                                $record->attendance_date
+                                            )->format('d M Y')
+                                        }}
+
+                                    @endif
+
+                                </div>
+
+                            </div>
+
+                        </div>
+
+
+                    @empty
+
+                        <div class="empty-state">
+
+                            <div class="empty-icon">
+
+                                <i
+                                    class="fas fa-calendar-xmark">
+                                </i>
+
+                            </div>
+
+
+                            <strong class="text-dark">
+
+                                No recent attendance
+
+                            </strong>
+
+
+                            <small class="mt-1">
+
+                                No attendance activity has been
+                                recorded for the current period.
+
+                            </small>
+
+                        </div>
+
+                    @endforelse
 
                 </div>
 
@@ -684,22 +1373,28 @@
     {{-- =========================================================
          CLASS ATTENDANCE TABLE
     ========================================================== --}}
+
     <div class="row mt-4">
 
         <div class="col-12">
 
             <div class="card border-0 shadow-sm">
 
+
                 <div
                     class="card-header bg-white d-flex justify-content-between align-items-center py-3">
+
 
                     <div>
 
                         <h5 class="fw-bold mb-1">
 
-                            <i class="fas fa-calendar-check text-primary me-2"></i>
+                            <i
+                                class="fas fa-calendar-check text-primary me-2">
+                            </i>
 
                             Daily Attendance by Class
+
 
                             <span
                                 class="badge bg-light text-dark ms-2"
@@ -711,14 +1406,19 @@
 
                         </h5>
 
+
                         <small class="text-muted">
-                            Select a date and load live class attendance.
+
+                            Attendance for the selected date within
+                            the central academic period.
+
                         </small>
 
                     </div>
 
 
                     <div class="d-flex gap-2 no-print">
+
 
                         <input
                             type="date"
@@ -734,6 +1434,7 @@
                             type="button">
 
                             <i class="fas fa-sync me-1"></i>
+
                             Load
 
                         </button>
@@ -745,6 +1446,7 @@
                             onclick="exportClassAttendance()">
 
                             <i class="fas fa-file-excel me-1"></i>
+
                             Export
 
                         </button>
@@ -756,11 +1458,21 @@
 
                 <div class="card-body">
 
+
+                    <div
+                        id="attendanceTableAlert"
+                        class="alert d-none"
+                        role="alert">
+                    </div>
+
+
                     <div class="table-responsive">
+
 
                         <table
                             class="table table-bordered table-hover align-middle"
                             id="classAttendanceTable">
+
 
                             <thead class="table-light">
 
@@ -809,18 +1521,292 @@
 
                             <tbody id="classAttendanceBody">
 
-                                <tr>
+                                @forelse(($dashboardDailyAttendance ?? []) as $attendance)
 
-                                    <td
-                                        colspan="9"
-                                        class="text-center py-5 text-muted">
+                                    @php
 
-                                        <i class="fas fa-spinner fa-spin me-2"></i>
-                                        Loading attendance...
+                                        $rate =
+                                            (float) (
+                                                $attendance['rate']
+                                                ?? 0
+                                            );
 
-                                    </td>
+                                        $safeRate =
+                                            min(
+                                                100,
+                                                max(
+                                                    0,
+                                                    $rate
+                                                )
+                                            );
 
-                                </tr>
+                                        $status =
+                                            $attendance['status']
+                                            ?? 'Not Taken';
+
+                                        $statusClass =
+                                            $attendance['status_class']
+                                            ?? 'secondary';
+
+                                        $allowedClasses = [
+                                            'success',
+                                            'info',
+                                            'warning',
+                                            'danger',
+                                            'secondary',
+                                        ];
+
+                                        if (
+                                            !in_array(
+                                                $statusClass,
+                                                $allowedClasses,
+                                                true
+                                            )
+                                        ) {
+                                            $statusClass =
+                                                'secondary';
+                                        }
+
+                                    @endphp
+
+
+                                    <tr>
+
+                                        <td>
+                                            {{ $loop->iteration }}
+                                        </td>
+
+
+                                        <td class="fw-semibold">
+
+                                            {{
+                                                $attendance['class_name']
+                                                ?? 'N/A'
+                                            }}
+
+                                        </td>
+
+
+                                        <td class="text-center">
+
+                                            <span
+                                                class="badge bg-light text-dark">
+
+                                                {{
+                                                    number_format(
+                                                        $attendance[
+                                                            'total_students'
+                                                        ] ?? 0
+                                                    )
+                                                }}
+
+                                            </span>
+
+                                        </td>
+
+
+                                        <td class="text-center">
+
+                                            <span
+                                                class="badge bg-success-subtle text-success">
+
+                                                {{
+                                                    number_format(
+                                                        $attendance[
+                                                            'present'
+                                                        ] ?? 0
+                                                    )
+                                                }}
+
+                                            </span>
+
+                                        </td>
+
+
+                                        <td class="text-center">
+
+                                            <span
+                                                class="badge bg-danger-subtle text-danger">
+
+                                                {{
+                                                    number_format(
+                                                        $attendance[
+                                                            'absent'
+                                                        ] ?? 0
+                                                    )
+                                                }}
+
+                                            </span>
+
+                                        </td>
+
+
+                                        <td class="text-center">
+
+                                            <span
+                                                class="badge bg-warning-subtle text-warning">
+
+                                                {{
+                                                    number_format(
+                                                        $attendance[
+                                                            'late'
+                                                        ] ?? 0
+                                                    )
+                                                }}
+
+                                            </span>
+
+                                        </td>
+
+
+                                        <td class="text-center">
+
+                                            <span
+                                                class="badge bg-info-subtle text-info">
+
+                                                {{
+                                                    number_format(
+                                                        $attendance[
+                                                            'excused'
+                                                        ] ?? 0
+                                                    )
+                                                }}
+
+                                            </span>
+
+                                        </td>
+
+
+                                        <td
+                                            class="text-center"
+                                            style="min-width:170px;">
+
+                                            <div
+                                                class="d-flex align-items-center justify-content-center gap-2">
+
+                                                <div
+                                                    class="progress flex-grow-1"
+                                                    style="
+                                                        height:8px;
+                                                        max-width:90px;
+                                                    ">
+
+                                                    <div
+                                                        class="
+                                                            progress-bar
+                                                            bg-{{ $statusClass }}
+                                                        "
+                                                        role="progressbar"
+                                                        style="
+                                                            width:
+                                                            {{ $safeRate }}%;
+                                                        "
+                                                        aria-valuenow="{{ $safeRate }}"
+                                                        aria-valuemin="0"
+                                                        aria-valuemax="100">
+                                                    </div>
+
+                                                </div>
+
+
+                                                <span class="fw-bold">
+
+                                                    {{ number_format(
+                                                        $safeRate,
+                                                        1
+                                                    ) }}%
+
+                                                </span>
+
+                                            </div>
+
+                                        </td>
+
+
+                                        <td class="text-center">
+
+                                            <span
+                                                class="badge bg-{{ $statusClass }}">
+
+                                                @php
+
+                                                    $statusIcon =
+                                                        match ($status) {
+
+                                                            'Excellent'
+                                                                => 'fa-check-circle',
+
+                                                            'Good'
+                                                                => 'fa-thumbs-up',
+
+                                                            'Average'
+                                                                => 'fa-exclamation-triangle',
+
+                                                            'Poor'
+                                                                => 'fa-times-circle',
+
+                                                            'Needs Attention'
+                                                                => 'fa-exclamation-triangle',
+
+                                                            'Critical'
+                                                                => 'fa-times-circle',
+
+                                                            'Not Taken'
+                                                                => 'fa-minus-circle',
+
+                                                            default
+                                                                => 'fa-info-circle',
+
+                                                        };
+
+                                                @endphp
+
+
+                                                <i
+                                                    class="
+                                                        fas
+                                                        {{ $statusIcon }}
+                                                        me-1
+                                                    ">
+                                                </i>
+
+
+                                                {{ $status }}
+
+                                            </span>
+
+                                        </td>
+
+                                    </tr>
+
+
+                                @empty
+
+                                    <tr>
+
+                                        <td
+                                            colspan="9"
+                                            class="text-center py-5 text-muted">
+
+                                            <i
+                                                class="
+                                                    fas
+                                                    fa-school
+                                                    fs-2
+                                                    d-block
+                                                    mb-2
+                                                ">
+                                            </i>
+
+
+                                            No attendance data found
+                                            for the selected date.
+
+                                        </td>
+
+                                    </tr>
+
+                                @endforelse
 
                             </tbody>
 
@@ -830,21 +1816,42 @@
 
 
                     <div
-                        class="mt-3 text-muted small"
-                        id="attendanceSummaryFooter">
+                        class="
+                            d-flex
+                            flex-wrap
+                            justify-content-between
+                            gap-2
+                            mt-3
+                            small
+                            text-muted
+                        ">
 
-                        <i class="fas fa-info-circle me-1"></i>
 
-                        Showing
-                        <span id="totalClassesCount">
-                            {{ $dashboardAttendanceRows }}
+                        <span>
+
+                            <i class="fas fa-school me-1"></i>
+
+                            Active classes with current students:
+
+                            <strong id="totalClassesCount">
+
+                                {{ count($dashboardDailyAttendance ?? []) }}
+
+                            </strong>
+
                         </span>
 
-                        active classes |
 
-                        Last updated:
-                        <span id="lastUpdatedTime">
-                            {{ now()->format('H:i:s') }}
+                        <span>
+
+                            Last updated:
+
+                            <strong id="lastUpdatedTime">
+
+                                {{ now()->format('H:i:s') }}
+
+                            </strong>
+
                         </span>
 
                     </div>
@@ -856,94 +1863,88 @@
         </div>
 
     </div>
+
 
 
     {{-- =========================================================
-         FEE POSITION STRIP
+         DASHBOARD FOOTER
     ========================================================== --}}
-    <div class="row mt-4 g-3">
 
-        <div class="col-md-4">
+    <div class="card border-0 shadow-sm mt-4">
 
-            <div class="card border-0 shadow-sm h-100">
+        <div class="card-body py-3">
 
-                <div class="card-body">
-
-                    <small class="text-muted text-uppercase fw-bold">
-                        Expected Fees
-                    </small>
-
-                    <h4 class="fw-bold mt-2">
-                        GHS {{ number_format($dashboardTotalFees, 2) }}
-                    </h4>
-
-                    <small class="text-muted">
-                        Class Bill Sheet amount × current students
-                    </small>
-
-                </div>
-
-            </div>
-
-        </div>
+            <div
+                class="
+                    d-flex
+                    flex-wrap
+                    justify-content-between
+                    align-items-center
+                    gap-3
+                    small
+                ">
 
 
-        <div class="col-md-4">
+                <div>
 
-            <div class="card border-0 shadow-sm h-100">
+                    <i class="fas fa-chart-pie text-primary me-2"></i>
 
-                <div class="card-body">
+                    <strong>
+                        Attendance dashboard:
+                    </strong>
 
-                    <small class="text-muted text-uppercase fw-bold">
-                        Fees Paid
-                    </small>
+                    <span class="fw-bold text-primary">
 
-                    <h4 class="fw-bold mt-2 text-success">
-                        GHS {{ number_format($dashboardTotalFeesPaid, 2) }}
-                    </h4>
+                        Live data enabled
 
-                    <div class="progress mt-2" style="height:7px;">
-
-                        <div
-                            class="progress-bar bg-success"
-                            style="width:{{ min(100, max(0, $dashboardCollectionRate)) }}%;">
-                        </div>
-
-                    </div>
-
-                    <small class="text-muted">
-                        {{ number_format($dashboardCollectionRate, 1) }}% collected
-                    </small>
+                    </span>
 
                 </div>
 
-            </div>
 
-        </div>
+                <div>
+
+                    <i class="fas fa-database text-info me-1"></i>
+
+                    <span class="text-muted">
+
+                        Real-time class attendance
+
+                    </span>
+
+                </div>
 
 
-        <div class="col-md-4">
+                <div>
 
-            <div class="card border-0 shadow-sm h-100">
+                    <i class="fas fa-calendar-alt text-success me-1"></i>
 
-                <div class="card-body">
+                    <span class="text-muted">
 
-                    <small class="text-muted text-uppercase fw-bold">
-                        Outstanding Fees
+                        {{ $academicYearName }}
+
+                        <span class="mx-1">•</span>
+
+                        {{ $termName }}
+
+                    </span>
+
+                </div>
+
+
+                <div>
+
+                    <small class="text-muted">
+
+                        <i class="far fa-calendar-alt"></i>
+
+                        Data as of
+
+                        {{ \Carbon\Carbon::now()->format(
+                            'd-M-Y | H:i'
+                        ) }}
+
                     </small>
-
-                    <h4 class="fw-bold mt-2 text-danger">
-                        GHS {{ number_format($dashboardOutstandingFees, 2) }}
-                    </h4>
-
-                    <a
-                        href="{{ route('fee.payment.reports.school-overview') }}"
-                        class="btn btn-sm btn-outline-primary mt-2 no-print">
-
-                        <i class="fas fa-chart-pie me-1"></i>
-                        School Fee Overview
-
-                    </a>
 
                 </div>
 
@@ -952,11 +1953,17 @@
         </div>
 
     </div>
+
 
 </div>
 
 
+{{-- =========================================================
+     STYLES
+========================================================== --}}
+
 @push('styles')
+
 <style>
 
     .display-4 {
@@ -964,10 +1971,21 @@
         font-weight: 700;
     }
 
+
     .display-5 {
         font-size: 2rem;
         font-weight: 700;
     }
+
+
+    .analytics-header {
+        font-size: .72rem;
+        font-weight: 800;
+        letter-spacing: .5px;
+        text-transform: uppercase;
+        color: #6c7283;
+    }
+
 
     .custom-legend {
         display: flex;
@@ -978,6 +1996,7 @@
         flex-wrap: wrap;
     }
 
+
     .legend-dot-blue,
     .legend-dot-lightblue {
         width: 12px;
@@ -987,13 +2006,16 @@
         margin-right: 8px;
     }
 
+
     .legend-dot-blue {
         background: #1a4b8c;
     }
 
+
     .legend-dot-lightblue {
         background: #3b82f6;
     }
+
 
     .attendance-insight {
         background: #eff6ff;
@@ -1005,22 +2027,83 @@
         border: 1px solid #bfdbfe;
     }
 
-    .color-picker-group {
-        background: #f8fafc;
-        padding: 4px 14px;
-        border-radius: 36px;
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        border: 1px solid #eef2ff;
+
+    .dashboard-card {
+        border-radius: 14px;
     }
 
+
+    .stats-card {
+        border-radius: 14px;
+        transition: transform .2s ease, box-shadow .2s ease;
+    }
+
+
+    .stats-card:hover {
+        transform: translateY(-2px);
+    }
+
+
+    .summary-box {
+        background: #f8fafc;
+        border: 1px solid #edf1f5;
+        border-radius: 10px;
+        padding: 10px;
+    }
+
+
+    .summary-box .label {
+        font-size: .68rem;
+        font-weight: 700;
+        color: #6c7283;
+        text-transform: uppercase;
+        letter-spacing: .4px;
+    }
+
+
+    .summary-box .value {
+        margin-top: 4px;
+        font-size: .92rem;
+        font-weight: 800;
+    }
+
+
+    .chart-container {
+        position: relative;
+        width: 100%;
+    }
+
+
+    .chart-wrapper {
+        position: relative;
+        width: 100%;
+        height: 300px;
+    }
+
+
+    .chart-wrapper.large {
+        height: 360px;
+    }
+
+
+    .color-picker-group {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 2px 7px;
+        background: #fff;
+    }
+
+
     .color-picker-group label {
-        font-size: 0.75rem;
+        font-size: .72rem;
         font-weight: 600;
-        color: #1e293b;
+        color: #6c7283;
         margin: 0;
     }
+
 
     #lineColorPicker {
         width: 34px;
@@ -1032,10 +2115,6 @@
         box-shadow: 0 1px 4px rgba(0,0,0,0.1);
     }
 
-    .chart-container {
-        position: relative;
-        width: 100%;
-    }
 
     #classAttendanceTable th {
         font-size: 0.75rem;
@@ -1044,10 +2123,12 @@
         letter-spacing: 0.5px;
     }
 
+
     #classAttendanceTable td {
         vertical-align: middle;
         font-size: 0.9rem;
     }
+
 
     .attendance-badge {
         padding: 4px 12px;
@@ -1056,31 +2137,120 @@
         font-size: 0.75rem;
     }
 
+
+    .activity-item {
+        display: flex;
+        gap: 10px;
+        align-items: center;
+        padding: .72rem 0;
+        border-bottom: 1px solid #eef2f6;
+    }
+
+
+    .activity-item:last-child {
+        border-bottom: 0;
+    }
+
+
+    .activity-icon {
+        flex: 0 0 36px;
+        width: 36px;
+        height: 36px;
+        border-radius: 10px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: #1a4b8c;
+        background: #eef5ff;
+    }
+
+
+    .activity-name {
+        color: #172033;
+        font-size: .76rem;
+        font-weight: 700;
+    }
+
+
+    .activity-meta {
+        margin-top: 2px;
+        color: #6c7283;
+        font-size: .66rem;
+    }
+
+
+    .empty-state {
+        min-height: 255px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex-direction: column;
+        color: #6c7283;
+        text-align: center;
+    }
+
+
+    .empty-icon {
+        width: 58px;
+        height: 58px;
+        margin-bottom: .8rem;
+        border-radius: 16px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        background: #f2f4f7;
+        color: #98a2b3;
+        font-size: 1.5rem;
+    }
+
+
+    .fee-progress {
+        height: 8px;
+        border-radius: 20px;
+        background: #edf1f5;
+    }
+
+
+    .fee-progress .progress-bar {
+        border-radius: 20px;
+    }
+
+
     @media (max-width: 768px) {
 
         .display-4 {
             font-size: 1.8rem;
         }
 
+
         .display-5 {
             font-size: 1.5rem;
         }
+
 
         .custom-legend {
             justify-content: flex-start;
         }
 
+
         #classAttendanceTable {
             min-width: 920px;
         }
 
+
+        .chart-wrapper.large {
+            height: 300px;
+        }
+
     }
+
 
     @media print {
 
         .no-print {
             display: none !important;
         }
+
 
         .dashboard-card,
         .stats-card,
@@ -1091,10 +2261,16 @@
     }
 
 </style>
+
 @endpush
 
 
+{{-- =========================================================
+     JAVASCRIPT
+========================================================== --}}
+
 @push('scripts')
+
 <script>
 
     /*
@@ -1110,14 +2286,82 @@
     let currentColor = '#1a4b8c';
 
     let chartDataFromServer = {
+
         labels: [],
+
         attendance: [],
+
         benchmark: [],
+
         peak: 0,
+
         peak_day: 'N/A',
+
         average: 0,
+
         total: 0
+
     };
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | HELPERS
+    |--------------------------------------------------------------------------
+    */
+
+    function formatNumber(value) {
+
+        return Number(
+            value || 0
+        ).toLocaleString();
+
+    }
+
+
+    function formatCurrency(value) {
+
+        return 'GHS ' +
+            Number(
+                value || 0
+            ).toLocaleString(
+                undefined,
+                {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                }
+            );
+
+    }
+
+
+    function escapeHtml(value) {
+
+        return String(
+            value ?? ''
+        )
+            .replace(
+                /&/g,
+                '&amp;'
+            )
+            .replace(
+                /</g,
+                '&lt;'
+            )
+            .replace(
+                />/g,
+                '&gt;'
+            )
+            .replace(
+                /"/g,
+                '&quot;'
+            )
+            .replace(
+                /'/g,
+                '&#039;'
+            );
+
+    }
 
 
     function getChartTension(chartType) {
@@ -1159,7 +2403,10 @@
             );
 
         if (dot) {
-            dot.style.backgroundColor = color;
+
+            dot.style.backgroundColor =
+                color;
+
         }
 
     }
@@ -1173,8 +2420,11 @@
             );
 
         if (!indicator) {
+
             return;
+
         }
+
 
         const names = {
 
@@ -1195,6 +2445,7 @@
 
         };
 
+
         indicator.textContent =
             names[chartType]
             || 'Line Chart';
@@ -1210,31 +2461,74 @@
             );
 
         if (!insight) {
+
             return;
+
         }
 
-        if (!data.labels.length) {
+
+        if (
+            !data.labels ||
+            !data.labels.length
+        ) {
 
             insight.innerHTML = `
-                <i class="fas fa-exclamation-circle me-1 text-danger"></i>
+
+                <i
+                    class="fas fa-exclamation-circle me-1 text-danger">
+                </i>
+
                 No attendance data found for this period
+
             `;
 
             return;
+
         }
 
+
         insight.innerHTML = `
-            <i class="fas fa-chart-simple me-1 text-info"></i>
+
+            <i
+                class="fas fa-chart-simple me-1 text-info">
+            </i>
+
             Peak attendance:
-            ${Number(data.peak || 0).toLocaleString()}
-            students (${escapeHtml(data.peak_day)})
-            · Average:
-            ${Number(data.average || 0).toLocaleString()}
-            students/day
+
+            <strong>
+                ${formatNumber(data.peak)}
+            </strong>
+
+            students
+
+            <span class="mx-1">
+                (
+            </span>
+
+            <strong>
+                ${escapeHtml(data.peak_day)}
+            </strong>
+
+            <span class="mx-1">
+                )
+            </span>
+
+            · Daily average:
+
+            <strong>
+                ${formatNumber(data.average)}
+            </strong>
+
         `;
 
     }
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | LOAD ATTENDANCE CHART DATA
+    |--------------------------------------------------------------------------
+    */
 
     async function loadAttendanceData(days = 30) {
 
@@ -1243,46 +2537,65 @@
                 'attendanceInsight'
             );
 
+
         if (insight) {
 
             insight.innerHTML = `
-                <i class="fas fa-spinner fa-spin me-1 text-info"></i>
+
+                <i
+                    class="fas fa-spinner fa-spin me-1 text-info">
+                </i>
+
                 Loading attendance data...
+
             `;
 
         }
+
 
         try {
 
             const response =
                 await fetch(
-                    `{{ route('dashboard.attendance-data') }}?days=${encodeURIComponent(days)}`,
+                    `{{ route(
+                        'dashboard.attendance-data'
+                    ) }}?days=${encodeURIComponent(days)}`,
                     {
                         headers: {
                             'Accept':
-                                'application/json'
-                        },
-                        credentials:
-                            'same-origin'
+                                'application/json',
+
+                            'X-Requested-With':
+                                'XMLHttpRequest'
+                        }
                     }
                 );
 
+
             if (!response.ok) {
+
                 throw new Error(
                     `HTTP ${response.status}`
                 );
+
             }
+
 
             const data =
                 await response.json();
 
+
             if (
-                data.status !== 'success'
+                !data ||
+                data.status === 'error'
             ) {
+
                 throw new Error(
                     'Attendance data could not be loaded.'
                 );
+
             }
+
 
             chartDataFromServer = {
 
@@ -1309,9 +2622,11 @@
 
             };
 
+
             updateAttendanceInsight(
                 chartDataFromServer
             );
+
 
             renderAttendanceChart(
                 currentChartType,
@@ -1325,11 +2640,17 @@
                 error
             );
 
+
             if (insight) {
 
                 insight.innerHTML = `
-                    <i class="fas fa-exclamation-circle me-1 text-danger"></i>
+
+                    <i
+                        class="fas fa-exclamation-circle me-1 text-danger">
+                    </i>
+
                     Failed to load attendance data
+
                 `;
 
             }
@@ -1338,6 +2659,12 @@
 
     }
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | RENDER ATTENDANCE CHART
+    |--------------------------------------------------------------------------
+    */
 
     function renderAttendanceChart(
         chartType = currentChartType,
@@ -1349,33 +2676,69 @@
                 'attendanceChartCanvas'
             );
 
-        if (!canvas) {
+
+        if (
+            !canvas ||
+            typeof Chart === 'undefined'
+        ) {
+
             return;
+
         }
 
-        if (typeof Chart === 'undefined') {
-            return;
-        }
 
         const ctx =
             canvas.getContext('2d');
 
+
         if (currentChart) {
+
             currentChart.destroy();
+
         }
 
+
         const labels =
-            chartDataFromServer.labels;
+            chartDataFromServer.labels
+            || [];
+
 
         const attendanceData =
-            chartDataFromServer.attendance;
+            chartDataFromServer.attendance
+            || [];
+
 
         const benchmarkData =
-            chartDataFromServer.benchmark;
+            chartDataFromServer.benchmark
+            || [];
+
+
+        const baseType =
+            getBaseChartType(
+                chartType
+            );
+
+
+        const tension =
+            getChartTension(
+                chartType
+            );
+
+
+        const fillArea =
+            shouldFill(
+                chartType
+            );
+
+
+        const isBar =
+            baseType === 'bar';
+
 
         updateChartTypeIndicator(
             chartType
         );
+
 
         if (
             !labels.length ||
@@ -1386,6 +2749,7 @@
                 new Chart(
                     ctx,
                     {
+
                         type: 'line',
 
                         data: {
@@ -1394,18 +2758,26 @@
                                 'No data'
                             ],
 
-                            datasets: [{
-                                label:
-                                    'Daily Attendance',
+                            datasets: [
 
-                                data: [0],
+                                {
 
-                                borderColor:
-                                    lineColor,
+                                    label:
+                                        'Attendance',
 
-                                backgroundColor:
-                                    `${lineColor}20`
-                            }]
+                                    data: [0],
+
+                                    borderColor:
+                                        '#adb5bd',
+
+                                    backgroundColor:
+                                        'rgba(173,181,189,.08)',
+
+                                    fill: true
+
+                                }
+
+                            ]
 
                         },
 
@@ -1413,22 +2785,12 @@
 
                             responsive: true,
 
-                            maintainAspectRatio:
-                                false,
+                            maintainAspectRatio: false,
 
                             plugins: {
 
                                 legend: {
                                     display: false
-                                }
-
-                            },
-
-                            scales: {
-
-                                y: {
-                                    beginAtZero:
-                                        true
                                 }
 
                             }
@@ -1439,24 +2801,15 @@
                 );
 
             return;
+
         }
 
-        const isBar =
-            chartType === 'bar';
-
-        const fillArea =
-            shouldFill(chartType);
-
-        const tension =
-            getChartTension(chartType);
-
-        const baseType =
-            getBaseChartType(chartType);
 
         currentChart =
             new Chart(
                 ctx,
                 {
+
                     type: baseType,
 
                     data: {
@@ -1468,7 +2821,7 @@
                             {
 
                                 label:
-                                    'Daily Attendance (students attended)',
+                                    'Daily attendance',
 
                                 data:
                                     attendanceData,
@@ -1477,11 +2830,11 @@
                                     lineColor,
 
                                 backgroundColor:
-                                    fillArea
-                                        ? `${lineColor}30`
+                                    isBar
+                                        ? lineColor
                                         : (
-                                            isBar
-                                                ? lineColor
+                                            fillArea
+                                                ? `${lineColor}30`
                                                 : `${lineColor}10`
                                         ),
 
@@ -1491,7 +2844,8 @@
                                 pointBorderColor:
                                     '#ffffff',
 
-                                pointBorderWidth: 2,
+                                pointBorderWidth:
+                                    2,
 
                                 pointRadius:
                                     isBar
@@ -1529,10 +2883,11 @@
 
                             },
 
+
                             {
 
                                 label:
-                                    'Average benchmark',
+                                    'Current term benchmark (avg)',
 
                                 data:
                                     benchmarkData,
@@ -1543,14 +2898,16 @@
                                 backgroundColor:
                                     'transparent',
 
-                                borderWidth: 2.2,
+                                borderWidth:
+                                    2.2,
 
                                 borderDash: [
                                     8,
                                     5
                                 ],
 
-                                pointRadius: 3,
+                                pointRadius:
+                                    3,
 
                                 pointBackgroundColor:
                                     '#3b82f6',
@@ -1576,24 +2933,42 @@
 
                     },
 
+
                     options: {
 
                         responsive: true,
 
-                        maintainAspectRatio:
-                            false,
+                        maintainAspectRatio: false,
 
                         interaction: {
 
-                            intersect: false,
+                            intersect:
+                                false,
 
-                            mode: 'index'
+                            mode:
+                                'index'
 
                         },
+
 
                         plugins: {
 
                             tooltip: {
+
+                                backgroundColor:
+                                    '#1e293b',
+
+                                titleColor:
+                                    '#f8fafc',
+
+                                bodyColor:
+                                    '#cbd5e1',
+
+                                padding:
+                                    10,
+
+                                cornerRadius:
+                                    12,
 
                                 callbacks: {
 
@@ -1612,8 +2987,9 @@
 
                                             return (
                                                 `${label}: ` +
-                                                Number(value)
-                                                    .toLocaleString() +
+                                                Number(
+                                                    value
+                                                ).toLocaleString() +
                                                 ' students'
                                             );
 
@@ -1623,37 +2999,69 @@
 
                             },
 
+
                             legend: {
 
-                                display: false
+                                display:
+                                    false
 
                             }
 
                         },
 
+
                         scales: {
 
                             y: {
 
-                                beginAtZero: true,
+                                beginAtZero:
+                                    true,
 
                                 ticks: {
 
+                                    color:
+                                        '#6c7283',
+
                                     callback:
                                         value =>
-                                            Number(value)
-                                                .toLocaleString()
-                                            + ' students'
+                                            Number(
+                                                value
+                                            ).toLocaleString()
+                                            +
+                                            ' students'
+
+                                },
+
+                                grid: {
+
+                                    color:
+                                        '#eef2f6'
 
                                 }
 
                             },
 
+
                             x: {
 
                                 ticks: {
 
-                                    maxRotation: 35
+                                    color:
+                                        '#6c7283',
+
+                                    font: {
+                                        size: 11
+                                    },
+
+                                    maxRotation:
+                                        35
+
+                                },
+
+                                grid: {
+
+                                    display:
+                                        false
 
                                 }
 
@@ -1671,38 +3079,356 @@
 
     /*
     |--------------------------------------------------------------------------
-    | CLASS ATTENDANCE TABLE
+    | FEE POSITION CHART
     |--------------------------------------------------------------------------
     */
 
-    function escapeHtml(value) {
+    function initializeFeePositionChart() {
 
-        return String(
-            value ?? ''
-        )
-            .replace(
-                /&/g,
-                '&amp;'
-            )
-            .replace(
-                /</g,
-                '&lt;'
-            )
-            .replace(
-                />/g,
-                '&gt;'
-            )
-            .replace(
-                /"/g,
-                '&quot;'
-            )
-            .replace(
-                /'/g,
-                '&#039;'
+        const canvas =
+            document.getElementById(
+                'feePositionChart'
             );
+
+
+        if (
+            !canvas ||
+            typeof Chart === 'undefined'
+        ) {
+
+            return;
+
+        }
+
+
+        new Chart(
+            canvas,
+            {
+
+                type: 'doughnut',
+
+                data: {
+
+                    labels: [
+                        'Fees Paid',
+                        'Outstanding'
+                    ],
+
+                    datasets: [
+
+                        {
+
+                            data: [
+
+                                {{ $dashboardTotalFeesPaid }},
+
+                                {{ $dashboardOutstandingFees }}
+
+                            ],
+
+                            backgroundColor: [
+
+                                '#198754',
+
+                                '#dc3545'
+
+                            ],
+
+                            borderWidth:
+                                0,
+
+                            hoverOffset:
+                                7
+
+                        }
+
+                    ]
+
+                },
+
+
+                options: {
+
+                    responsive:
+                        true,
+
+                    maintainAspectRatio:
+                        false,
+
+                    cutout:
+                        '68%',
+
+                    plugins: {
+
+                        legend: {
+
+                            position:
+                                'bottom',
+
+                            labels: {
+
+                                usePointStyle:
+                                    true,
+
+                                padding:
+                                    16
+
+                            }
+
+                        },
+
+
+                        tooltip: {
+
+                            callbacks: {
+
+                                label:
+                                    function (
+                                        context
+                                    ) {
+
+                                        return (
+                                            context.label +
+                                            ': ' +
+                                            formatCurrency(
+                                                context.raw
+                                            )
+                                        );
+
+                                    }
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            }
+        );
 
     }
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | CLASS FEE CHART
+    |--------------------------------------------------------------------------
+    */
+
+    function initializeClassFeeChart() {
+
+        const canvas =
+            document.getElementById(
+                'classFeeChart'
+            );
+
+
+        if (
+            !canvas ||
+            typeof Chart === 'undefined'
+        ) {
+
+            return;
+
+        }
+
+
+        const labels =
+            @json(
+                $classFeeLabels->values()
+            );
+
+
+        const expectedFees =
+            @json(
+                $classExpectedFees->values()
+            );
+
+
+        const paidFees =
+            @json(
+                $classPaidFees->values()
+            );
+
+
+        if (!labels.length) {
+
+            return;
+
+        }
+
+
+        new Chart(
+            canvas,
+            {
+
+                type: 'bar',
+
+                data: {
+
+                    labels: labels,
+
+                    datasets: [
+
+                        {
+
+                            label:
+                                'Expected Fees',
+
+                            data:
+                                expectedFees,
+
+                            backgroundColor:
+                                '#1a4b8c',
+
+                            borderRadius:
+                                7
+
+                        },
+
+
+                        {
+
+                            label:
+                                'Fees Paid',
+
+                            data:
+                                paidFees,
+
+                            backgroundColor:
+                                '#198754',
+
+                            borderRadius:
+                                7
+
+                        }
+
+                    ]
+
+                },
+
+
+                options: {
+
+                    responsive:
+                        true,
+
+                    maintainAspectRatio:
+                        false,
+
+                    interaction: {
+
+                        intersect:
+                            false,
+
+                        mode:
+                            'index'
+
+                    },
+
+
+                    plugins: {
+
+                        legend: {
+
+                            position:
+                                'bottom',
+
+                            labels: {
+
+                                usePointStyle:
+                                    true,
+
+                                padding:
+                                    14
+
+                            }
+
+                        },
+
+
+                        tooltip: {
+
+                            callbacks: {
+
+                                label:
+                                    function (
+                                        context
+                                    ) {
+
+                                        return (
+                                            context.dataset.label +
+                                            ': ' +
+                                            formatCurrency(
+                                                context.raw
+                                            )
+                                        );
+
+                                    }
+
+                            }
+
+                        }
+
+                    },
+
+
+                    scales: {
+
+                        y: {
+
+                            beginAtZero:
+                                true,
+
+                            ticks: {
+
+                                callback:
+                                    value =>
+                                        'GHS ' +
+                                        Number(
+                                            value
+                                        ).toLocaleString()
+
+                            },
+
+                            grid: {
+
+                                color:
+                                    'rgba(0,0,0,.06)'
+
+                            }
+
+                        },
+
+
+                        x: {
+
+                            grid: {
+
+                                display:
+                                    false
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            }
+        );
+
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | CLASS ATTENDANCE TABLE
+    |--------------------------------------------------------------------------
+    */
 
     function getStatusIcon(status) {
 
@@ -1718,6 +3444,12 @@
                 return 'fa-exclamation-triangle';
 
             case 'Poor':
+                return 'fa-times-circle';
+
+            case 'Needs Attention':
+                return 'fa-exclamation-triangle';
+
+            case 'Critical':
                 return 'fa-times-circle';
 
             case 'Not Taken':
@@ -1740,39 +3472,77 @@
                 'classAttendanceBody'
             );
 
+
         const count =
             document.getElementById(
                 'totalClassesCount'
             );
 
+
+        const dateDisplay =
+            document.getElementById(
+                'attendanceDateDisplay'
+            );
+
+
+        const lastUpdated =
+            document.getElementById(
+                'lastUpdatedTime'
+            );
+
+
         if (!body) {
+
             return;
+
         }
+
 
         if (
             !Array.isArray(classes)
-            || classes.length === 0
+            ||
+            classes.length === 0
         ) {
 
             body.innerHTML = `
+
                 <tr>
-                    <td colspan="9"
+
+                    <td
+                        colspan="9"
                         class="text-center py-5 text-muted">
 
-                        <i class="fas fa-school fs-2 d-block mb-2"></i>
+                        <i
+                            class="
+                                fas
+                                fa-school
+                                fs-2
+                                d-block
+                                mb-2
+                            ">
+                        </i>
 
-                        No attendance data found for the selected date.
+                        No attendance data found
+                        for the selected date.
 
                     </td>
+
                 </tr>
+
             `;
 
+
             if (count) {
-                count.textContent = '0';
+
+                count.textContent =
+                    '0';
+
             }
 
             return;
+
         }
+
 
         body.innerHTML =
             classes.map(
@@ -1783,6 +3553,7 @@
                             row.rate || 0
                         );
 
+
                     const safeRate =
                         Math.min(
                             100,
@@ -1792,77 +3563,148 @@
                             )
                         );
 
+
                     const status =
                         row.status
-                        || 'No Records';
+                        ||
+                        'No Records';
+
+
+                    const allowedClasses = [
+                        'success',
+                        'info',
+                        'warning',
+                        'danger',
+                        'secondary',
+                    ];
+
 
                     const statusClass =
-                        [
-                            'success',
-                            'info',
-                            'warning',
-                            'danger',
-                            'secondary'
-                        ].includes(
+                        allowedClasses.includes(
                             row.status_class
                         )
                             ? row.status_class
                             : 'secondary';
 
+
                     return `
+
                         <tr>
 
                             <td>
                                 ${index + 1}
                             </td>
 
+
                             <td class="fw-semibold">
-                                ${escapeHtml(row.class_name)}
+
+                                ${escapeHtml(
+                                    row.class_name
+                                    || 'N/A'
+                                )}
+
                             </td>
+
 
                             <td class="text-center">
-                                <span class="badge bg-light text-dark">
-                                    ${Number(row.total_students || 0).toLocaleString()}
+
+                                <span
+                                    class="badge bg-light text-dark">
+
+                                    ${formatNumber(
+                                        row.total_students
+                                    )}
+
                                 </span>
+
                             </td>
+
 
                             <td class="text-center">
-                                <span class="badge bg-success-subtle text-success">
-                                    ${Number(row.present || 0).toLocaleString()}
+
+                                <span
+                                    class="badge bg-success-subtle text-success">
+
+                                    ${formatNumber(
+                                        row.present
+                                    )}
+
                                 </span>
+
                             </td>
+
 
                             <td class="text-center">
-                                <span class="badge bg-danger-subtle text-danger">
-                                    ${Number(row.absent || 0).toLocaleString()}
+
+                                <span
+                                    class="badge bg-danger-subtle text-danger">
+
+                                    ${formatNumber(
+                                        row.absent
+                                    )}
+
                                 </span>
+
                             </td>
+
 
                             <td class="text-center">
-                                <span class="badge bg-warning-subtle text-warning">
-                                    ${Number(row.late || 0).toLocaleString()}
+
+                                <span
+                                    class="badge bg-warning-subtle text-warning">
+
+                                    ${formatNumber(
+                                        row.late
+                                    )}
+
                                 </span>
+
                             </td>
+
 
                             <td class="text-center">
-                                <span class="badge bg-info-subtle text-info">
-                                    ${Number(row.excused || 0).toLocaleString()}
+
+                                <span
+                                    class="badge bg-info-subtle text-info">
+
+                                    ${formatNumber(
+                                        row.excused
+                                    )}
+
                                 </span>
+
                             </td>
 
-                            <td class="text-center"
+
+                            <td
+                                class="text-center"
                                 style="min-width:170px;">
 
-                                <div class="d-flex align-items-center justify-content-center gap-2">
+                                <div
+                                    class="
+                                        d-flex
+                                        align-items-center
+                                        justify-content-center
+                                        gap-2
+                                    ">
+
 
                                     <div
                                         class="progress flex-grow-1"
-                                        style="height:8px;max-width:90px;">
+                                        style="
+                                            height:8px;
+                                            max-width:90px;
+                                        ">
 
                                         <div
-                                            class="progress-bar bg-${statusClass}"
+                                            class="
+                                                progress-bar
+                                                bg-${statusClass}
+                                            "
                                             role="progressbar"
-                                            style="width:${safeRate}%;"
+                                            style="
+                                                width:${safeRate}%;
+                                            "
                                             aria-valuenow="${safeRate}"
                                             aria-valuemin="0"
                                             aria-valuemax="100">
@@ -1870,19 +3712,33 @@
 
                                     </div>
 
+
                                     <span class="fw-bold">
+
                                         ${safeRate.toFixed(1)}%
+
                                     </span>
 
                                 </div>
 
                             </td>
 
+
                             <td class="text-center">
 
-                                <span class="badge bg-${statusClass}">
+                                <span
+                                    class="
+                                        badge
+                                        bg-${statusClass}
+                                    ">
 
-                                    <i class="fas ${getStatusIcon(status)} me-1"></i>
+                                    <i
+                                        class="
+                                            fas
+                                            ${getStatusIcon(status)}
+                                            me-1
+                                        ">
+                                    </i>
 
                                     ${escapeHtml(status)}
 
@@ -1891,19 +3747,39 @@
                             </td>
 
                         </tr>
+
                     `;
 
                 }
             ).join('');
 
+
         if (count) {
+
             count.textContent =
-                Number(classes.length)
-                    .toLocaleString();
+                Number(
+                    classes.length
+                ).toLocaleString();
+
+        }
+
+
+        if (lastUpdated) {
+
+            lastUpdated.textContent =
+                new Date()
+                    .toLocaleTimeString();
+
         }
 
     }
 
+
+    /*
+    |--------------------------------------------------------------------------
+    | LOAD CLASS ATTENDANCE
+    |--------------------------------------------------------------------------
+    */
 
     async function loadClassAttendance(
         date = null
@@ -1914,101 +3790,167 @@
                 'attendanceDateFilter'
             );
 
+
         const button =
             document.getElementById(
                 'loadClassAttendanceBtn'
             );
+
 
         const body =
             document.getElementById(
                 'classAttendanceBody'
             );
 
+
         const dateDisplay =
             document.getElementById(
                 'attendanceDateDisplay'
             );
+
 
         const lastUpdated =
             document.getElementById(
                 'lastUpdatedTime'
             );
 
+
+        const alertBox =
+            document.getElementById(
+                'attendanceTableAlert'
+            );
+
+
         if (!date && input) {
-            date = input.value;
+
+            date =
+                input.value;
+
         }
 
-        if (!date || !body) {
+
+        if (
+            !date ||
+            !body
+        ) {
+
             return;
+
         }
+
 
         if (button) {
 
-            button.disabled = true;
+            button.disabled =
+                true;
 
             button.innerHTML =
                 '<i class="fas fa-spinner fa-spin me-1"></i> Loading';
 
         }
 
+
         body.innerHTML = `
+
             <tr>
-                <td colspan="9"
+
+                <td
+                    colspan="9"
                     class="text-center py-5 text-muted">
 
-                    <i class="fas fa-spinner fa-spin me-2"></i>
+                    <i
+                        class="
+                            fas
+                            fa-spinner
+                            fa-spin
+                            me-2
+                        ">
+                    </i>
+
                     Loading attendance...
 
                 </td>
+
             </tr>
+
         `;
+
 
         try {
 
             const response =
                 await fetch(
-                    `{{ route('dashboard.class-attendance') }}?date=${encodeURIComponent(date)}`,
+                    `{{ route(
+                        'dashboard.class-attendance'
+                    ) }}?date=${encodeURIComponent(date)}`,
                     {
                         headers: {
+
                             'Accept':
                                 'application/json',
+
                             'X-Requested-With':
                                 'XMLHttpRequest'
-                        },
-                        credentials:
-                            'same-origin'
+
+                        }
                     }
                 );
 
+
             if (!response.ok) {
+
                 throw new Error(
                     `HTTP ${response.status}`
                 );
+
             }
+
 
             const data =
                 await response.json();
 
-            if (!data.success) {
+
+            if (
+                !data ||
+                data.status === 'error'
+            ) {
+
                 throw new Error(
                     data.message
-                    || 'Unable to load attendance.'
+                    ||
+                    'Attendance data could not be loaded.'
                 );
+
             }
 
+
+            const classes =
+                Array.isArray(data)
+                    ? data
+                    : (
+                        data.data
+                        ||
+                        data.classes
+                        ||
+                        []
+                    );
+
+
             renderClassAttendance(
-                data.classes || []
+                classes
             );
+
 
             if (dateDisplay) {
 
-                const selected =
+                const parsedDate =
                     new Date(
-                        `${date}T00:00:00`
+                        date + 'T00:00:00'
                     );
 
+
                 dateDisplay.textContent =
-                    selected.toLocaleDateString(
+                    parsedDate.toLocaleDateString(
                         undefined,
                         {
                             day:
@@ -2024,10 +3966,34 @@
 
             }
 
-            if (lastUpdated) {
-                lastUpdated.textContent =
-                    new Date()
-                        .toLocaleTimeString();
+
+            if (alertBox) {
+
+                alertBox.className =
+                    'alert alert-success';
+
+
+                alertBox.innerHTML =
+                    '<i class="fas fa-check-circle me-1"></i>' +
+                    'Attendance data refreshed successfully.';
+
+
+                alertBox.classList.remove(
+                    'd-none'
+                );
+
+
+                setTimeout(
+                    function () {
+
+                        alertBox.classList.add(
+                            'd-none'
+                        );
+
+                    },
+                    2500
+                );
+
             }
 
         } catch (error) {
@@ -2037,28 +4003,66 @@
                 error
             );
 
+
             body.innerHTML = `
+
                 <tr>
-                    <td colspan="9"
+
+                    <td
+                        colspan="9"
                         class="text-center py-5 text-danger">
 
-                        <i class="fas fa-exclamation-circle fs-2 d-block mb-2"></i>
+                        <i
+                            class="
+                                fas
+                                fa-exclamation-circle
+                                fs-2
+                                d-block
+                                mb-2
+                            ">
+                        </i>
 
                         Failed to load attendance records.
 
                         <div class="small text-muted mt-1">
-                            Please try again.
+
+                            ${escapeHtml(
+                                error.message
+                                || 'Please try again.'
+                            )}
+
                         </div>
 
                     </td>
+
                 </tr>
+
             `;
+
+
+            if (alertBox) {
+
+                alertBox.className =
+                    'alert alert-danger';
+
+
+                alertBox.innerHTML =
+                    '<i class="fas fa-exclamation-circle me-1"></i>' +
+                    'Failed to load attendance data.';
+
+
+                alertBox.classList.remove(
+                    'd-none'
+                );
+
+            }
 
         } finally {
 
             if (button) {
 
-                button.disabled = false;
+                button.disabled =
+                    false;
 
                 button.innerHTML =
                     '<i class="fas fa-sync me-1"></i> Load';
@@ -2083,14 +4087,18 @@
                 'classAttendanceTable'
             );
 
+
         if (
             !table ||
             typeof XLSX === 'undefined'
         ) {
 
-            if (typeof Swal !== 'undefined') {
+            if (
+                typeof Swal !== 'undefined'
+            ) {
 
                 Swal.fire({
+
                     icon:
                         'warning',
 
@@ -2099,6 +4107,7 @@
 
                     text:
                         'The Excel export library is not available.'
+
                 });
 
             }
@@ -2107,27 +4116,41 @@
 
         }
 
+
         try {
 
             const workbook =
                 XLSX.utils.book_new();
+
 
             const worksheet =
                 XLSX.utils.table_to_sheet(
                     table
                 );
 
+
             worksheet['!cols'] = [
+
                 { wch: 5 },
+
                 { wch: 25 },
+
                 { wch: 15 },
-                { wch: 12 },
-                { wch: 12 },
-                { wch: 12 },
-                { wch: 12 },
+
+                { wch: 15 },
+
+                { wch: 15 },
+
+                { wch: 15 },
+
+                { wch: 15 },
+
                 { wch: 20 },
+
                 { wch: 18 }
+
             ];
+
 
             XLSX.utils.book_append_sheet(
                 workbook,
@@ -2135,25 +4158,32 @@
                 'Class Attendance'
             );
 
+
             const selectedDate =
                 document.getElementById(
                     'attendanceDateFilter'
                 )?.value
-                || new Date()
+                ||
+                new Date()
                     .toISOString()
                     .slice(
                         0,
                         10
                     );
 
+
             XLSX.writeFile(
                 workbook,
                 `Class_Attendance_${selectedDate}.xlsx`
             );
 
-            if (typeof Swal !== 'undefined') {
+
+            if (
+                typeof Swal !== 'undefined'
+            ) {
 
                 Swal.fire({
+
                     icon:
                         'success',
 
@@ -2165,6 +4195,7 @@
 
                     showConfirmButton:
                         false
+
                 });
 
             }
@@ -2176,9 +4207,13 @@
                 error
             );
 
-            if (typeof Swal !== 'undefined') {
+
+            if (
+                typeof Swal !== 'undefined'
+            ) {
 
                 Swal.fire({
+
                     icon:
                         'error',
 
@@ -2187,6 +4222,7 @@
 
                     text:
                         error.message
+
                 });
 
             }
@@ -2194,6 +4230,16 @@
         }
 
     }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | MAKE EXPORT AVAILABLE GLOBALLY
+    |--------------------------------------------------------------------------
+    */
+
+    window.exportClassAttendance =
+        exportClassAttendance;
 
 
     /*
@@ -2206,44 +4252,55 @@
         'DOMContentLoaded',
         function () {
 
+
+            /*
+            |--------------------------------------------------------------------------
+            | ATTENDANCE CHART
+            |--------------------------------------------------------------------------
+            */
+
             updateLegendDot(
                 currentColor
             );
+
 
             loadAttendanceData(
                 30
             );
 
-            loadClassAttendance(
-                document.getElementById(
-                    'attendanceDateFilter'
-                )?.value
-            );
 
+            /*
+            |--------------------------------------------------------------------------
+            | FEE CHARTS
+            |--------------------------------------------------------------------------
+            */
+
+            initializeFeePositionChart();
+
+            initializeClassFeeChart();
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | CHART CONTROLS
+            |--------------------------------------------------------------------------
+            */
 
             const chartTypeSelect =
                 document.getElementById(
                     'chartTypeSelect'
                 );
 
+
             const colorPicker =
                 document.getElementById(
                     'lineColorPicker'
                 );
 
+
             const periodSelect =
                 document.getElementById(
                     'periodSelect'
-                );
-
-            const loadButton =
-                document.getElementById(
-                    'loadClassAttendanceBtn'
-                );
-
-            const dateInput =
-                document.getElementById(
-                    'attendanceDateFilter'
                 );
 
 
@@ -2255,6 +4312,7 @@
 
                         currentChartType =
                             event.target.value;
+
 
                         renderAttendanceChart(
                             currentChartType,
@@ -2276,9 +4334,11 @@
                         currentColor =
                             event.target.value;
 
+
                         updateLegendDot(
                             currentColor
                         );
+
 
                         renderAttendanceChart(
                             currentChartType,
@@ -2305,6 +4365,24 @@
                 );
 
             }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | CLASS ATTENDANCE
+            |--------------------------------------------------------------------------
+            */
+
+            const loadButton =
+                document.getElementById(
+                    'loadClassAttendanceBtn'
+                );
+
+
+            const dateInput =
+                document.getElementById(
+                    'attendanceDateFilter'
+                );
 
 
             if (loadButton) {
@@ -2338,10 +4416,12 @@
 
             }
 
+
         }
     );
 
 </script>
+
 @endpush
 
 @endsection

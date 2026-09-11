@@ -14,7 +14,7 @@
         <div>
             <h4 class="mb-1 fw-bold">
                 <i class="fas fa-file-invoice-dollar text-primary me-2"></i>
-                Generate Bill Sheets
+                Generate Bill Sheets 
             </h4>
 
             <p class="text-muted mb-0">
@@ -251,24 +251,31 @@
                         <select name="term_id"
                                 id="term_id"
                                 class="form-select @error('term_id') is-invalid @enderror"
-                                required>
+                                required
+                                disabled>
 
                             <option value="">
-                                Select Term
+                                Select Academic Year First
                             </option>
 
-                            @foreach($terms as $term)
-
-                                <option value="{{ $term->id }}"
-                                    {{ old('term_id') == $term->id ? 'selected' : '' }}>
-
-                                    {{ $term->name }}
-
-                                </option>
-
-                            @endforeach
-
                         </select>
+
+                        <template id="termOptionsTemplate">
+                            @foreach($terms as $term)
+                                <option
+                                    value="{{ $term->id }}"
+                                    data-academic-year-id="{{ $term->academic_year_id }}"
+                                    data-start-date="{{ $term->start_date }}"
+                                    data-end-date="{{ $term->end_date }}"
+                                >
+                                    {{ $term->name }}
+                                </option>
+                            @endforeach
+                        </template>
+
+                        <div class="form-text" id="termHelp">
+                            Select an Academic Year to load its terms.
+                        </div>
 
 
                         @error('term_id')
@@ -938,6 +945,15 @@
         border-color: #dc3545 !important;
     }
 
+    #term_id:disabled {
+        background-color: #f8f9fa;
+        cursor: not-allowed;
+    }
+
+    #termHelp {
+        min-height: 18px;
+    }
+
 </style>
 
 @endpush
@@ -1008,6 +1024,21 @@
 
         const academicYearSelect =
             document.getElementById('academic_year_id');
+
+        const termSelect =
+            document.getElementById('term_id');
+
+        const termOptionsTemplate =
+            document.getElementById('termOptionsTemplate');
+
+        const termHelp =
+            document.getElementById('termHelp');
+
+        const oldAcademicYearId =
+            @json(old('academic_year_id'));
+
+        const oldTermId =
+            @json(old('term_id'));
 
         const studentSummary =
             document.getElementById('studentSummary');
@@ -1635,6 +1666,196 @@
 
         /*
         |--------------------------------------------------------------------------
+        | TERM FILTERING
+        |--------------------------------------------------------------------------
+        |
+        | The controller supplies all terms because other pages may need the
+        | complete collection. The visible Term select MUST NOT render that
+        | collection directly.
+        |
+        | Instead, the template above is used as a private source and only
+        | options whose academic_year_id matches the selected Academic Year
+        | are copied into the visible select.
+        |--------------------------------------------------------------------------
+        */
+
+        function getAvailableTermsForAcademicYear(
+            academicYearId
+        ) {
+
+            if (
+                !academicYearId ||
+                !termOptionsTemplate
+            ) {
+                return [];
+            }
+
+            return Array.from(
+                termOptionsTemplate.content.querySelectorAll(
+                    'option[data-academic-year-id]'
+                )
+            ).filter(function (option) {
+
+                return String(
+                    option.dataset.academicYearId
+                ) === String(
+                    academicYearId
+                );
+
+            });
+
+        }
+
+
+        function populateTerms(
+            academicYearId,
+            preferredTermId = ''
+        ) {
+
+            if (!termSelect) {
+                return;
+            }
+
+            const yearId =
+                String(
+                    academicYearId || ''
+                );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Always remove every previously visible term.
+            |--------------------------------------------------------------------------
+            */
+            termSelect.innerHTML = '';
+
+            /*
+            |--------------------------------------------------------------------------
+            | No Academic Year selected.
+            |--------------------------------------------------------------------------
+            */
+            if (!yearId) {
+
+                const placeholder =
+                    document.createElement('option');
+
+                placeholder.value = '';
+                placeholder.textContent =
+                    'Select Academic Year First';
+
+                termSelect.appendChild(
+                    placeholder
+                );
+
+                termSelect.disabled = true;
+
+                if (termHelp) {
+                    termHelp.textContent =
+                        'Select an Academic Year to load its terms.';
+                }
+
+                return;
+            }
+
+            const matchingTerms =
+                getAvailableTermsForAcademicYear(
+                    yearId
+                );
+
+            /*
+            |--------------------------------------------------------------------------
+            | Placeholder.
+            |--------------------------------------------------------------------------
+            */
+            const placeholder =
+                document.createElement('option');
+
+            placeholder.value = '';
+
+            placeholder.textContent =
+                matchingTerms.length
+                    ? 'Select Term'
+                    : 'No Terms Available';
+
+            termSelect.appendChild(
+                placeholder
+            );
+
+            /*
+            |--------------------------------------------------------------------------
+            | No terms configured for selected year.
+            |--------------------------------------------------------------------------
+            */
+            if (!matchingTerms.length) {
+
+                termSelect.disabled = true;
+
+                if (termHelp) {
+                    termHelp.textContent =
+                        'No terms have been configured for this Academic Year.';
+                }
+
+                return;
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Add ONLY terms belonging to this Academic Year.
+            |--------------------------------------------------------------------------
+            */
+            matchingTerms.forEach(function (sourceOption) {
+
+                const option =
+                    sourceOption.cloneNode(true);
+
+                termSelect.appendChild(
+                    option
+                );
+
+            });
+
+            termSelect.disabled = false;
+
+            if (termHelp) {
+                termHelp.textContent =
+                    matchingTerms.length +
+                    ' term' +
+                    (
+                        matchingTerms.length === 1
+                            ? ''
+                            : 's'
+                    ) +
+                    ' available for the selected Academic Year.';
+            }
+
+            /*
+            |--------------------------------------------------------------------------
+            | Restore a term only if it belongs to the selected year.
+            |--------------------------------------------------------------------------
+            */
+            if (
+                preferredTermId &&
+                matchingTerms.some(function (option) {
+
+                    return String(option.value) ===
+                        String(preferredTermId);
+
+                })
+            ) {
+
+                termSelect.value =
+                    String(preferredTermId);
+
+            } else {
+
+                termSelect.value = '';
+
+            }
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
         | LOAD ACTIVE STUDENT COUNT
         |--------------------------------------------------------------------------
         */
@@ -1822,6 +2043,42 @@
         if (academicYearSelect) {
 
             academicYearSelect.addEventListener(
+                'change',
+                function () {
+
+                    /*
+                    | Changing Academic Year invalidates the old Term.
+                    */
+                    populateTerms(
+                        academicYearSelect.value,
+                        ''
+                    );
+
+                    /*
+                    | A different year must never retain a term from
+                    | the previous year.
+                    */
+                    if (termSelect) {
+                        termSelect.value = '';
+                    }
+
+                    loadStudentCount();
+
+                }
+            );
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | TERM CHANGE
+        |--------------------------------------------------------------------------
+        */
+
+        if (termSelect) {
+
+            termSelect.addEventListener(
                 'change',
                 loadStudentCount
             );
@@ -2068,6 +2325,22 @@
         updateRemoveButtons();
 
         calculateTotals();
+
+        /*
+        |--------------------------------------------------------------------------
+        | INITIAL TERM SETUP
+        |--------------------------------------------------------------------------
+        |
+        | If validation sent the user back, restore the term only when it
+        | belongs to the selected Academic Year.
+        |--------------------------------------------------------------------------
+        */
+        populateTerms(
+            academicYearSelect?.value ||
+            oldAcademicYearId ||
+            '',
+            oldTermId || ''
+        );
 
         loadStudentCount();
 

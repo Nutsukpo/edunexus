@@ -5,450 +5,889 @@
 @section('content')
 
 <style>
-    * {
-        margin: 0;
-        padding: 0;
-        box-sizing: border-box;
-    }
-    
-    @media print {
-        body {
-            background: white;
-            margin: 0;
-            padding: 0;
-        }
-        .no-print {
-            display: none !important;
-        }
-        .report-card {
-            box-shadow: none !important;
-            margin: 0 !important;
-            padding: 0 !important;
-        }
-    }
-    
-    .report-card-wrapper {
-        max-width: 1100px;
-        margin: 0 auto;
-        padding: 20px;
-    }
-    
-    .report-card {
-        background: white;
-        border-radius: 8px;
-        overflow: hidden;
-        border: 1px solid #e2e8f0;
-    }
-    
-    .school-header {
-        background: #1e3c72;
-        color: white;
-        padding: 20px;
-        text-align: center;
-    }
-    
-    .school-header h3 {
-        font-size: 18px;
-        margin-bottom: 5px;
-    }
-    
-    .school-header p {
-        font-size: 12px;
-        margin-bottom: 0;
-    }
-    
+
+.report-card-wrapper {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.report-card {
+    background: #fff;
+    border: 1px solid #dfe5ec;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.school-header {
+    background: #1e3c72;
+    color: #fff;
+    text-align: center;
+    padding: 20px;
+}
+
+.school-logo {
+    height: 55px;
+    margin-bottom: 8px;
+}
+
+.school-header h2 {
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0;
+}
+
+.school-header p {
+    font-size: 12px;
+    margin: 4px 0 0;
+}
+
+.report-title {
+    display: inline-block;
+    margin-top: 10px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    background: rgba(255,255,255,.15);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.student-info {
+    margin: 15px;
+    padding: 15px;
+    background: #f8f9fa;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+}
+
+.info-label {
+    display: block;
+    color: #6c757d;
+    font-size: 9px;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.info-value {
+    display: block;
+    margin-top: 3px;
+    color: #1f2937;
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 0 15px 15px;
+}
+
+.stat-card {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    background: #fff;
+}
+
+.stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #1e3c72;
+}
+
+.stat-label {
+    font-size: 9px;
+    color: #6c757d;
+    text-transform: uppercase;
+}
+
+.score-table-wrapper {
+    overflow-x: auto;
+    margin: 0 15px 15px;
+}
+
+.score-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11px;
+}
+
+.score-table th {
+    background: #1e3c72;
+    color: #fff;
+    padding: 7px;
+    border: 1px solid #43597a;
+    text-align: center;
+    white-space: nowrap;
+}
+
+.score-table td {
+    padding: 6px;
+    border: 1px solid #dfe5ec;
+    text-align: center;
+}
+
+.score-table .subject {
+    text-align: left;
+    font-weight: 600;
+}
+
+.grade-badge {
+    display: inline-block;
+    min-width: 28px;
+    padding: 2px 7px;
+    border-radius: 12px;
+    font-weight: 700;
+    background: #eef2f7;
+}
+
+.remarks-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+    margin: 0 15px 15px;
+}
+
+.remarks-card {
+    padding: 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 3px solid #4299e1;
+}
+
+.remarks-card.head {
+    border-left-color: #48bb78;
+}
+
+.remarks-title {
+    font-size: 11px;
+    font-weight: 700;
+    margin-bottom: 7px;
+}
+
+.remarks-text {
+    min-height: 45px;
+    font-size: 11px;
+    font-style: italic;
+    line-height: 1.5;
+}
+
+.remarks-footer {
+    border-top: 1px solid #dee2e6;
+    padding-top: 6px;
+    margin-top: 6px;
+    font-size: 9px;
+    color: #6c757d;
+}
+
+.report-footer {
+    padding: 10px;
+    text-align: center;
+    background: #f8f9fa;
+    border-top: 1px solid #e2e8f0;
+    font-size: 9px;
+    color: #6c757d;
+}
+
+.actions {
+    max-width: 1100px;
+    margin: 20px auto;
+    text-align: center;
+}
+
+@media (max-width: 768px) {
+
     .info-grid {
-        display: grid;
-        grid-template-columns: repeat(4, 1fr);
-        gap: 10px;
-        padding: 15px;
-        background: #f8f9fa;
-        margin: 15px;
-        border-radius: 8px;
-    }
-    
-    .info-item {
-        display: flex;
-        flex-direction: column;
-    }
-    
-    .info-label {
-        font-size: 10px;
-        font-weight: 600;
-        color: #6c757d;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    
-    .info-value {
-        font-size: 13px;
-        font-weight: 700;
-        color: #2d3748;
-        margin-top: 3px;
-    }
-    
-    .performance-bar-container {
-        width: 100%;
-        background: #e2e8f0;
-        border-radius: 4px;
-        height: 6px;
-        margin: 5px 0;
-    }
-    
-    .performance-bar {
-        height: 6px;
-        border-radius: 4px;
-    }
-    
-    .bg-excellent { background: #48bb78; }
-    .bg-good { background: #4299e1; }
-    .bg-average { background: #ed8936; }
-    .bg-poor { background: #f56565; }
-    
-    .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(3, 1fr);
-        gap: 10px;
-        padding: 0 15px 15px 15px;
-    }
-    
-    .stat-card {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 10px;
-        text-align: center;
-        border-radius: 8px;
-    }
-    
-    .stat-value {
-        font-size: 20px;
-        font-weight: bold;
-    }
-    
-    .stat-label {
-        font-size: 10px;
-        text-transform: uppercase;
-    }
-    
-    .score-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: 12px;
-        margin: 0 15px 15px 15px;
-        width: calc(100% - 30px);
-    }
-    
-    .score-table th {
-        background:#1e3c72 ;
-        color: white;
-        padding: 8px;
-        text-align: center;
-        border: 1px solid #4a5568;
-    }
-    
-    .score-table td {
-        padding: 6px;
-        text-align: center;
-        border: 1px solid #e2e8f0;
-    }
-    
-    .score-table .text-start {
-        text-align: left;
-    }
-    
-    .grade-badge {
-        display: inline-block;
-        padding: 2px 8px;
-        border-radius: 12px;
-        font-size: 11px;
-        font-weight: 600;
-    }
-    
-    .remarks-grid {
-        display: grid;
         grid-template-columns: repeat(2, 1fr);
-        gap: 15px;
-        padding: 0 15px 15px 15px;
     }
-    
-    .remarks-card {
-        border-left: 3px solid;
-        padding: 10px;
-        background: #f8f9fa;
-        border-radius: 8px;
+
+    .stats-grid {
+        grid-template-columns: repeat(2, 1fr);
     }
-    
-    .remarks-teacher { border-left-color: #4299e1; }
-    .remarks-head { border-left-color: #48bb78; }
-    
-    .remarks-title {
-        font-size: 11px;
-        font-weight: bold;
-        margin-bottom: 5px;
+
+    .remarks-grid {
+        grid-template-columns: 1fr;
     }
-    
-    .remarks-text {
-        font-size: 11px;
-        font-style: italic;
-        margin-bottom: 8px;
-        line-height: 1.4;
+
+}
+
+@media print {
+
+    body {
+        background: #fff !important;
     }
-    
-    .remarks-footer {
-        font-size: 10px;
-        border-top: 1px solid #dee2e6;
-        padding-top: 5px;
-        margin-top: 5px;
+
+    .no-print {
+        display: none !important;
     }
-    
-    .footer {
-        text-align: center;
-        padding: 10px;
-        background: #f8f9fa;
-        font-size: 10px;
-        border-top: 1px solid #e2e8f0;
+
+    .report-card-wrapper {
+        max-width: none;
+        padding: 0;
+        margin: 0;
     }
-    
-    @media (max-width: 768px) {
-        .info-grid {
-            grid-template-columns: repeat(2, 1fr);
-        }
-        .remarks-grid {
-            grid-template-columns: 1fr;
-        }
-        .score-table {
-            font-size: 10px;
-        }
+
+    .report-card {
+        border: none;
+        box-shadow: none;
     }
+
+    .score-table-wrapper {
+        overflow: visible;
+    }
+
+    .score-table {
+        font-size: 9px;
+    }
+
+    .score-table th,
+    .score-table td {
+        padding: 4px;
+    }
+
+    @page {
+        size: A4 portrait;
+        margin: 10mm;
+    }
+
+}
+
 </style>
 
-<div class="report-card-wrapper no-print">
+
+<div class="report-card-wrapper">
+
     <div class="report-card" id="reportCard">
-        
-        <!-- School Header -->
+
+
+        {{-- ========================================================
+            SCHOOL HEADER
+        ========================================================= --}}
+
         <div class="school-header">
+
             @if(file_exists(public_path('img/Talha.jpeg')))
-                <img src="{{ asset('img/Talha.jpeg') }}" alt="Logo" style="height: 50px; margin-bottom: 8px;">
+
+                <img
+                    src="{{ asset('img/Talha.jpeg') }}"
+                    alt="School Logo"
+                    class="school-logo"
+                >
+
             @endif
-            <h3>TALHA PREMIER INTERNATIOANL ACADEMY</h3>
-            <p>{{ $schoolMotto ?? 'Excellence in Education' }}</p>
-            <div style="margin-top: 8px;">
-                <span style="background: rgba(255,255,255,0.2); padding: 3px 12px; border-radius: 20px; font-size: 12px;">TERMINAL REPORT CARD</span>
+
+
+            <h2>
+                {{ $schoolName ?? 'TALHA PREMIER INTERNATIONAL ACADEMY' }}
+            </h2>
+
+
+            <p>
+                {{ $schoolMotto ?? 'Excellence in Education' }}
+            </p>
+
+
+            <div class="report-title">
+                TERMINAL REPORT CARD
             </div>
+
         </div>
-        
-        <!-- Student Information -->
-        <div class="info-grid">
-            <div class="info-item">
-                <span class="info-label">Student Name</span>
-                <span class="info-value">{{ $student->first_name ?? '' }} {{ $student->last_name ?? '' }}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Admission No.</span>
-                <span class="info-value">{{ $student->student_id ?? 'N/A' }}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Class</span>
-                <span class="info-value">{{ $class->name ?? 'N/A' }}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Academic Year</span>
-                <span class="info-value">{{ $academicYear->name ?? 'N/A' }}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Term</span>
-                <span class="info-value">{{ $term->name ?? 'N/A' }}</span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Class Position</span>
-                <span class="info-value">
-                    @if($classPosition)
-                        {{ $classPosition }}{{ $classPosition == 1 ? 'st' : ($classPosition == 2 ? 'nd' : ($classPosition == 3 ? 'rd' : 'th')) }} / {{ $totalStudents ?? 0 }}
-                    @else
-                        N/A
-                    @endif
-                </span>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Overall Performance</span>
-                <div class="info-value">
-                    <div class="performance-bar-container">
-                        @php
-                            $overallPercent = $average;
-                            $barClass = $overallPercent >= 80 ? 'bg-excellent' : ($overallPercent >= 60 ? 'bg-good' : ($overallPercent >= 50 ? 'bg-average' : 'bg-poor'));
-                        @endphp
-                        <div class="performance-bar {{ $barClass }}" style="width: {{ $overallPercent }}%"></div>
-                    </div>
-                    <small>{{ number_format($overallPercent, 1) }}%</small>
-                </div>
-            </div>
-            <div class="info-item">
-                <span class="info-label">Subjects Taken</span>
-                <span class="info-value">{{ $results->count() }}</span>
-            </div>
-        </div>
-        <!-- Results Table -->
-        <table class="score-table">
-            <thead>
-                <tr>
-                    <th width="30">#</th>
-                    <th>Subject</th>
-                    <th width="60">Class</th>
-                    <th width="60">Exam</th>
-                    <th width="60">Total</th>
-                    <th width="60">Grade</th>
-                    <th width="60">Remarks</th>
-                    <th width="50">Position</th>
-                </tr>
-            </thead>
-            <tbody>
-                @forelse($results as $index => $result)
-                    @php
-                        if($result->total_score >= 80) { $gradeLetter = '1'; $gradeClass = 'grade-1'; }
-                        elseif($result->total_score >= 75) { $gradeLetter = '2'; $gradeClass = 'grade-2'; }
-                        elseif($result->total_score >= 70) { $gradeLetter = '3'; $gradeClass = 'grade-3'; }
-                        elseif($result->total_score >= 60) { $gradeLetter = '4'; $gradeClass = 'grade-4'; }
-                        elseif($result->total_score >= 55) { $gradeLetter = '4'; $gradeClass = 'grade-4'; }
-                        elseif($result->total_score >= 50) { $gradeLetter = '4'; $gradeClass = 'grade-5'; }
-                        else { $gradeLetter = '6'; $gradeClass = 'grade-6'; }
-                    @endphp
-                    <tr>
-                        <td style="text-align: center;">{{ $index + 1 }}</td>
-                        <td class="text-start">{{ $result->subject->name ?? 'N/A' }}</td>
-                        <td style="text-align: center;">{{ $result->class_score ?? 0 }}</td>
-                        <td style="text-align: center;">{{ $result->exam_score ?? 0 }}</td>
-                        <td style="text-align: center;"><strong>{{ $result->total_score ?? 0 }}</strong></td>
-                        <td style="text-align: center;">
-                            <span class="grade-badge bg-white text-dark">{{ $gradeLetter }}</span>
-                        </td>
-                        <td class="text-start">
-                            <small>
-                                <!-- <i class="fas fa-comment-dots text-muted me-1"></i> -->
-                                {{ $result->remark ?? ($result->total_score >= 80 ? 'Excellent performance!' : ($result->total_score >= 75 ? 'Very good!' : ($result->total_score >= 70 ? 'Good!' : ($result->total_score >= 50 ? 'Pass!' : 'Needs improvement!')))) }}
-                            </small>
-                        </td>
-                        <td style="text-align: center;">
-                            @if($result->subject_position && $result->subject_position <= 3)
-                                @if($result->subject_position == 1) 1
-                                @elseif($result->subject_position == 2) 2
-                                @else 3 @endif
-                            @else
-                                {{ $result->subject_position ?? '-' }}
-                            @endif
-                        </td>
-                    </tr>
-                @empty
-                    <tr>
-                        <td colspan="7" style="text-align: center; padding: 30px;">
-                            <strong>No Results Found</strong><br>
-                            <small>No results recorded for this student in the selected term.</small>
-                        </td>
-                    </tr>
-                @endforelse
-            </tbody>
-        </table>
-        
-        <!-- Remarks Section -->
-        <div class="remarks-grid">
-    <div class="remarks-card remarks-teacher">
-        <div class="remarks-title">
-            <i class="fas fa-chalkboard-teacher"></i> Teacher's Remarks
-        </div>
-        <div class="remarks-text">
-            "{{ $teacherRemarks ?? 'Good performance. Keep it up!' }}"
-        </div>
-        <div class="remarks-footer">
-            <div style="display: flex; justify-content: space-between;">
-                <span>Teacher: {{ $classTeacher->first_name ?? '______' }} {{ $classTeacher->last_name ?? '' }}</span>
-                <span>Date: {{ date('d/m/Y') }}</span>
-            </div>
-        </div>
-    </div>
-    <div class="remarks-card remarks-head">
-        <div class="remarks-title">
-            <i class="fas fa-gavel"></i> Headmaster's Remarks
-        </div>
-        <div class="remarks-text">
-            "{{ $headRemarks }}"
-        </div>
-        <div class="remarks-footer">
-            <div style="display: flex; justify-content: space-between;">
-                <span>Headmaster: DR. J. K. MENSAH</span>
-                <span>
-                    @php
-                        $termName = strtolower($term->name ?? '');
-                        $isThirdTerm = (str_contains($termName, 'third') || str_contains($termName, '3rd'));
-                    @endphp
-                    
-                    @if($isThirdTerm)
-                        @if($average >= 60)
-                            <span style="color: #48bb78;">✓ Promoted</span>
-                        @elseif($average >= 50)
-                            <span style="color: #ed8936;">⚠ Conditional</span>
-                        @else
-                            <span style="color: #f56565;">✗ Repeated</span>
+
+
+        {{-- ========================================================
+            STUDENT INFORMATION
+        ========================================================= --}}
+
+        <div class="student-info">
+
+            <div class="info-grid">
+
+
+                <div>
+
+                    <span class="info-label">
+                        Student Name
+                    </span>
+
+                    <span class="info-value">
+
+                        {{ $student->first_name ?? '' }}
+
+                        @if(!empty($student->middle_name))
+                            {{ $student->middle_name }}
                         @endif
-                    @else
-                        <span style="color: #4299e1;">📋 In Progress</span>
-                    @endif
-                </span>
+
+                        {{ $student->last_name ?? '' }}
+
+                    </span>
+
+                </div>
+
+
+                <div>
+
+                    <span class="info-label">
+                        Admission No.
+                    </span>
+
+                    <span class="info-value">
+                        {{ $student->student_id ?? 'N/A' }}
+                    </span>
+
+                </div>
+
+
+                <div>
+
+                    <span class="info-label">
+                        Class
+                    </span>
+
+                    <span class="info-value">
+                        {{ $class->name ?? 'N/A' }}
+                    </span>
+
+                </div>
+
+
+                <div>
+
+                    <span class="info-label">
+                        Academic Year
+                    </span>
+
+                    <span class="info-value">
+                        {{ $academicYear->name ?? 'N/A' }}
+                    </span>
+
+                </div>
+
+
+                <div>
+
+                    <span class="info-label">
+                        Term
+                    </span>
+
+                    <span class="info-value">
+                        {{ $term->name ?? 'N/A' }}
+                    </span>
+
+                </div>
+
+
+                <div>
+
+                    <span class="info-label">
+                        Class Position
+                    </span>
+
+                    <span class="info-value">
+
+                        @if($classPosition)
+
+                            @php
+
+                                $position =
+                                    (int) $classPosition;
+
+                                if (
+                                    $position % 100 >= 11 &&
+                                    $position % 100 <= 13
+                                ) {
+                                    $suffix = 'th';
+                                } else {
+
+                                    $suffix = match(
+                                        $position % 10
+                                    ) {
+                                        1 => 'st',
+                                        2 => 'nd',
+                                        3 => 'rd',
+                                        default => 'th',
+                                    };
+
+                                }
+
+                            @endphp
+
+                            {{ $position }}{{ $suffix }}
+
+                            / {{ $totalStudents ?? 0 }}
+
+                        @else
+
+                            N/A
+
+                        @endif
+
+                    </span>
+
+                </div>
+
+
+                <div>
+
+                    <span class="info-label">
+                        Overall Average
+                    </span>
+
+                    <span class="info-value">
+
+                        {{ number_format((float) $average, 1) }}%
+
+                    </span>
+
+                </div>
+
+
+                <div>
+
+                    <span class="info-label">
+                        Subjects Taken
+                    </span>
+
+                    <span class="info-value">
+                        {{ $subjectCount ?? $results->count() }}
+                    </span>
+
+                </div>
+
             </div>
+
         </div>
-    </div>
-</div>
-        
-        <!-- Footer -->
-        <div class="footer">
-            Generated on {{ now()->format('d/m/Y h:i A') }}
+
+
+        {{-- ========================================================
+            RESULTS
+        ========================================================= --}}
+
+        <div class="score-table-wrapper">
+
+            <table class="score-table">
+
+                <thead>
+
+                    <tr>
+
+                        <th width="30">
+                            #
+                        </th>
+
+                        <th>
+                            Subject
+                        </th>
+
+                        <th width="60">
+                            Class
+                        </th>
+
+                        <th width="60">
+                            Exam
+                        </th>
+
+                        <th width="60">
+                            Total
+                        </th>
+
+                        <th width="55">
+                            Grade
+                        </th>
+
+                        <th>
+                            Remarks
+                        </th>
+
+                        <th width="60">
+                            Position
+                        </th>
+
+                    </tr>
+
+                </thead>
+
+
+                <tbody>
+
+                    @forelse($results as $index => $result)
+
+                        @php
+
+                            $score =
+                                (float) ($result->total_score ?? 0);
+
+
+                            if ($score >= 80) {
+
+                                $grade = '1';
+                                $remark = 'Excellent';
+
+                            } elseif ($score >= 75) {
+
+                                $grade = '2';
+                                $remark = 'Very Good';
+
+                            } elseif ($score >= 70) {
+
+                                $grade = '3';
+                                $remark = 'Good';
+
+                            } elseif ($score >= 60) {
+
+                                $grade = '4';
+                                $remark = 'Credit';
+
+                            } elseif ($score >= 55) {
+
+                                $grade = '5';
+                                $remark = 'Pass';
+
+                            } elseif ($score >= 50) {
+
+                                $grade = '6';
+                                $remark = 'Pass';
+
+                            } else {
+
+                                $grade = '9';
+                                $remark = 'Needs Improvement';
+
+                            }
+
+
+                            $displayRemark =
+                                $result->remark
+                                ??
+                                $remark;
+
+                        @endphp
+
+
+                        <tr>
+
+                            <td>
+                                {{ $index + 1 }}
+                            </td>
+
+
+                            <td class="subject">
+
+                                {{ $result->subject->name ?? 'N/A' }}
+
+                            </td>
+
+
+                            <td>
+                                {{ number_format((float) ($result->class_score ?? 0), 1) }}
+                            </td>
+
+
+                            <td>
+                                {{ number_format((float) ($result->exam_score ?? 0), 1) }}
+                            </td>
+
+
+                            <td>
+                                <strong>
+                                    {{ number_format($score, 1) }}
+                                </strong>
+                            </td>
+
+
+                            <td>
+
+                                <span class="grade-badge">
+                                    {{ $grade }}
+                                </span>
+
+                            </td>
+
+
+                            <td style="text-align:left">
+
+                                {{ $displayRemark }}
+
+                            </td>
+
+
+                            <td>
+
+                                {{ $result->subject_position ?? '—' }}
+
+                            </td>
+
+                        </tr>
+
+                    @empty
+
+                        <tr>
+
+                            <td
+                                colspan="8"
+                                style="padding:30px"
+                            >
+
+                                No results found for this student
+                                in the selected academic period.
+
+                            </td>
+
+                        </tr>
+
+                    @endforelse
+
+                </tbody>
+
+            </table>
+
         </div>
-        
+
+
+        {{-- ========================================================
+            REMARKS
+        ========================================================= --}}
+
+        <div class="remarks-grid">
+
+
+            <div class="remarks-card">
+
+                <div class="remarks-title">
+
+                    <i class="fas fa-comment-dots me-1"></i>
+
+                    Class Teacher's Remarks
+
+                </div>
+
+
+                <div class="remarks-text">
+
+                    "{{ $teacherRemarks ?? 'Good performance. Keep it up!' }}"
+
+                </div>
+
+
+                <div class="remarks-footer">
+
+                    Teacher:
+
+                    {{ $classTeacher->first_name ?? '________________' }}
+
+                    {{ $classTeacher->last_name ?? '' }}
+
+                </div>
+
+            </div>
+
+
+            <div class="remarks-card head">
+
+                <div class="remarks-title">
+
+                    <i class="fas fa-user-tie me-1"></i>
+
+                    Headmaster's Remarks
+
+                </div>
+
+
+                <div class="remarks-text">
+
+                    "{{ $headRemarks ?? 'Keep working hard.' }}"
+
+                </div>
+
+
+                <div class="remarks-footer">
+
+                    @php
+
+                        $termName =
+                            strtolower(
+                                $term->name ?? ''
+                            );
+
+                        $isThirdTerm =
+                            str_contains(
+                                $termName,
+                                'third'
+                            )
+                            ||
+                            str_contains(
+                                $termName,
+                                '3rd'
+                            );
+
+                    @endphp
+
+
+                    @if($isThirdTerm)
+
+                        @if($average >= 60)
+
+                            <strong>
+                                ✓ Promoted
+                            </strong>
+
+                        @elseif($average >= 50)
+
+                            <strong>
+                                ⚠ Conditional
+                            </strong>
+
+                        @else
+
+                            <strong>
+                                ✗ Repeated
+                            </strong>
+
+                        @endif
+
+                    @else
+
+                        <strong>
+                            In Progress
+                        </strong>
+
+                    @endif
+
+                </div>
+
+            </div>
+
+        </div>
+
+
+        {{-- FOOTER --}}
+        <div class="report-footer">
+
+            Generated on
+            {{ now()->format('d/m/Y h:i A') }}
+
+        </div>
+
     </div>
+
 </div>
 
-<!-- Action Buttons -->
-<div class="row mt-3 no-print" style="max-width: 1100px; margin: 20px auto;">
-    <div class="col-12 text-center">
-        <button onclick="exportToPDF()" class="btn btn-danger btn-sm mx-1">
-            <i class="fas fa-file-pdf me-1"></i> PDF
-        </button>
-        <a href="{{ route('report-cards.index') }}" class="btn btn-secondary btn-sm mx-1">
-            <i class="fas fa-arrow-left me-1"></i> Back
-        </a>
-    </div>
+
+{{-- ================================================================
+    ACTIONS
+================================================================= --}}
+
+<div class="actions no-print">
+
+    <button
+        type="button"
+        onclick="window.print()"
+        class="btn btn-primary btn-sm"
+    >
+
+        <i class="fas fa-print me-1"></i>
+
+        Print
+
+    </button>
+
+
+    <button
+        type="button"
+        onclick="exportToPDF()"
+        class="btn btn-danger btn-sm"
+    >
+
+        <i class="fas fa-file-pdf me-1"></i>
+
+        PDF
+
+    </button>
+
+
+    <a
+        href="{{ route('report-cards.index') }}"
+        class="btn btn-secondary btn-sm"
+    >
+
+        <i class="fas fa-arrow-left me-1"></i>
+
+        Back
+
+    </a>
+
 </div>
 
-@endsection
 
 @push('scripts')
+
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <script>
-    function exportToPDF() {
-        const element = document.getElementById('reportCard');
-        
-        Swal.fire({
-            title: 'Generating PDF...',
-            text: 'Please wait',
-            allowOutsideClick: false,
-            didOpen: () => Swal.showLoading()
-        });
-        
-        const opt = {
-            margin: [0.3, 0.3, 0.3, 0.3],
-            filename: 'Report_Card_{{ $student->student_id ?? 'student' }}_{{ date('Y-m-d') }}.pdf',
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2, letterRendering: true, useCORS: true },
-            jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
-        };
-        
-        html2pdf().set(opt).from(element).save().then(() => {
-            Swal.close();
-            Swal.fire({ icon: 'success', title: 'PDF Generated!', timer: 1500, showConfirmButton: false });
-        }).catch(() => {
-            Swal.close();
-            Swal.fire({ icon: 'error', title: 'Export Failed', text: 'Error generating PDF' });
-        });
-    }
+
+function exportToPDF()
+{
+
+    const element =
+        document.getElementById(
+            'reportCard'
+        );
+
+
+    const studentId =
+        @json($student->student_id ?? 'student');
+
+
+    const options = {
+
+        margin: 0.25,
+
+        filename:
+            'Report_Card_'
+            +
+            studentId
+            +
+            '_'
+            +
+            @json($academicYear->name ?? 'period')
+            +
+            '.pdf',
+
+        image: {
+            type: 'jpeg',
+            quality: 0.98
+        },
+
+        html2canvas: {
+            scale: 2,
+            useCORS: true
+        },
+
+        jsPDF: {
+            unit: 'in',
+            format: 'a4',
+            orientation: 'portrait'
+        }
+
+    };
+
+
+    html2pdf()
+        .set(options)
+        .from(element)
+        .save();
+
+}
+
 </script>
+
 @endpush
+
+@endsection

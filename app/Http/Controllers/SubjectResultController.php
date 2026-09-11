@@ -2,180 +2,388 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use App\Models\StudentResult;
-use App\Models\Subject;
-use App\Models\StudentClass;
 use App\Models\AcademicYear;
+use App\Models\StudentResult;
+use App\Models\StudentClass;
+use App\Models\Subject;
+use App\Models\SystemSetting;
 use App\Models\Term;
-use Illuminate\Support\Facades\DB;
 use App\Services\EdunexusAuthorizationService;
+use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Pagination\Paginator;
 
 class SubjectResultController extends Controller
 {
-    public function __construct(private EdunexusAuthorizationService $authorization)
-    {
+    public function __construct(
+        private EdunexusAuthorizationService $authorization
+    ) {
     }
 
-    /**
-     * Display subject results.
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | SUBJECT RESULTS
+    |--------------------------------------------------------------------------
+    */
+
     public function index(Request $request)
     {
-        abort_unless(auth()->user()->can('results.view'), 403);
+        abort_unless(
+            auth()->user()->can('results.view'),
+            403
+        );
 
-        $query = StudentResult::with([
-            'student',
-            'subject',
-            'studentClass',
-            'academicYear',
-            'term'
-        ]);
+        $settings = SystemSetting::instance();
 
-        if ($this->authorization->isScopedStaff(auth()->user())) {
-            $classQuery = $this->authorization->accessibleClassSubjects(
-                auth()->user(),
-                $request->filled('academic_year_id') ? (int) $request->academic_year_id : null
-            );
+        $currentAcademicYear = $settings->currentAcademicYear;
+        $currentTerm = $settings->currentTerm;
 
-            $query->whereIn('student_class_id', $classQuery->select('student_classes.id'));
+        /*
+        |--------------------------------------------------------------------------
+        | DEFAULT TO CURRENT PERIOD
+        |--------------------------------------------------------------------------
+        */
 
-            if ($request->filled('subject_id')) {
-                $allowed = $this->authorization->canAccessClassSubject(
-                    auth()->user(),
-                    (int) $request->student_class_id,
-                    (int) $request->subject_id,
-                    $request->filled('academic_year_id') ? (int) $request->academic_year_id : null
-                );
+        $academicYearId = $request->filled('academic_year_id')
+            ? (int) $request->academic_year_id
+            : ($currentAcademicYear?->id);
 
-                if ($request->filled('student_class_id')) {
-                    abort_unless($allowed, 403);
-                }
+        $termId = $request->filled('term_id')
+            ? (int) $request->term_id
+            : ($currentTerm?->id);
 
-                $staff = $this->authorization->staffFor(auth()->user());
-                $query->whereHas('studentClass.subjectStaff', function ($q) use ($staff) {
-                    $q->where('staff_id', $staff->id)
-                      ->whereColumn('class_subject_staff.student_class_id', 'student_results.student_class_id')
-                      ->where('subject_id', request('subject_id'));
-                });
-            }
-        }
+        /*
+        |--------------------------------------------------------------------------
+        | BASE QUERY
+        |--------------------------------------------------------------------------
+        */
 
-        // Filter by Academic Year
-        if ($request->filled('academic_year_id')) {
+        $query = StudentResult::query()
+            ->with([
+                'student',
+                'subject',
+                'studentClass',
+                'academicYear',
+                'term',
+            ]);
+
+        /*
+        |--------------------------------------------------------------------------
+        | ACADEMIC PERIOD
+        |--------------------------------------------------------------------------
+        */
+
+        if ($academicYearId) {
             $query->where(
                 'academic_year_id',
-                $request->academic_year_id
+                $academicYearId
             );
         }
 
-        // Filter by Term
-        if ($request->filled('term_id')) {
+        if ($termId) {
             $query->where(
                 'term_id',
-                $request->term_id
+                $termId
             );
         }
 
-        // Filter by Class
+        /*
+        |--------------------------------------------------------------------------
+        | CLASS
+        |--------------------------------------------------------------------------
+        */
+
         if ($request->filled('student_class_id')) {
+
+            $classId = (int) $request->student_class_id;
+
+            if ($request->filled('subject_id')) {
+
+                $subjectId = (int) $request->subject_id;
+
+                abort_unless(
+                    $this->authorization->canAccessClassSubject(
+                        auth()->user(),
+                        $classId,
+                        $subjectId,
+                        $academicYearId
+                    ),
+                    403
+                );
+
+            }
+
             $query->where(
                 'student_class_id',
-                $request->student_class_id
+                $classId
             );
         }
 
-        // Filter by Subject
+        /*
+        |--------------------------------------------------------------------------
+        | SUBJECT
+        |--------------------------------------------------------------------------
+        */
+
         if ($request->filled('subject_id')) {
+
+            $subjectId = (int) $request->subject_id;
+
+            if ($request->filled('student_class_id')) {
+
+                $classId = (int) $request->student_class_id;
+
+                abort_unless(
+                    $this->authorization->canAccessClassSubject(
+                        auth()->user(),
+                        $classId,
+                        $subjectId,
+                        $academicYearId
+                    ),
+                    403
+                );
+
+            } elseif ($this->authorization->isScopedStaff(auth()->user())) {
+
+                /*
+                |--------------------------------------------------------------------------
+                | SUBJECT-ONLY FILTER FOR SCOPED STAFF
+                |--------------------------------------------------------------------------
+                */
+
+                $staff = $this->authorization->staffFor(
+                    auth()->user()
+                );
+
+                abort_unless($staff, 403);
+
+                $query->whereHas(
+                    'studentClass.subjectStaff',
+                    function ($q) use ($staff, $subjectId) {
+
+                        $q->where(
+                            'staff_id',
+                            $staff->id
+                        )
+                        ->where(
+                            'subject_id',
+                            $subjectId
+                        );
+                    }
+                );
+            }
+
             $query->where(
                 'subject_id',
-                $request->subject_id
+                $subjectId
             );
         }
+
+        /*
+        |--------------------------------------------------------------------------
+        | SCOPED STAFF CLASS ACCESS
+        |--------------------------------------------------------------------------
+        */
+
+        if (
+            $this->authorization->isScopedStaff(
+                auth()->user()
+            )
+        ) {
+
+            $classQuery =
+                $this->authorization->accessibleClassSubjects(
+                    auth()->user(),
+                    $academicYearId
+                );
+
+            $query->whereIn(
+                'student_class_id',
+                $classQuery->select('student_classes.id')
+            );
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | RESULTS
+        |--------------------------------------------------------------------------
+        */
 
         $results = $query
             ->orderBy('student_class_id')
-            ->orderBy('total_score', 'DESC')
+            ->orderBy('subject_id')
+            ->orderByDesc('total_score')
             ->get();
 
-        // Calculate position for each result within the same class and subject
-        $results = $this->calculatePositions($results, $request);
+        /*
+        |--------------------------------------------------------------------------
+        | POSITIONS
+        |--------------------------------------------------------------------------
+        */
 
-        // Paginate after calculating positions
-        $currentPage = \Illuminate\Pagination\Paginator::resolveCurrentPage();
+        $results = $this->calculatePositions($results);
+
+        /*
+        |--------------------------------------------------------------------------
+        | PAGINATION
+        |--------------------------------------------------------------------------
+        */
+
+        $currentPage = Paginator::resolveCurrentPage();
+
         $perPage = 50;
-        $currentPageResults = $results->slice(($currentPage - 1) * $perPage, $perPage)->values();
-        $results = new \Illuminate\Pagination\LengthAwarePaginator(
+
+        $total = $results->count();
+
+        $currentPageResults = $results
+            ->slice(
+                ($currentPage - 1) * $perPage,
+                $perPage
+            )
+            ->values();
+
+        $paginatedResults = new LengthAwarePaginator(
             $currentPageResults,
-            $results->count(),
+            $total,
             $perPage,
             $currentPage,
-            ['path' => \Illuminate\Pagination\Paginator::resolveCurrentPath()]
+            [
+                'path' => Paginator::resolveCurrentPath(),
+                'query' => $request->query(),
+            ]
         );
 
+        /*
+        |--------------------------------------------------------------------------
+        | FILTER DATA
+        |--------------------------------------------------------------------------
+        */
+
+        $classes = StudentClass::query()
+            ->orderBy('name')
+            ->get();
+
+        $subjects = Subject::query()
+            ->orderBy('name')
+            ->get();
+
+        $academicYears = AcademicYear::query()
+            ->orderByDesc('start_date')
+            ->get();
+
+        /*
+        |--------------------------------------------------------------------------
+        | TERMS SHOULD MATCH SELECTED YEAR
+        |--------------------------------------------------------------------------
+        */
+
+        $terms = collect();
+
+        if ($academicYearId) {
+
+            $terms = Term::query()
+                ->where(
+                    'academic_year_id',
+                    $academicYearId
+                )
+                ->orderBy('start_date')
+                ->get();
+        }
+
         return view('scores.subject-results', [
-            'results'        => $results,
-            'subjects'       => Subject::orderBy('name')->get(),
-            'classes'        => StudentClass::orderBy('name')->get(),
-            'academicYears'  => AcademicYear::orderBy('name')->get(),
-            'terms'          => Term::orderBy('name')->get(),
+            'results' => $paginatedResults,
+
+            'classes' => $classes,
+            'subjects' => $subjects,
+            'academicYears' => $academicYears,
+            'terms' => $terms,
+
+            'settings' => $settings,
+            'currentAcademicYear' => $currentAcademicYear,
+            'currentTerm' => $currentTerm,
+
+            'selectedAcademicYearId' => $academicYearId,
+            'selectedTermId' => $termId,
         ]);
     }
 
-    /**
-     * Calculate positions for students in a particular subject.
-     */
-    private function calculatePositions($results, $request)
+    /*
+    |--------------------------------------------------------------------------
+    | POSITION CALCULATION
+    |--------------------------------------------------------------------------
+    */
+
+    private function calculatePositions($results)
     {
-        // Group by class and subject to calculate positions within each group
-        $grouped = $results->groupBy(function ($item) {
-            return $item->student_class_id . '_' . $item->subject_id;
+        $grouped = $results->groupBy(function ($result) {
+            return implode('_', [
+                $result->student_class_id,
+                $result->subject_id,
+                $result->academic_year_id,
+                $result->term_id,
+            ]);
         });
 
-        $allResults = collect();
+        $positioned = collect();
 
-        foreach ($grouped as $groupKey => $group) {
-            // Sort by total score descending
-            $sorted = $group->sortByDesc('total_score');
-            
+        foreach ($grouped as $group) {
+
+            $sorted = $group
+                ->sortByDesc('total_score')
+                ->values();
+
             $position = 1;
-            $previousScore = null;
             $samePosition = 1;
-            
-            foreach ($sorted as $index => $result) {
-                // Handle ties (same score gets same position)
-                if ($previousScore !== null && $result->total_score == $previousScore) {
+            $previousScore = null;
+
+            foreach ($sorted as $result) {
+
+                if (
+                    $previousScore !== null
+                    && (float) $result->total_score === (float) $previousScore
+                ) {
                     $result->position = $samePosition;
                 } else {
                     $result->position = $position;
                     $samePosition = $position;
                 }
-                
+
                 $previousScore = $result->total_score;
+
                 $position++;
-                $allResults->push($result);
+
+                $positioned->push($result);
             }
         }
 
-        return $allResults->sortBy([
-            ['student_class_id', 'asc'],
-            ['position', 'asc']
-        ]);
+        return $positioned
+            ->sortBy([
+                ['student_class_id', 'asc'],
+                ['subject_id', 'asc'],
+                ['position', 'asc'],
+            ])
+            ->values();
     }
 
-    /**
-     * Show a single result.
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | SHOW RESULT
+    |--------------------------------------------------------------------------
+    */
+
     public function show($id)
     {
-        abort_unless(auth()->user()->can('results.view'), 403);
+        abort_unless(
+            auth()->user()->can('results.view'),
+            403
+        );
 
         $result = StudentResult::with([
             'student',
             'subject',
             'studentClass',
             'academicYear',
-            'term'
+            'term',
         ])->findOrFail($id);
 
         abort_unless(
@@ -188,7 +396,6 @@ class SubjectResultController extends Controller
             403
         );
 
-        // Get position for this specific result in its subject and class
         $position = $this->getStudentPositionInSubject(
             $result->student_id,
             $result->subject_id,
@@ -197,41 +404,76 @@ class SubjectResultController extends Controller
             $result->term_id
         );
 
-        return view('results.show', compact('result', 'position'));
+        return view(
+            'results.show',
+            compact(
+                'result',
+                'position'
+            )
+        );
     }
 
-    /**
-     * Get a student's position in a particular subject.
-     */
-    private function getStudentPositionInSubject($studentId, $subjectId, $classId, $academicYearId, $termId)
-    {
-        $results = StudentResult::where('subject_id', $subjectId)
-            ->where('student_class_id', $classId)
-            ->where('academic_year_id', $academicYearId)
-            ->where('term_id', $termId)
-            ->orderBy('total_score', 'DESC')
+    /*
+    |--------------------------------------------------------------------------
+    | SINGLE STUDENT POSITION
+    |--------------------------------------------------------------------------
+    */
+
+    private function getStudentPositionInSubject(
+        $studentId,
+        $subjectId,
+        $classId,
+        $academicYearId,
+        $termId
+    ) {
+        $results = StudentResult::query()
+            ->where(
+                'subject_id',
+                $subjectId
+            )
+            ->where(
+                'student_class_id',
+                $classId
+            )
+            ->where(
+                'academic_year_id',
+                $academicYearId
+            )
+            ->where(
+                'term_id',
+                $termId
+            )
+            ->orderByDesc('total_score')
             ->get();
 
         $position = 1;
-        $previousScore = null;
         $samePosition = 1;
-        
-        foreach ($results as $index => $result) {
-            if ($previousScore !== null && $result->total_score == $previousScore) {
+        $previousScore = null;
+
+        foreach ($results as $result) {
+
+            if (
+                $previousScore !== null
+                && (float) $result->total_score === (float) $previousScore
+            ) {
                 $currentPosition = $samePosition;
             } else {
                 $currentPosition = $position;
                 $samePosition = $position;
             }
-            
-            if ($result->student_id == $studentId) {
+
+            if (
+                (int) $result->student_id ===
+                (int) $studentId
+            ) {
                 return $currentPosition;
             }
-            
+
             $previousScore = $result->total_score;
+
             $position++;
         }
-        
+
         return null;
     }
 }

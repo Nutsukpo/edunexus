@@ -256,18 +256,22 @@
                                 All Terms
                             </option>
 
-                            @foreach($terms as $term)
-
-                                <option value="{{ $term->id }}"
-                                    {{ (string) request('term_id') === (string) $term->id ? 'selected' : '' }}>
-
-                                    {{ $term->name }}
-
-                                </option>
-
-                            @endforeach
-
                         </select>
+
+                        <div class="form-text" id="termHelp">
+                            Select an Academic Year to view its terms.
+                        </div>
+
+                        {{-- Hidden source list. JavaScript copies only terms
+                             belonging to the selected Academic Year. --}}
+                        <template id="termOptionsTemplate">
+                            @foreach($terms as $term)
+                                <option value="{{ $term->id }}"
+                                        data-academic-year-id="{{ $term->academic_year_id }}">
+                                    {{ $term->name }}
+                                </option>
+                            @endforeach
+                        </template>
 
                     </div>
 
@@ -866,16 +870,38 @@
                                         </a>
 
 
-                                        {{-- EDIT --}}
-                                        @if($billSheet->status === 'draft')
+                                        {{-- EDIT / CORRECT REJECTED BILL --}}
+                                        @if(in_array($billSheet->status, ['draft', 'rejected'], true))
 
                                             <a href="{{ route('bill-sheets.edit', $billSheet->id) }}"
-                                               class="btn btn-sm btn-outline-primary"
-                                               title="Edit Bill Sheet">
+                                               class="btn btn-sm {{ $billSheet->status === 'rejected' ? 'btn-outline-warning' : 'btn-outline-primary' }}"
+                                               title="{{ $billSheet->status === 'rejected' ? 'Correct Rejected Bill Sheet' : 'Edit Bill Sheet' }}">
 
                                                 <i class="fas fa-edit"></i>
 
                                             </a>
+
+                                        @endif
+
+                                        {{-- RESUBMIT REJECTED BILL --}}
+                                        @if($billSheet->status === 'rejected')
+
+                                            <form action="{{ route('bill-sheets.submit-for-approval', $billSheet->id) }}"
+                                                  method="POST"
+                                                  class="d-inline">
+
+                                                @csrf
+
+                                                <button type="submit"
+                                                        class="btn btn-sm btn-outline-success"
+                                                        title="Resubmit for Approval"
+                                                        onclick="return confirm('Have you corrected this rejected Bill Sheet and want to resubmit it for approval?')">
+
+                                                    <i class="fas fa-paper-plane"></i>
+
+                                                </button>
+
+                                            </form>
 
                                         @endif
 
@@ -884,7 +910,7 @@
                                         {{-- REGENERATE CLASS --}}
                                         {{-- ================================================= --}}
 
-                                        @if($billSheet->status === 'draft' && $assignment)
+                                        @if(in_array($billSheet->status, ['draft', 'rejected'], true) && $assignment)
                                             <form action="{{ route('bill-sheets.regenerate', $billSheet->id) }}"
                                                   method="POST"
                                                   class="d-inline">
@@ -892,7 +918,7 @@
                                                 <button type="submit"
                                                         class="btn btn-sm btn-outline-warning"
                                                         title="Regenerate all bills for this class"
-                                                        onclick="return confirm('This will use this Bill Sheet as the template and regenerate the draft Bill Sheets for all eligible students in this class, academic year and term. Bill Sheets with payments will be skipped. Continue?')">
+                                                        onclick="return confirm('This will use this Bill Sheet as the template and regenerate eligible draft Bill Sheets for all students in this class, academic year and term. Bill Sheets with payments will be skipped. Continue?')">
                                                     <i class="fas fa-sync-alt"></i>
                                                 </button>
                                             </form>
@@ -1345,6 +1371,15 @@
 
     }
 
+    #term_id:disabled {
+        background-color: #f8f9fa;
+        cursor: not-allowed;
+    }
+
+    #termHelp {
+        min-height: 18px;
+    }
+
 
     /*
     |--------------------------------------------------------------------------
@@ -1392,6 +1427,219 @@
 
     $(document).ready(function () {
 
+        const academicYearSelect =
+            document.getElementById('academic_year_id');
+
+        const termSelect =
+            document.getElementById('term_id');
+
+        const termOptionsTemplate =
+            document.getElementById('termOptionsTemplate');
+
+        const termHelp =
+            document.getElementById('termHelp');
+
+        const selectedAcademicYear =
+            @json(request('academic_year_id'));
+
+        const selectedTerm =
+            @json(request('term_id'));
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | GET TERMS FOR SELECTED ACADEMIC YEAR
+        |--------------------------------------------------------------------------
+        */
+
+        function getTermsForAcademicYear(academicYearId) {
+
+            if (!termOptionsTemplate || !academicYearId) {
+                return [];
+            }
+
+            return Array.from(
+                termOptionsTemplate.content.querySelectorAll('option')
+            ).filter(function (option) {
+
+                return String(option.dataset.academicYearId) ===
+                    String(academicYearId);
+
+            });
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | POPULATE TERM FILTER
+        |--------------------------------------------------------------------------
+        */
+
+        function populateTerms(
+            academicYearId,
+            selectedTermId = '',
+            preserveAllTerms = false
+        ) {
+
+            if (!termSelect) {
+                return;
+            }
+
+            const terms =
+                getTermsForAcademicYear(academicYearId);
+
+            termSelect.innerHTML = '';
+
+            /*
+            |--------------------------------------------------------------------------
+            | NO ACADEMIC YEAR SELECTED
+            |--------------------------------------------------------------------------
+            */
+
+            if (!academicYearId) {
+
+                const option =
+                    document.createElement('option');
+
+                option.value = '';
+                option.textContent = 'Select Academic Year First';
+
+                termSelect.appendChild(option);
+
+                termSelect.disabled = true;
+
+                if (termHelp) {
+                    termHelp.textContent =
+                        'Select an Academic Year to view its terms.';
+                }
+
+                return;
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | ACADEMIC YEAR SELECTED
+            |--------------------------------------------------------------------------
+            */
+
+            const allOption =
+                document.createElement('option');
+
+            allOption.value = '';
+            allOption.textContent =
+                preserveAllTerms
+                    ? 'All Terms'
+                    : 'All Terms';
+
+            termSelect.appendChild(allOption);
+
+
+            terms.forEach(function (sourceOption) {
+
+                const option =
+                    sourceOption.cloneNode(true);
+
+                if (
+                    selectedTermId &&
+                    String(option.value) ===
+                    String(selectedTermId)
+                ) {
+                    option.selected = true;
+                }
+
+                termSelect.appendChild(option);
+
+            });
+
+
+            termSelect.disabled = false;
+
+
+            if (termHelp) {
+
+                if (terms.length === 0) {
+
+                    termHelp.textContent =
+                        'No terms are configured for this Academic Year.';
+
+                } else {
+
+                    termHelp.textContent =
+                        `${terms.length} term${terms.length === 1 ? '' : 's'} available for the selected Academic Year.`;
+
+                }
+
+            }
+
+
+            /*
+            |--------------------------------------------------------------------------
+            | INVALID TERM PROTECTION
+            |--------------------------------------------------------------------------
+            */
+
+            if (
+                selectedTermId &&
+                !terms.some(function (option) {
+
+                    return String(option.value) ===
+                        String(selectedTermId);
+
+                })
+            ) {
+
+                termSelect.value = '';
+
+            }
+
+        }
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | INITIALIZE DEPENDENT TERM DROPDOWN
+        |--------------------------------------------------------------------------
+        */
+
+        populateTerms(
+            selectedAcademicYear,
+            selectedTerm,
+            true
+        );
+
+
+        /*
+        |--------------------------------------------------------------------------
+        | CHANGE ACADEMIC YEAR
+        |--------------------------------------------------------------------------
+        */
+
+        $(academicYearSelect).on('change', function () {
+
+            const academicYearId =
+                this.value;
+
+            /*
+            | Always clear the previous term when the year changes.
+            */
+
+            populateTerms(
+                academicYearId,
+                '',
+                true
+            );
+
+            /*
+            | Select2 must be refreshed after changing options.
+            */
+
+            $('#term_id').trigger('change.select2');
+
+        });
+
+
         /*
         |--------------------------------------------------------------------------
         | INITIALIZE SELECT2
@@ -1420,7 +1668,9 @@
             setTimeout(function () {
 
                 document
-                    .querySelector('.select2-container--open .select2-search__field')
+                    .querySelector(
+                        '.select2-container--open .select2-search__field'
+                    )
                     ?.focus();
 
             }, 50);

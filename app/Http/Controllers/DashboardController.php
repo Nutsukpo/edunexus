@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\AcademicYear;
 use App\Models\Attendance;
 use App\Models\AttendanceSession;
+use App\Models\BillSheet;
 use App\Models\Staff;
 use App\Models\Student;
 use App\Models\StudentClass;
 use App\Models\StudentClassAssignment;
+use App\Models\SystemSetting;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -18,23 +20,49 @@ use Illuminate\Support\Facades\Schema;
 
 class DashboardController extends Controller
 {
-    /**
-     * Main dashboard.
-     *
-     * Financial rule:
-     *
-     * Expected Fees =
-     * Class Bill Sheet Amount Per Student
-     * × Current Active Students In Class
-     *
-     * Daily class attendance is supplied to the Blade through this
-     * controller and can also be refreshed through getClassAttendance().
-     */
+    /*
+    |--------------------------------------------------------------------------
+    | MAIN DASHBOARD
+    |--------------------------------------------------------------------------
+    |
+    | IMPORTANT:
+    |
+    | The dashboard period comes ONLY from System Settings.
+    |
+    | No request parameter can override the central academic year or term.
+    |
+    |--------------------------------------------------------------------------
+    */
     public function index()
     {
         /*
         |--------------------------------------------------------------------------
-        | BASIC COUNTS
+        | CENTRAL ACADEMIC PERIOD
+        |--------------------------------------------------------------------------
+        */
+
+        $settings = SystemSetting::instance()->load([
+            'currentAcademicYear',
+            'currentTerm',
+        ]);
+
+        $currentAcademicYear = $settings->currentAcademicYear;
+        $currentTerm = $settings->currentTerm;
+
+        $dashboardAcademicYearId =
+            $currentAcademicYear?->id;
+
+        $dashboardTermId =
+            $currentTerm?->id;
+
+        /*
+        |--------------------------------------------------------------------------
+        | BASIC SCHOOL COUNTS
+        |--------------------------------------------------------------------------
+        |
+        | These remain system-wide counts, preserving the existing dashboard
+        | functionality.
+        |
         |--------------------------------------------------------------------------
         */
 
@@ -73,22 +101,71 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         | STUDENT ATTENDANCE RATE
         |--------------------------------------------------------------------------
+        |
+        | STRICT CENTRAL PERIOD:
+        |
+        | academic_year_id = System Settings current year
+        | term_id          = System Settings current term
+        |
+        |--------------------------------------------------------------------------
         */
 
-        $totalAttendanceRecords = Attendance::count();
+        $totalAttendanceRecords = 0;
+        $presentAttendanceRecords = 0;
+        $lateAttendanceRecords = 0;
 
-        $presentAttendanceRecords = Attendance::query()
-            ->whereRaw(
-                'LOWER(status) = ?',
-                ['present']
-            )
-            ->count();
+        if (
+            $dashboardAcademicYearId
+            && $dashboardTermId
+        ) {
+            $attendanceBaseQuery =
+                Attendance::query()
+                    ->whereHas(
+                        'attendanceSession',
+                        function ($query) use (
+                            $dashboardAcademicYearId,
+                            $dashboardTermId
+                        ) {
+                            $query
+                                ->where(
+                                    'academic_year_id',
+                                    $dashboardAcademicYearId
+                                )
+                                ->where(
+                                    'term_id',
+                                    $dashboardTermId
+                                );
+                        }
+                    );
+
+            $totalAttendanceRecords =
+                (clone $attendanceBaseQuery)->count();
+
+            $presentAttendanceRecords =
+                (clone $attendanceBaseQuery)
+                    ->whereRaw(
+                        'LOWER(status) = ?',
+                        ['present']
+                    )
+                    ->count();
+
+            $lateAttendanceRecords =
+                (clone $attendanceBaseQuery)
+                    ->whereRaw(
+                        'LOWER(status) = ?',
+                        ['late']
+                    )
+                    ->count();
+        }
 
         $studentAttendanceRate =
             $totalAttendanceRecords > 0
                 ? round(
                     (
-                        $presentAttendanceRecords
+                        (
+                            $presentAttendanceRecords
+                            + $lateAttendanceRecords
+                        )
                         / $totalAttendanceRecords
                     ) * 100,
                     1
@@ -99,40 +176,124 @@ class DashboardController extends Controller
         |--------------------------------------------------------------------------
         | STAFF ATTENDANCE RATE
         |--------------------------------------------------------------------------
+        |
+        | STRICT CENTRAL PERIOD:
+        |
+        | Staff attendance must respect the Academic Year and Term configured
+        | in System Settings, exactly like student attendance.
+        |
+        | IMPORTANT:
+        | - We filter the stored academic_year_id and term_id on each staff
+        |   attendance record.
+        | - We DO NOT use the current date, created_at, or a current-record flag
+        |   to determine the academic period.
+        | - We preserve the existing calculation: PRESENT records divided by
+        |   all staff attendance records in the selected period.
+        | - Historical attendance remains available because records are filtered
+        |   by their stored academic period rather than whether the period is
+        |   currently active.
+        |--------------------------------------------------------------------------
         */
 
         $staffAttendanceRate = 0;
 
-        if (Schema::hasTable('staff_attendances')) {
+        if (
+            Schema::hasTable(
+                'staff_attendances'
+            )
+        ) {
             try {
-                $staffTotal = DB::table(
-                    'staff_attendances'
-                )->count();
 
-                $staffPresent = DB::table(
-                    'staff_attendances'
-                )
-                    ->whereRaw(
-                        'LOWER(status) = ?',
-                        ['present']
-                    )
-                    ->count();
+                /*
+                |--------------------------------------------------------------------------
+                | No valid central period = no staff attendance rate.
+                |--------------------------------------------------------------------------
+                */
 
-                $staffAttendanceRate =
-                    $staffTotal > 0
-                        ? round(
-                            (
-                                $staffPresent
-                                / $staffTotal
-                            ) * 100,
-                            1
+                if (
+                    $dashboardAcademicYearId
+                    && $dashboardTermId
+                ) {
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | BASE STAFF ATTENDANCE QUERY
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $staffAttendanceBaseQuery =
+                        DB::table(
+                            'staff_attendances'
                         )
-                        : 0;
+                            ->where(
+                                'academic_year_id',
+                                $dashboardAcademicYearId
+                            )
+                            ->where(
+                                'term_id',
+                                $dashboardTermId
+                            );
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | TOTAL STAFF ATTENDANCE RECORDS
+                    |--------------------------------------------------------------------------
+                    |
+                    | This is intentionally the same denominator used by the
+                    | previous dashboard calculation, but now restricted to
+                    | the central Academic Year + Term.
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $staffTotal =
+                        (clone $staffAttendanceBaseQuery)
+                            ->count();
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | PRESENT STAFF ATTENDANCE RECORDS
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $staffPresent =
+                        (clone $staffAttendanceBaseQuery)
+                            ->whereRaw(
+                                'LOWER(TRIM(status)) = ?',
+                                ['present']
+                            )
+                            ->count();
+
+                    /*
+                    |--------------------------------------------------------------------------
+                    | STAFF ATTENDANCE RATE
+                    |--------------------------------------------------------------------------
+                    */
+
+                    $staffAttendanceRate =
+                        $staffTotal > 0
+                            ? round(
+                                (
+                                    $staffPresent
+                                    / $staffTotal
+                                ) * 100,
+                                1
+                            )
+                            : 0;
+                }
+
             } catch (\Throwable $e) {
+
                 Log::warning(
-                    'Unable to calculate staff attendance rate.',
+                    'Unable to calculate period-specific staff attendance rate.',
                     [
-                        'message' => $e->getMessage(),
+                        'academic_year_id' =>
+                            $dashboardAcademicYearId,
+
+                        'term_id' =>
+                            $dashboardTermId,
+
+                        'message' =>
+                            $e->getMessage(),
                     ]
                 );
 
@@ -142,76 +303,19 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | CURRENT ACADEMIC YEAR
+        | ACADEMIC YEARS
+        |--------------------------------------------------------------------------
+        |
+        | Kept available for other dashboard functionality.
+        |
         |--------------------------------------------------------------------------
         */
 
-        $latestAcademicYear = AcademicYear::query()
-            ->orderByDesc('id')
-            ->first();
-
-        $academicYears = AcademicYear::query()
-            ->orderByDesc('id')
-            ->get();
-
-        $requestedAcademicYearId =
-            request()->input(
-                'academic_year_id'
-            );
-
-        $selectedAcademicYear = null;
-
-        /*
-        |--------------------------------------------------------------------------
-        | USER-SELECTED ACADEMIC YEAR
-        |--------------------------------------------------------------------------
-        */
-
-        if (
-            $requestedAcademicYearId !== null
-            && $requestedAcademicYearId !== ''
-        ) {
-            $selectedAcademicYear =
-                $academicYears->firstWhere(
-                    'id',
-                    (int) $requestedAcademicYearId
-                );
-        }
-
-        /*
-        |--------------------------------------------------------------------------
-        | FALLBACK TO CURRENT ACTIVE ASSIGNMENT YEAR
-        |--------------------------------------------------------------------------
-        */
-
-        if (!$selectedAcademicYear) {
-            $activeAssignmentAcademicYearId =
-                StudentClassAssignment::query()
-                    ->where(
-                        'status',
-                        'active'
-                    )
-                    ->where(
-                        'is_current',
-                        true
-                    )
-                    ->orderByDesc(
-                        'academic_year_id'
-                    )
-                    ->value(
-                        'academic_year_id'
-                    );
-
-            $selectedAcademicYear =
-                $academicYears->firstWhere(
-                    'id',
-                    $activeAssignmentAcademicYearId
-                )
-                ?? $latestAcademicYear;
-        }
-
-        $dashboardAcademicYearId =
-            $selectedAcademicYear?->id;
+        $academicYears =
+            AcademicYear::query()
+                ->orderByDesc('start_date')
+                ->orderByDesc('id')
+                ->get();
 
         /*
         |--------------------------------------------------------------------------
@@ -239,137 +343,112 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | SCHOOL FEE CALCULATIONS
+        | SELECTED PERIOD FEES
         |--------------------------------------------------------------------------
         |
-        | Expected Fees:
+        | IMPORTANT:
         |
-        | Latest active Bill Sheet amount for each class
-        | × current active/current student count in that class.
+        | Fee calculations are based on the exact academic year + term
+        | selected in System Settings and on the Bill Sheets belonging to
+        | that period.
         |
-        | Fees Paid:
+        | We deliberately DO NOT require StudentClassAssignment::is_current
+        | here. Once a term is closed, its assignments correctly become
+        | completed/not-current, but its financial records remain historical
+        | and must continue to display.
         |
-        | Completed payments belonging to the selected academic year.
-        |
+        | Draft Bill Sheets are included in expected fees because bills can
+        | be prepared before the operational period is opened. This allows
+        | administrators to prepare future-term bills without advancing the
+        | operational period.
         |--------------------------------------------------------------------------
         */
 
-        if ($dashboardAcademicYearId) {
+        if (
+            $dashboardAcademicYearId
+            && $dashboardTermId
+        ) {
 
             /*
             |--------------------------------------------------------------------------
-            | CURRENT STUDENTS
+            | CLASSES
             |--------------------------------------------------------------------------
             */
 
-            $assignments = StudentClassAssignment::query()
-                ->where(
-                    'academic_year_id',
-                    $dashboardAcademicYearId
-                )
-                ->where(
-                    'status',
-                    'active'
-                )
-                ->where(
-                    'is_current',
-                    true
-                )
-                ->get([
-                    'id',
-                    'student_id',
-                    'student_class_id',
-                    'academic_year_id',
-                ]);
+            $classes =
+                StudentClass::query()
+                    ->where(
+                        'is_active',
+                        true
+                    )
+                    ->orderBy('name')
+                    ->get([
+                        'id',
+                        'name',
+                    ]);
 
             /*
             |--------------------------------------------------------------------------
-            | STUDENT COUNT BY CLASS
-            |--------------------------------------------------------------------------
-            */
-
-            $studentCountsByClass = $assignments
-                ->groupBy(
-                    'student_class_id'
-                )
-                ->map(
-                    fn ($items) =>
-                        $items
-                            ->pluck('student_id')
-                            ->filter()
-                            ->unique()
-                            ->count()
-                );
-
-            /*
-            |--------------------------------------------------------------------------
-            | ACTIVE CLASSES
-            |--------------------------------------------------------------------------
-            */
-
-            $classes = StudentClass::query()
-                ->where(
-                    'is_active',
-                    true
-                )
-                ->orderBy('name')
-                ->get([
-                    'id',
-                    'name',
-                ]);
-
-            /*
-            |--------------------------------------------------------------------------
-            | ACTIVE BILL SHEETS
+            | SELECTED-PERIOD BILL SHEETS
             |--------------------------------------------------------------------------
             |
-            | Bill Sheets are not restricted to approved/published.
+            | Exact period isolation:
             |
-            | Newly generated Bill Sheets may be stored as:
+            | academic_year_id + term_id
             |
-            | status = draft
-            | is_active = true
+            | We do not filter by assignment status or is_current.
+            | Historical bills therefore remain visible after rollover.
             |
             |--------------------------------------------------------------------------
             */
 
-            $billSheets = \App\Models\BillSheet::query()
-                ->where(
-                    'academic_year_id',
-                    $dashboardAcademicYearId
-                )
-                ->where(
-                    'is_active',
-                    true
-                )
-                ->with(
-                    'studentClassAssignment'
-                )
-                ->orderByDesc(
-                    'generated_date'
-                )
-                ->orderByDesc('id')
-                ->get([
-                    'id',
-                    'student_class_assignment_id',
-                    'academic_year_id',
-                    'total_amount',
-                    'net_amount',
-                    'generated_date',
-                    'status',
-                ]);
+            $billSheets =
+                BillSheet::query()
+                    ->where(
+                        'academic_year_id',
+                        $dashboardAcademicYearId
+                    )
+                    ->where(
+                        'term_id',
+                        $dashboardTermId
+                    )
+                    ->where(
+                        'is_active',
+                        true
+                    )
+                    ->with(
+                        'studentClassAssignment:id,student_id,student_class_id,academic_year_id,term_id,status,is_current'
+                    )
+                    ->orderByDesc(
+                        'generated_date'
+                    )
+                    ->orderByDesc('id')
+                    ->get([
+                        'id',
+                        'student_class_assignment_id',
+                        'academic_year_id',
+                        'term_id',
+                        'total_amount',
+                        'net_amount',
+                        'generated_date',
+                        'status',
+                    ]);
 
             /*
             |--------------------------------------------------------------------------
-            | REPRESENTATIVE BILL AMOUNT BY CLASS
+            | VALID BILL SHEETS BY CLASS
             |--------------------------------------------------------------------------
             |
-            | The newest active Bill Sheet for each class is used.
+            | Every Bill Sheet is authoritative for its own student.
+            | We do not multiply one representative bill by the number of
+            | current students because that can lose historical assignments
+            | and can produce incorrect totals where students have different
+            | discounts/taxes/fee amounts.
             |
             |--------------------------------------------------------------------------
             */
 
-            $billAmountByClass = collect();
+            $classFinancialData = collect();
 
             foreach ($billSheets as $billSheet) {
 
@@ -384,21 +463,7 @@ class DashboardController extends Controller
                 }
 
                 $classId =
-                    $assignment->student_class_id;
-
-                /*
-                |--------------------------------------------------------------------------
-                | NEWEST BILL SHEET WINS
-                |--------------------------------------------------------------------------
-                */
-
-                if (
-                    $billAmountByClass->has(
-                        $classId
-                    )
-                ) {
-                    continue;
-                }
+                    (int) $assignment->student_class_id;
 
                 $billAmount =
                     $billSheet->net_amount !== null
@@ -407,30 +472,72 @@ class DashboardController extends Controller
                             $billSheet->total_amount ?? 0
                         );
 
-                if ($billAmount > 0) {
-                    $billAmountByClass->put(
+                if ($billAmount < 0) {
+                    $billAmount = 0;
+                }
+
+                if (!$classFinancialData->has($classId)) {
+
+                    $classFinancialData->put(
                         $classId,
-                        round(
-                            $billAmount,
-                            2
-                        )
+                        [
+                            'student_ids' => collect(),
+                            'expected_fees' => 0.0,
+                            'bill_sheet_count' => 0,
+                        ]
                     );
                 }
+
+                $row =
+                    $classFinancialData->get(
+                        $classId
+                    );
+
+                if ($assignment->student_id) {
+
+                    $row['student_ids']->push(
+                        $assignment->student_id
+                    );
+                }
+
+                $row['expected_fees'] =
+                    round(
+                        $row['expected_fees']
+                        + $billAmount,
+                        2
+                    );
+
+                $row['bill_sheet_count']++;
+
+                $classFinancialData->put(
+                    $classId,
+                    $row
+                );
             }
 
             /*
             |--------------------------------------------------------------------------
-            | COMPLETED PAYMENTS
+            | CURRENT-PERIOD COMPLETED PAYMENTS
             |--------------------------------------------------------------------------
             |
-            | Join payments to their class assignment so that payment
-            | amounts can be calculated by class.
+            | Payments are isolated through their Bill Sheet AND assignment.
+            | The selected term therefore cannot inherit payments from another
+            | term.
             |
+            | We intentionally do not require the assignment to be current.
+            | Historical payments must remain visible when an administrator
+            | views a historical term.
             |--------------------------------------------------------------------------
             */
 
             $dashboardPayments =
                 DB::table('fee_payments as fp')
+                    ->join(
+                        'bill_sheets as bs',
+                        'bs.id',
+                        '=',
+                        'fp.bill_sheet_id'
+                    )
                     ->join(
                         'student_class_assignments as sca',
                         'sca.id',
@@ -442,13 +549,30 @@ class DashboardController extends Controller
                         'completed'
                     )
                     ->where(
+                        'bs.academic_year_id',
+                        $dashboardAcademicYearId
+                    )
+                    ->where(
+                        'bs.term_id',
+                        $dashboardTermId
+                    )
+                    ->where(
+                        'bs.is_active',
+                        true
+                    )
+                    ->where(
                         'sca.academic_year_id',
                         $dashboardAcademicYearId
+                    )
+                    ->where(
+                        'sca.term_id',
+                        $dashboardTermId
                     )
                     ->select([
                         'fp.id',
                         'fp.student_id',
                         'fp.student_class_assignment_id',
+                        'fp.bill_sheet_id',
                         'fp.amount',
                         'fp.net_amount',
                         'fp.payment_date',
@@ -469,7 +593,7 @@ class DashboardController extends Controller
             ) {
 
                 $classId =
-                    $payment->student_class_id;
+                    (int) $payment->student_class_id;
 
                 if (!$classId) {
                     continue;
@@ -484,145 +608,140 @@ class DashboardController extends Controller
 
                 $feesPaidByClass->put(
                     $classId,
-                    (
-                        (float) $feesPaidByClass->get(
-                            $classId,
-                            0
-                        )
-                    ) + $paidAmount
+                    round(
+                        (
+                            (float) $feesPaidByClass->get(
+                                $classId,
+                                0
+                            )
+                        ) + $paidAmount,
+                        2
+                    )
                 );
             }
 
             /*
             |--------------------------------------------------------------------------
-            | CLASS FINANCIAL POSITION
+            | BUILD CLASS FINANCIAL POSITION
             |--------------------------------------------------------------------------
             */
 
-            $classFeeData = $classes
-                ->map(
-                    function ($class) use (
-                        $studentCountsByClass,
-                        $billAmountByClass,
-                        $feesPaidByClass
-                    ) {
+            $classFeeData =
+                $classes
+                    ->map(
+                        function ($class) use (
+                            $classFinancialData,
+                            $feesPaidByClass
+                        ) {
 
-                        $classId =
-                            $class->id;
+                            $classId =
+                                (int) $class->id;
 
-                        $studentCount =
-                            (int) $studentCountsByClass->get(
-                                $classId,
-                                0
-                            );
+                            $financial =
+                                $classFinancialData->get(
+                                    $classId,
+                                    [
+                                        'student_ids' => collect(),
+                                        'expected_fees' => 0.0,
+                                        'bill_sheet_count' => 0,
+                                    ]
+                                );
 
-                        $billAmountPerStudent =
-                            (float) $billAmountByClass->get(
-                                $classId,
-                                0
-                            );
+                            $studentCount =
+                                $financial['student_ids']
+                                    ->filter()
+                                    ->unique()
+                                    ->count();
 
-                        /*
-                        |--------------------------------------------------------------------------
-                        | EXPECTED FEES
-                        |--------------------------------------------------------------------------
-                        */
+                            $expectedFees =
+                                round(
+                                    (float) $financial['expected_fees'],
+                                    2
+                                );
 
-                        $expectedFees =
-                            round(
-                                $billAmountPerStudent
-                                * $studentCount,
-                                2
-                            );
-
-                        /*
-                        |--------------------------------------------------------------------------
-                        | FEES PAID
-                        |--------------------------------------------------------------------------
-                        */
-
-                        $feesPaid =
-                            round(
-                                (
+                            $feesPaid =
+                                round(
                                     (float) $feesPaidByClass->get(
                                         $classId,
                                         0
-                                    )
-                                ),
-                                2
-                            );
-
-                        /*
-                        |--------------------------------------------------------------------------
-                        | OUTSTANDING
-                        |--------------------------------------------------------------------------
-                        */
-
-                        $outstandingFees =
-                            max(
-                                0,
-                                round(
-                                    $expectedFees
-                                    - $feesPaid,
+                                    ),
                                     2
-                                )
-                            );
+                                );
 
-                        /*
-                        |--------------------------------------------------------------------------
-                        | COLLECTION RATE
-                        |--------------------------------------------------------------------------
-                        */
-
-                        $collectionRate =
-                            $expectedFees > 0
-                                ? min(
-                                    100,
+                            $outstandingFees =
+                                max(
+                                    0,
                                     round(
-                                        (
-                                            $feesPaid
-                                            / $expectedFees
-                                        ) * 100,
-                                        1
+                                        $expectedFees
+                                        - $feesPaid,
+                                        2
                                     )
-                                )
-                                : 0;
+                                );
 
-                        return [
-                            'class_id' =>
-                                $classId,
+                            $collectionRate =
+                                $expectedFees > 0
+                                    ? min(
+                                        100,
+                                        round(
+                                            (
+                                                $feesPaid
+                                                / $expectedFees
+                                            ) * 100,
+                                            1
+                                        )
+                                    )
+                                    : 0;
 
-                            'class_name' =>
-                                $class->name ?? 'N/A',
+                            return [
+                                'class_id' =>
+                                    $classId,
 
-                            'students' =>
-                                $studentCount,
+                                'class_name' =>
+                                    $class->name
+                                    ?? 'N/A',
 
-                            'bill_per_student' =>
-                                $billAmountPerStudent,
+                                'students' =>
+                                    $studentCount,
 
-                            'expected_fees' =>
-                                $expectedFees,
+                                'bill_per_student' =>
+                                    $studentCount > 0
+                                        ? round(
+                                            $expectedFees
+                                            / $studentCount,
+                                            2
+                                        )
+                                        : 0,
 
-                            'fees_paid' =>
-                                $feesPaid,
+                                'expected_fees' =>
+                                    $expectedFees,
 
-                            'outstanding_fees' =>
-                                $outstandingFees,
+                                'fees_paid' =>
+                                    $feesPaid,
 
-                            'collection_rate' =>
-                                $collectionRate,
-                        ];
-                    }
-                )
-                ->filter(
-                    fn ($row) =>
-                        $row['students'] > 0
-                )
-                ->sortByDesc(
-                    'expected_fees'
-                )
-                ->values();
+                                'outstanding_fees' =>
+                                    $outstandingFees,
+
+                                'collection_rate' =>
+                                    $collectionRate,
+
+                                'bill_sheet_count' =>
+                                    (int) (
+                                        $financial[
+                                            'bill_sheet_count'
+                                        ]
+                                        ?? 0
+                                    ),
+                            ];
+                        }
+                    )
+                    ->filter(
+                        fn ($row) =>
+                            $row['bill_sheet_count'] > 0
+                    )
+                    ->sortByDesc(
+                        'expected_fees'
+                    )
+                    ->values();
 
             /*
             |--------------------------------------------------------------------------
@@ -645,17 +764,6 @@ class DashboardController extends Controller
                     ),
                     2
                 );
-
-            /*
-            |--------------------------------------------------------------------------
-            | OUTSTANDING FEES
-            |--------------------------------------------------------------------------
-            |
-            | Sum the class outstanding amounts rather than allowing
-            | the school total to become negative.
-            |
-            |--------------------------------------------------------------------------
-            */
 
             $dashboardOutstandingFees =
                 round(
@@ -687,7 +795,7 @@ class DashboardController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | CURRENT MONTH PAYMENTS
+            | CURRENT MONTH PAID
             |--------------------------------------------------------------------------
             */
 
@@ -705,12 +813,15 @@ class DashboardController extends Controller
                             }
 
                             try {
+
                                 return Carbon::parse(
                                     $payment->payment_date
                                 )->isSameMonth(
                                     now()
                                 );
+
                             } catch (\Throwable $e) {
+
                                 return false;
                             }
                         }
@@ -731,7 +842,7 @@ class DashboardController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | PREVIOUS MONTH PAYMENTS
+            | PREVIOUS MONTH PAID
             |--------------------------------------------------------------------------
             */
 
@@ -749,12 +860,15 @@ class DashboardController extends Controller
                             }
 
                             try {
+
                                 return Carbon::parse(
                                     $payment->payment_date
                                 )->isSameMonth(
                                     now()->copy()->subMonth()
                                 );
+
                             } catch (\Throwable $e) {
+
                                 return false;
                             }
                         }
@@ -775,7 +889,7 @@ class DashboardController extends Controller
 
             /*
             |--------------------------------------------------------------------------
-            | MONTHLY PAYMENT CHANGE
+            | MONTHLY CHANGE
             |--------------------------------------------------------------------------
             */
 
@@ -800,41 +914,88 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | DAILY ATTENDANCE
+        | ATTENDANCE DATE
         |--------------------------------------------------------------------------
         */
 
-        $today = now()->toDateString();
+        $today =
+            now()->toDateString();
 
-        $attendanceDate = request()->input(
-            'attendance_date',
-            $today
-        );
-
-        /*
-        |--------------------------------------------------------------------------
-        | VALIDATE ATTENDANCE DATE
-        |--------------------------------------------------------------------------
-        */
+        $attendanceDate =
+            request()->input(
+                'attendance_date',
+                $today
+            );
 
         try {
+
             $attendanceDate =
                 Carbon::parse(
                     $attendanceDate
                 )->toDateString();
+
         } catch (\Throwable $e) {
+
             $attendanceDate = $today;
         }
 
         /*
         |--------------------------------------------------------------------------
-        | TODAY'S ATTENDANCE SUMMARY
+        | CURRENT TERM DATE SAFETY
+        |--------------------------------------------------------------------------
+        |
+        | If the selected dashboard date is outside the central term,
+        | attendance displays no records rather than leaking another term.
+        |
+        |--------------------------------------------------------------------------
+        */
+
+        if ($currentTerm) {
+
+            if (
+                $currentTerm->start_date
+                && Carbon::parse(
+                    $attendanceDate
+                )->lt(
+                    Carbon::parse(
+                        $currentTerm->start_date
+                    )->startOfDay()
+                )
+            ) {
+                $attendanceDate =
+                    Carbon::parse(
+                        $currentTerm->start_date
+                    )->toDateString();
+            }
+
+            if (
+                $currentTerm->end_date
+                && Carbon::parse(
+                    $attendanceDate
+                )->gt(
+                    Carbon::parse(
+                        $currentTerm->end_date
+                    )->endOfDay()
+                )
+            ) {
+                $attendanceDate =
+                    Carbon::parse(
+                        $currentTerm->end_date
+                    )->toDateString();
+            }
+        }
+
+        /*
+        |--------------------------------------------------------------------------
+        | TODAY'S ATTENDANCE
         |--------------------------------------------------------------------------
         */
 
         $todayAttendance =
             $this->buildAttendanceSummary(
-                $today
+                $today,
+                $dashboardAcademicYearId,
+                $dashboardTermId
             );
 
         $todayTotal =
@@ -845,16 +1006,6 @@ class DashboardController extends Controller
 
         $todayLate =
             $todayAttendance['late'];
-
-        /*
-        |--------------------------------------------------------------------------
-        | TODAY'S ATTENDANCE RATE
-        |--------------------------------------------------------------------------
-        |
-        | Present + Late are considered attended.
-        |
-        |--------------------------------------------------------------------------
-        */
 
         $todayRate =
             $todayTotal > 0
@@ -872,13 +1023,15 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | INITIAL CLASS ATTENDANCE TABLE
+        | CLASS ATTENDANCE
         |--------------------------------------------------------------------------
         */
 
         $dashboardDailyAttendance =
             $this->buildClassAttendanceData(
-                $attendanceDate
+                $attendanceDate,
+                $dashboardAcademicYearId,
+                $dashboardTermId
             );
 
         $dashboardAttendanceRows =
@@ -886,7 +1039,12 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | RECENT ATTENDANCE ACTIVITY
+        | RECENT ATTENDANCE
+        |--------------------------------------------------------------------------
+        |
+        | Recent records are also restricted to the central academic
+        | period.
+        |
         |--------------------------------------------------------------------------
         */
 
@@ -895,12 +1053,10 @@ class DashboardController extends Controller
         try {
 
             if (
-                Schema::hasTable(
-                    'attendances'
-                )
-                && Schema::hasTable(
-                    'attendance_sessions'
-                )
+                $dashboardAcademicYearId
+                && $dashboardTermId
+                && Schema::hasTable('attendances')
+                && Schema::hasTable('attendance_sessions')
             ) {
 
                 $recentAttendance =
@@ -917,15 +1073,23 @@ class DashboardController extends Controller
                             '=',
                             'attendance_sessions.id'
                         )
-                        ->select(
+                        ->where(
+                            'attendance_sessions.academic_year_id',
+                            $dashboardAcademicYearId
+                        )
+                        ->where(
+                            'attendance_sessions.term_id',
+                            $dashboardTermId
+                        )
+                        ->select([
                             'attendances.id',
                             'attendances.status',
                             'attendances.created_at',
                             'students.first_name',
                             'students.last_name',
                             'students.student_id as student_number',
-                            'attendance_sessions.attendance_date'
-                        )
+                            'attendance_sessions.attendance_date',
+                        ])
                         ->orderByDesc(
                             'attendances.created_at'
                         )
@@ -938,11 +1102,10 @@ class DashboardController extends Controller
             Log::warning(
                 'Unable to load recent attendance.',
                 [
-                    'message' => $e->getMessage(),
+                    'message' =>
+                        $e->getMessage(),
                 ]
             );
-
-            $recentAttendance = collect();
         }
 
         /*
@@ -954,6 +1117,12 @@ class DashboardController extends Controller
         return view(
             'dashboard.index',
             compact(
+                'settings',
+                'currentAcademicYear',
+                'currentTerm',
+                'academicYears',
+                'dashboardAcademicYearId',
+                'dashboardTermId',
                 'totalStudents',
                 'totalStaff',
                 'totalClasses',
@@ -964,10 +1133,6 @@ class DashboardController extends Controller
                 'staffThisYear',
                 'studentAttendanceRate',
                 'staffAttendanceRate',
-                'academicYears',
-                'selectedAcademicYear',
-                'latestAcademicYear',
-                'dashboardAcademicYearId',
                 'dashboardTotalFees',
                 'dashboardTotalFeesPaid',
                 'dashboardOutstandingFees',
@@ -988,96 +1153,158 @@ class DashboardController extends Controller
         );
     }
 
-    /**
-     * Attendance chart data.
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | ATTENDANCE CHART DATA
+    |--------------------------------------------------------------------------
+    */
+
     public function getAttendanceData(
         Request $request
     ): JsonResponse {
         try {
 
-            $days = max(
-                1,
-                min(
-                    365,
-                    (int) $request->get(
-                        'days',
-                        30
+            $period =
+                $this->currentPeriod();
+
+            if (
+                !$period['academic_year_id']
+                || !$period['term_id']
+            ) {
+                return response()->json([
+                    'status' => 'success',
+                    'labels' => [],
+                    'attendance' => [],
+                    'benchmark' => [],
+                    'marked' => [],
+                    'total_students' => [],
+                    'total' => 0,
+                    'average' => 0,
+                    'peak' => 0,
+                    'peak_day' => 'N/A',
+                    'days_with_data' => 0,
+                    'academic_year' => null,
+                    'term' => null,
+                ]);
+            }
+
+            $days =
+                max(
+                    1,
+                    min(
+                        365,
+                        (int) $request->get(
+                            'days',
+                            30
+                        )
                     )
-                )
-            );
+                );
 
-            $start = now()
-                ->copy()
-                ->subDays(
-                    $days - 1
-                )
-                ->startOfDay();
+            $end =
+                now()
+                    ->copy()
+                    ->endOfDay();
 
-            $end = now()
-                ->copy()
-                ->endOfDay();
+            $start =
+                now()
+                    ->copy()
+                    ->subDays(
+                        $days - 1
+                    )
+                    ->startOfDay();
 
             /*
             |--------------------------------------------------------------------------
-            | ATTENDANCE DATA
+            | NEVER CROSS CENTRAL TERM
             |--------------------------------------------------------------------------
             */
 
-            $rows = DB::table(
-                'attendance_sessions'
-            )
-                ->leftJoin(
-                    'attendances',
-                    'attendance_sessions.id',
-                    '=',
-                    'attendances.attendance_session_id'
-                )
-                ->whereDate(
-                    'attendance_sessions.attendance_date',
-                    '>=',
-                    $start->toDateString()
-                )
-                ->whereDate(
-                    'attendance_sessions.attendance_date',
-                    '<=',
-                    $end->toDateString()
-                )
-                ->select(
-                    DB::raw(
-                        'DATE(attendance_sessions.attendance_date) as date'
-                    ),
-                    DB::raw(
-                        'COUNT(attendances.id) as total_records'
-                    ),
-                    DB::raw(
-                        "SUM(
-                            CASE
-                                WHEN LOWER(attendances.status)
-                                    IN ('present', 'late')
-                                THEN 1
-                                ELSE 0
-                            END
-                        ) as attended_count"
-                    )
-                )
-                ->groupBy(
-                    DB::raw(
-                        'DATE(attendance_sessions.attendance_date)'
-                    )
-                )
-                ->orderBy(
-                    DB::raw(
-                        'DATE(attendance_sessions.attendance_date)'
-                    )
-                )
-                ->get();
+            if (
+                $period['term']->start_date
+            ) {
 
-            /*
-            |--------------------------------------------------------------------------
-            | CREATE DATE MAP
-            |--------------------------------------------------------------------------
-            */
+                $termStart =
+                    Carbon::parse(
+                        $period['term']->start_date
+                    )->startOfDay();
+
+                if ($start->lt($termStart)) {
+                    $start = $termStart;
+                }
+            }
+
+            if (
+                $period['term']->end_date
+            ) {
+
+                $termEnd =
+                    Carbon::parse(
+                        $period['term']->end_date
+                    )->endOfDay();
+
+                if ($end->gt($termEnd)) {
+                    $end = $termEnd;
+                }
+            }
+
+            $rows =
+                DB::table(
+                    'attendance_sessions'
+                )
+                    ->leftJoin(
+                        'attendances',
+                        'attendance_sessions.id',
+                        '=',
+                        'attendances.attendance_session_id'
+                    )
+                    ->where(
+                        'attendance_sessions.academic_year_id',
+                        $period['academic_year_id']
+                    )
+                    ->where(
+                        'attendance_sessions.term_id',
+                        $period['term_id']
+                    )
+                    ->whereDate(
+                        'attendance_sessions.attendance_date',
+                        '>=',
+                        $start->toDateString()
+                    )
+                    ->whereDate(
+                        'attendance_sessions.attendance_date',
+                        '<=',
+                        $end->toDateString()
+                    )
+                    ->select([
+                        DB::raw(
+                            'DATE(attendance_sessions.attendance_date) as date'
+                        ),
+                        DB::raw(
+                            'COUNT(attendances.id) as total_records'
+                        ),
+                        DB::raw(
+                            "SUM(
+                                CASE
+                                    WHEN LOWER(attendances.status)
+                                        IN ('present', 'late')
+                                    THEN 1
+                                    ELSE 0
+                                END
+                            ) as attended_count"
+                        ),
+                    ])
+                    ->groupBy(
+                        DB::raw(
+                            'DATE(attendance_sessions.attendance_date)'
+                        )
+                    )
+                    ->orderBy(
+                        DB::raw(
+                            'DATE(attendance_sessions.attendance_date)'
+                        )
+                    )
+                    ->get();
 
             $map = [];
 
@@ -1092,19 +1319,14 @@ class DashboardController extends Controller
                 ];
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | BUILD CHART ARRAYS
-            |--------------------------------------------------------------------------
-            */
-
             $labels = [];
 
             $attendance = [];
 
             $marked = [];
 
-            $cursor = $start->copy();
+            $cursor =
+                $start->copy();
 
             while ($cursor <= $end) {
 
@@ -1128,12 +1350,6 @@ class DashboardController extends Controller
 
                 $cursor->addDay();
             }
-
-            /*
-            |--------------------------------------------------------------------------
-            | CHART STATISTICS
-            |--------------------------------------------------------------------------
-            */
 
             $daysWithData =
                 count(
@@ -1180,48 +1396,28 @@ class DashboardController extends Controller
                     ? $labels[$peakIndex]
                     : 'N/A';
 
-            /*
-            |--------------------------------------------------------------------------
-            | JSON RESPONSE
-            |--------------------------------------------------------------------------
-            */
-
             return response()->json([
                 'status' => 'success',
-
-                'labels' =>
-                    $labels,
-
-                'attendance' =>
-                    $attendance,
-
+                'labels' => $labels,
+                'attendance' => $attendance,
                 'benchmark' =>
                     array_fill(
                         0,
                         count($attendance),
                         $average
                     ),
-
-                'marked' =>
-                    $marked,
-
-                'total_students' =>
-                    $marked,
-
-                'total' =>
-                    $totalAttended,
-
-                'average' =>
-                    $average,
-
-                'peak' =>
-                    $peak,
-
-                'peak_day' =>
-                    $peakDay,
-
+                'marked' => $marked,
+                'total_students' => $marked,
+                'total' => $totalAttended,
+                'average' => $average,
+                'peak' => $peak,
+                'peak_day' => $peakDay,
                 'days_with_data' =>
                     $daysWithData,
+                'academic_year' =>
+                    $period['academic_year']->name,
+                'term' =>
+                    $period['term']->name,
             ]);
 
         } catch (\Throwable $e) {
@@ -1236,75 +1432,71 @@ class DashboardController extends Controller
 
             return response()->json([
                 'status' => 'error',
-
                 'labels' => [],
-
                 'attendance' => [],
-
                 'benchmark' => [],
-
                 'marked' => [],
-
                 'total_students' => [],
-
                 'total' => 0,
-
                 'average' => 0,
-
                 'peak' => 0,
-
                 'peak_day' => 'N/A',
-
                 'days_with_data' => 0,
-
                 'message' =>
                     'Unable to load attendance chart data.',
             ], 500);
         }
     }
 
-    /**
-     * Daily attendance summary.
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | DAILY ATTENDANCE SUMMARY
+    |--------------------------------------------------------------------------
+    */
+
     public function getAttendanceSummary(
         Request $request
     ): JsonResponse {
         try {
 
-            $date = $request->get(
-                'date',
-                now()->toDateString()
-            );
+            $period =
+                $this->currentPeriod();
 
-            /*
-            |--------------------------------------------------------------------------
-            | NORMALIZE DATE
-            |--------------------------------------------------------------------------
-            */
+            $date =
+                $request->get(
+                    'date',
+                    now()->toDateString()
+                );
 
             try {
+
                 $date =
                     Carbon::parse(
                         $date
                     )->toDateString();
+
             } catch (\Throwable $e) {
+
                 $date =
                     now()->toDateString();
             }
 
             $summary =
                 $this->buildAttendanceSummary(
-                    $date
+                    $date,
+                    $period['academic_year_id'],
+                    $period['term_id']
                 );
 
             return response()->json([
                 'success' => true,
-
-                'date' =>
-                    $date,
-
-                'summary' =>
-                    $summary,
+                'date' => $date,
+                'summary' => $summary,
+                'academic_year' =>
+                    $period['academic_year']?->name,
+                'term' =>
+                    $period['term']?->name,
             ]);
 
         } catch (\Throwable $e) {
@@ -1319,60 +1511,64 @@ class DashboardController extends Controller
 
             return response()->json([
                 'success' => false,
-
                 'message' =>
                     'Unable to load attendance summary.',
             ], 500);
         }
     }
 
-    /**
-     * Daily attendance by class.
-     *
-     * This endpoint is the single source used by the dashboard table.
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | DAILY CLASS ATTENDANCE
+    |--------------------------------------------------------------------------
+    */
+
     public function getClassAttendance(
         Request $request
     ): JsonResponse {
         try {
 
-            $date = $request->get(
-                'date',
-                now()->toDateString()
-            );
+            $period =
+                $this->currentPeriod();
 
-            /*
-            |--------------------------------------------------------------------------
-            | NORMALIZE DATE
-            |--------------------------------------------------------------------------
-            */
+            $date =
+                $request->get(
+                    'date',
+                    now()->toDateString()
+                );
 
             try {
+
                 $date =
                     Carbon::parse(
                         $date
                     )->toDateString();
+
             } catch (\Throwable $e) {
+
                 $date =
                     now()->toDateString();
             }
 
             $rows =
                 $this->buildClassAttendanceData(
-                    $date
+                    $date,
+                    $period['academic_year_id'],
+                    $period['term_id']
                 );
 
             return response()->json([
                 'success' => true,
-
-                'date' =>
-                    $date,
-
+                'date' => $date,
                 'classes' =>
                     $rows->values(),
-
                 'total_classes' =>
                     $rows->count(),
+                'academic_year' =>
+                    $period['academic_year']?->name,
+                'term' =>
+                    $period['term']?->name,
             ]);
 
         } catch (\Throwable $e) {
@@ -1382,7 +1578,6 @@ class DashboardController extends Controller
                 [
                     'message' =>
                         $e->getMessage(),
-
                     'date' =>
                         $request->get('date'),
                 ]
@@ -1390,80 +1585,140 @@ class DashboardController extends Controller
 
             return response()->json([
                 'success' => false,
-
                 'message' =>
                     'Unable to load class attendance.',
             ], 500);
         }
     }
 
-    /**
-     * Build daily attendance summary from the actual attendance tables.
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | CENTRAL PERIOD HELPER
+    |--------------------------------------------------------------------------
+    */
+
+    private function currentPeriod(): array
+    {
+        $settings =
+            SystemSetting::instance()->load([
+                'currentAcademicYear',
+                'currentTerm',
+            ]);
+
+        return [
+            'settings' =>
+                $settings,
+
+            'academic_year' =>
+                $settings->currentAcademicYear,
+
+            'term' =>
+                $settings->currentTerm,
+
+            'academic_year_id' =>
+                $settings->current_academic_year_id,
+
+            'term_id' =>
+                $settings->current_term_id,
+        ];
+    }
+
+
+    /*
+    |--------------------------------------------------------------------------
+    | ATTENDANCE SUMMARY BUILDER
+    |--------------------------------------------------------------------------
+    */
+
     private function buildAttendanceSummary(
-        string $date
+        string $date,
+        ?int $academicYearId,
+        ?int $termId
     ): array {
+        if (
+            !$academicYearId
+            || !$termId
+        ) {
+            return [
+                'total' => 0,
+                'present' => 0,
+                'absent' => 0,
+                'late' => 0,
+                'excused' => 0,
+            ];
+        }
+
         try {
 
-            $row = DB::table(
-                'attendances'
-            )
-                ->join(
-                    'attendance_sessions',
-                    'attendances.attendance_session_id',
-                    '=',
-                    'attendance_sessions.id'
+            $row =
+                DB::table(
+                    'attendances'
                 )
-                ->whereDate(
-                    'attendance_sessions.attendance_date',
-                    $date
-                )
-                ->select(
-                    DB::raw(
-                        'COUNT(*) as total'
-                    ),
-
-                    DB::raw(
-                        "SUM(
-                            CASE
-                                WHEN LOWER(attendances.status) = 'present'
-                                THEN 1
-                                ELSE 0
-                            END
-                        ) as present"
-                    ),
-
-                    DB::raw(
-                        "SUM(
-                            CASE
-                                WHEN LOWER(attendances.status) = 'absent'
-                                THEN 1
-                                ELSE 0
-                            END
-                        ) as absent"
-                    ),
-
-                    DB::raw(
-                        "SUM(
-                            CASE
-                                WHEN LOWER(attendances.status) = 'late'
-                                THEN 1
-                                ELSE 0
-                            END
-                        ) as late"
-                    ),
-
-                    DB::raw(
-                        "SUM(
-                            CASE
-                                WHEN LOWER(attendances.status) = 'excused'
-                                THEN 1
-                                ELSE 0
-                            END
-                        ) as excused"
+                    ->join(
+                        'attendance_sessions',
+                        'attendances.attendance_session_id',
+                        '=',
+                        'attendance_sessions.id'
                     )
-                )
-                ->first();
+                    ->where(
+                        'attendance_sessions.academic_year_id',
+                        $academicYearId
+                    )
+                    ->where(
+                        'attendance_sessions.term_id',
+                        $termId
+                    )
+                    ->whereDate(
+                        'attendance_sessions.attendance_date',
+                        $date
+                    )
+                    ->select([
+                        DB::raw(
+                            'COUNT(*) as total'
+                        ),
+
+                        DB::raw(
+                            "SUM(
+                                CASE
+                                    WHEN LOWER(attendances.status) = 'present'
+                                    THEN 1
+                                    ELSE 0
+                                END
+                            ) as present"
+                        ),
+
+                        DB::raw(
+                            "SUM(
+                                CASE
+                                    WHEN LOWER(attendances.status) = 'absent'
+                                    THEN 1
+                                    ELSE 0
+                                END
+                            ) as absent"
+                        ),
+
+                        DB::raw(
+                            "SUM(
+                                CASE
+                                    WHEN LOWER(attendances.status) = 'late'
+                                    THEN 1
+                                    ELSE 0
+                                END
+                            ) as late"
+                        ),
+
+                        DB::raw(
+                            "SUM(
+                                CASE
+                                    WHEN LOWER(attendances.status) = 'excused'
+                                    THEN 1
+                                    ELSE 0
+                                END
+                            ) as excused"
+                        ),
+                    ])
+                    ->first();
 
             return [
                 'total' =>
@@ -1495,10 +1750,16 @@ class DashboardController extends Controller
         } catch (\Throwable $e) {
 
             Log::error(
-                'Dashboard attendance summary build error',
+                'Dashboard attendance summary build error.',
                 [
                     'date' =>
                         $date,
+
+                    'academic_year_id' =>
+                        $academicYearId,
+
+                    'term_id' =>
+                        $termId,
 
                     'message' =>
                         $e->getMessage(),
@@ -1515,28 +1776,42 @@ class DashboardController extends Controller
         }
     }
 
-    /**
-     * Build class attendance rows for one date.
-     */
+
+    /*
+    |--------------------------------------------------------------------------
+    | CLASS ATTENDANCE BUILDER
+    |--------------------------------------------------------------------------
+    */
+
     private function buildClassAttendanceData(
-        string $date
+        string $date,
+        ?int $academicYearId,
+        ?int $termId
     ) {
+        if (
+            !$academicYearId
+            || !$termId
+        ) {
+            return collect();
+        }
+
         /*
         |--------------------------------------------------------------------------
         | ACTIVE CLASSES
         |--------------------------------------------------------------------------
         */
 
-        $classes = StudentClass::query()
-            ->where(
-                'is_active',
-                true
-            )
-            ->orderBy('name')
-            ->get([
-                'id',
-                'name',
-            ]);
+        $classes =
+            StudentClass::query()
+                ->where(
+                    'is_active',
+                    true
+                )
+                ->orderBy('name')
+                ->get([
+                    'id',
+                    'name',
+                ]);
 
         if ($classes->isEmpty()) {
             return collect();
@@ -1547,7 +1822,7 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | CURRENT STUDENTS BY CLASS
+        | CURRENT PERIOD STUDENT COUNTS
         |--------------------------------------------------------------------------
         */
 
@@ -1558,12 +1833,23 @@ class DashboardController extends Controller
                     $classIds
                 )
                 ->where(
+                    'academic_year_id',
+                    $academicYearId
+                )
+                ->where(
+                    'term_id',
+                    $termId
+                )
+                ->where(
                     'is_current',
                     true
                 )
-                ->where(
+                ->whereIn(
                     'status',
-                    'active'
+                    [
+                        'active',
+                        'repeated',
+                    ]
                 )
                 ->select(
                     'student_class_id',
@@ -1581,7 +1867,7 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | LATEST ATTENDANCE SESSION FOR EACH CLASS
+        | CURRENT PERIOD ATTENDANCE SESSIONS
         |--------------------------------------------------------------------------
         */
 
@@ -1591,6 +1877,14 @@ class DashboardController extends Controller
                     'student_class_id',
                     $classIds
                 )
+                ->where(
+                    'academic_year_id',
+                    $academicYearId
+                )
+                ->where(
+                    'term_id',
+                    $termId
+                )
                 ->whereDate(
                     'attendance_date',
                     $date
@@ -1599,6 +1893,8 @@ class DashboardController extends Controller
                 ->get([
                     'id',
                     'student_class_id',
+                    'academic_year_id',
+                    'term_id',
                     'attendance_date',
                 ])
                 ->groupBy(
@@ -1609,23 +1905,11 @@ class DashboardController extends Controller
                         $items->first()
                 );
 
-        /*
-        |--------------------------------------------------------------------------
-        | SESSION IDS
-        |--------------------------------------------------------------------------
-        */
-
         $sessionIds =
             $sessions
                 ->pluck('id')
                 ->filter()
                 ->values();
-
-        /*
-        |--------------------------------------------------------------------------
-        | ATTENDANCE RECORDS
-        |--------------------------------------------------------------------------
-        */
 
         $records =
             $sessionIds->isNotEmpty()
@@ -1641,12 +1925,6 @@ class DashboardController extends Controller
                     ])
                 : collect();
 
-        /*
-        |--------------------------------------------------------------------------
-        | GROUP RECORDS BY SESSION
-        |--------------------------------------------------------------------------
-        */
-
         $recordsBySession =
             $records->groupBy(
                 'attendance_session_id'
@@ -1654,7 +1932,7 @@ class DashboardController extends Controller
 
         /*
         |--------------------------------------------------------------------------
-        | BUILD RESPONSE
+        | BUILD CLASS ROWS
         |--------------------------------------------------------------------------
         */
 
@@ -1685,12 +1963,6 @@ class DashboardController extends Controller
                             )
                             : collect();
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | PRESENT
-                    |--------------------------------------------------------------------------
-                    */
-
                     $present =
                         $sessionRecords
                             ->filter(
@@ -1703,12 +1975,6 @@ class DashboardController extends Controller
                                     ) === 'present'
                             )
                             ->count();
-
-                    /*
-                    |--------------------------------------------------------------------------
-                    | ABSENT
-                    |--------------------------------------------------------------------------
-                    */
 
                     $absent =
                         $sessionRecords
@@ -1723,12 +1989,6 @@ class DashboardController extends Controller
                             )
                             ->count();
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | LATE
-                    |--------------------------------------------------------------------------
-                    */
-
                     $late =
                         $sessionRecords
                             ->filter(
@@ -1741,12 +2001,6 @@ class DashboardController extends Controller
                                     ) === 'late'
                             )
                             ->count();
-
-                    /*
-                    |--------------------------------------------------------------------------
-                    | EXCUSED
-                    |--------------------------------------------------------------------------
-                    */
 
                     $excused =
                         $sessionRecords
@@ -1761,36 +2015,14 @@ class DashboardController extends Controller
                             )
                             ->count();
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | MARKED
-                    |--------------------------------------------------------------------------
-                    |
-                    | Excused students are excluded from the denominator.
-                    |
-                    |--------------------------------------------------------------------------
-                    */
-
                     $marked =
                         $present
                         + $absent
                         + $late;
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | ATTENDED
-                    |--------------------------------------------------------------------------
-                    */
-
                     $attended =
                         $present
                         + $late;
-
-                    /*
-                    |--------------------------------------------------------------------------
-                    | ATTENDANCE RATE
-                    |--------------------------------------------------------------------------
-                    */
 
                     $rate =
                         $marked > 0
@@ -1803,67 +2035,49 @@ class DashboardController extends Controller
                             )
                             : 0;
 
-                    /*
-                    |--------------------------------------------------------------------------
-                    | STATUS
-                    |--------------------------------------------------------------------------
-                    */
-
                     if (!$session) {
 
-                        $status =
-                            'Not Taken';
+                        $status = 'Not Taken';
 
-                        $statusClass =
-                            'secondary';
+                        $statusClass = 'secondary';
 
                     } elseif (
                         $marked === 0
                     ) {
 
-                        $status =
-                            'No Records';
+                        $status = 'No Records';
 
-                        $statusClass =
-                            'warning';
+                        $statusClass = 'warning';
 
                     } elseif (
                         $rate >= 80
                     ) {
 
-                        $status =
-                            'Excellent';
+                        $status = 'Excellent';
 
-                        $statusClass =
-                            'success';
+                        $statusClass = 'success';
 
                     } elseif (
                         $rate >= 60
                     ) {
 
-                        $status =
-                            'Good';
+                        $status = 'Good';
 
-                        $statusClass =
-                            'info';
+                        $statusClass = 'info';
 
                     } elseif (
                         $rate >= 40
                     ) {
 
-                        $status =
-                            'Average';
+                        $status = 'Average';
 
-                        $statusClass =
-                            'warning';
+                        $statusClass = 'warning';
 
                     } else {
 
-                        $status =
-                            'Poor';
+                        $status = 'Poor';
 
-                        $statusClass =
-                            'danger';
+                        $statusClass = 'danger';
                     }
 
                     return [
