@@ -18,6 +18,7 @@
 
     $hasProgressionRoute = Route::has('student-progressions.index');
 
+
     /*
     |--------------------------------------------------------------------------
     | SELECTED VIEWING PERIOD
@@ -78,6 +79,20 @@
                         <h4 class="fw-bold mb-0">
                             {{ $studentClass->name }}
                         </h4>
+
+                        <div class="mt-1">
+                            @if($canEditClass)
+                                <span class="badge bg-success-subtle text-success border border-success-subtle">
+                                    <i class="fas fa-user-shield me-1"></i>
+                                    Form Master / Full Class Access
+                                </span>
+                            @elseif($canAccessClass)
+                                <span class="badge bg-info-subtle text-info border border-info-subtle">
+                                    <i class="fas fa-book-reader me-1"></i>
+                                    Subject Teacher / Read Only
+                                </span>
+                            @endif
+                        </div>
                     </div>
 
                 </div>
@@ -261,15 +276,15 @@
                     <div>
 
                         <small class="text-muted text-uppercase fw-semibold">
-                            Class Teacher
+                            Form Master
                         </small>
 
-                        @if($studentClass->classTeacher)
+                        @if($formMaster)
 
                             <h6 class="fw-bold mt-2 mb-0">
 
-                                {{ $studentClass->classTeacher->first_name }}
-                                {{ $studentClass->classTeacher->last_name }}
+                                {{ $formMaster->first_name }}
+                                {{ $formMaster->last_name }}
 
                             </h6>
 
@@ -613,15 +628,15 @@
                             <tr>
 
                                 <th>
-                                    Class Teacher
+                                    Form Master
                                 </th>
 
                                 <td>
 
-                                    @if($studentClass->classTeacher)
+                                    @if($formMaster)
 
-                                        {{ $studentClass->classTeacher->first_name }}
-                                        {{ $studentClass->classTeacher->last_name }}
+                                        {{ $formMaster->first_name }}
+                                        {{ $formMaster->last_name }}
 
                                     @else
 
@@ -1276,15 +1291,17 @@
 
                 <div class="d-flex gap-2 flex-wrap">
 
-                    <button type="button"
-                            class="btn btn-primary btn-sm take-attendance-btn"
-                            data-bs-toggle="modal"
-                            data-bs-target="#takeAttendanceModal">
+                    @if($canEditClass)
+                        <button type="button"
+                                class="btn btn-primary btn-sm take-attendance-btn"
+                                data-bs-toggle="modal"
+                                data-bs-target="#takeAttendanceModal">
 
-                        <i class="fas fa-clipboard-check me-1"></i>
-                        Take Attendance
+                            <i class="fas fa-clipboard-check me-1"></i>
+                            Take Attendance
 
-                    </button>
+                        </button>
+                    @endif
 
                     <button class="btn btn-outline-dark btn-sm"
                             onclick="exportAttendanceToExcel()">
@@ -1456,14 +1473,16 @@
 
                 </h5>
 
-                <button class="btn btn-light bg-light text-dark btn-sm"
-                        data-bs-toggle="modal"
-                        data-bs-target="#addSubjectModal">
+                @if($canEditClass)
+                    <button class="btn btn-light bg-light text-dark btn-sm"
+                            data-bs-toggle="modal"
+                            data-bs-target="#addSubjectModal">
 
-                    <i class="fas fa-plus me-1"></i>
-                    Add Subject
+                        <i class="fas fa-plus me-1"></i>
+                        Add Subject
 
-                </button>
+                    </button>
+                @endif
 
             </div>
 
@@ -1604,24 +1623,30 @@
 
                                         <td>
 
-                                            <form
-                                                action="{{ route('classes.subject.detach', [$studentClass->id, $subject->id]) }}"
-                                                method="POST"
-                                                class="d-inline"
-                                                onsubmit="return confirm('Are you sure you want to remove {{ addslashes($subject->name) }} from this class?');">
+                                            @if($canEditClass)
+                                                <form
+                                                    action="{{ route('classes.subject.detach', [$studentClass->id, $subject->id]) }}"
+                                                    method="POST"
+                                                    class="d-inline"
+                                                    onsubmit="return confirm('Are you sure you want to remove {{ addslashes($subject->name) }} from this class?');">
 
-                                                @csrf
+                                                    @csrf
 
-                                                @method('DELETE')
+                                                    @method('DELETE')
 
-                                                <button type="submit"
-                                                        class="btn btn-sm btn-outline-dark">
+                                                    <button type="submit"
+                                                            class="btn btn-sm btn-outline-dark">
 
-                                                    <i class="fas fa-trash-alt"></i>
+                                                        <i class="fas fa-trash-alt"></i>
 
-                                                </button>
+                                                    </button>
 
-                                            </form>
+                                                </form>
+                                            @else
+                                                <span class="badge bg-light text-muted border">
+                                                    View Only
+                                                </span>
+                                            @endif
 
                                         </td>
 
@@ -1658,14 +1683,16 @@
                             This class doesn't have any subjects assigned yet.
                         </p>
 
-                        <button class="btn btn-primary"
-                                data-bs-toggle="modal"
-                                data-bs-target="#addSubjectModal">
+                        @if($canEditClass)
+                            <button class="btn btn-primary"
+                                    data-bs-toggle="modal"
+                                    data-bs-target="#addSubjectModal">
 
-                            <i class="fas fa-plus me-1"></i>
-                            Add First Subject
+                                <i class="fas fa-plus me-1"></i>
+                                Add First Subject
 
-                        </button>
+                            </button>
+                        @endif
 
                     </div>
 
@@ -1697,14 +1724,16 @@
 
                 </h5>
 
-                <button class="btn btn-light bg-light text-dark btn-sm"
-                        data-bs-toggle="modal"
-                        data-bs-target="#assignPrefectModal">
+                @if($canEditClass)
+                    <button class="btn btn-light bg-light text-dark btn-sm"
+                            data-bs-toggle="modal"
+                            data-bs-target="#assignPrefectModal">
 
-                    <i class="fas fa-user-check me-1"></i>
-                    Assign Prefect
+                        <i class="fas fa-user-check me-1"></i>
+                        Assign Prefect
 
-                </button>
+                    </button>
+                @endif
 
             </div>
 
@@ -2418,16 +2447,18 @@
                             No active timetable has been uploaded for this class yet.
                         </p>
 
-                        <a href="{{ route('timetables.create', [
-                            'class_id' => $studentClass->id
-                        ]) }}"
-                           class="btn btn-primary">
+                        @if($canEditClass)
+                            <a href="{{ route('timetables.create', [
+                                'class_id' => $studentClass->id
+                            ]) }}"
+                               class="btn btn-primary">
 
-                            <i class="fas fa-plus me-1"></i>
+                                <i class="fas fa-plus me-1"></i>
 
-                            Upload Timetable
+                                Upload Timetable
 
-                        </a>
+                            </a>
+                        @endif
 
                     </div>
 
@@ -2545,15 +2576,17 @@
 
                     <div class="col-md-4 d-flex align-items-end">
 
-                        <button id="goToProgressionsBtn"
-                                class="btn btn-danger w-100"
-                                type="button">
+                        @if($canEditClass)
+                            <button id="goToProgressionsBtn"
+                                    class="btn btn-danger w-100"
+                                    type="button">
 
-                            <i class="fas fa-arrow-right me-1"></i>
+                                <i class="fas fa-arrow-right me-1"></i>
 
-                            Manage Progressions
+                                Manage Progressions
 
-                        </button>
+                            </button>
+                        @endif
 
                     </div>
 
@@ -2713,7 +2746,7 @@ TAKE ATTENDANCE MODAL
                                class="form-control"
                                value="{{ $attendanceDefaultDate }}"
                                min="{{ $attendanceTermStart?->format('Y-m-d') }}"
-                               max="{{ $attendanceTermEnd?->format('Y-m-d') }}""
+                               max="{{ $attendanceTermEnd?->format('Y-m-d') }}"
                                required>
 
                     </div>

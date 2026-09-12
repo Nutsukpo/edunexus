@@ -69,6 +69,13 @@ class Staff extends Model
         );
     }
 
+    /**
+     * Lesson notes created by this staff member.
+     *
+     * NOTE:
+     * The existing lesson_notes table may still use teacher_id.
+     * We are preserving that existing relationship for compatibility.
+     */
     public function lessonNotes()
     {
         return $this->hasMany(
@@ -77,36 +84,119 @@ class Staff extends Model
         );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | FORM MASTER ASSIGNMENTS
+    |--------------------------------------------------------------------------
+    |
+    | student_class_staff
+    |
+    | A Form Master has full access to the assigned class,
+    | subject to the application's module permissions.
+    |
+    */
+
+    public function formMasterAssignments()
+    {
+        return $this->hasMany(
+            StudentClassStaff::class,
+            'staff_id'
+        );
+    }
+
+    /**
+     * Classes where this staff member is assigned as Form Master.
+     */
+    public function formMasterClasses()
+    {
+        return $this->belongsToMany(
+            StudentClass::class,
+            'student_class_staff',
+            'staff_id',
+            'student_class_id'
+        )
+        ->withPivot([
+            'academic_year_id',
+            'term_id',
+        ])
+        ->withTimestamps();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SUBJECT TEACHER ASSIGNMENTS
+    |--------------------------------------------------------------------------
+    |
+    | class_subject_staff
+    |
+    | A Subject Teacher gets:
+    |
+    | - Read access to the assigned class
+    | - Write access only to the assigned subject
+    |
+    */
+
+    public function subjectAssignments()
+    {
+        return $this->hasMany(
+            ClassSubjectStaff::class,
+            'staff_id'
+        );
+    }
+
+    /**
+     * Subjects this staff member teaches.
+     *
+     * The assignment is class-specific and period-specific.
+     */
     public function assignedSubjects()
     {
         return $this->belongsToMany(
             Subject::class,
-            'teacher_subject_assignments',
+            'class_subject_staff',
             'staff_id',
             'subject_id'
         )
         ->withPivot([
             'student_class_id',
             'academic_year_id',
-            'term_id'
+            'term_id',
+            'day',
+            'start_time',
+            'end_time',
+            'room',
         ])
         ->withTimestamps();
     }
 
+    /**
+     * Classes where this staff member is assigned as a Subject Teacher.
+     */
     public function assignedClasses()
     {
         return $this->belongsToMany(
             StudentClass::class,
-            'teacher_class_assignments',
+            'class_subject_staff',
             'staff_id',
             'student_class_id'
         )
         ->withPivot([
+            'subject_id',
             'academic_year_id',
-            'term_id'
+            'term_id',
+            'day',
+            'start_time',
+            'end_time',
+            'room',
         ])
         ->withTimestamps();
     }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SALARY & PAYROLL
+    |--------------------------------------------------------------------------
+    */
 
     public function salaryStructure()
     {

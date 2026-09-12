@@ -1317,7 +1317,7 @@
 
                         @endcan
 
-                     
+
 
 
                         @can('attendance-settings.view')
@@ -1327,10 +1327,20 @@
                             </a>
                         @endcan
 
+
+                        @can('settings.view')
                         <a href="/settings" class="nav-link-child">
                             <i class="fas fa-tools"></i>
-                            <span>Academic Settings</span>
+                            <span>Academic Settings</span>staff-assignments
                         </a>
+                        @endcan
+
+
+                        <a href="/staff-assignments" class="nav-link-child">
+                            <i class="fas fa-tools"></i>
+                            <span>Staff-Assignments</span>
+                        </a>
+
                     </div>
                 </div>
                 @endcanany

@@ -21,6 +21,24 @@ class LessonNoteController extends Controller
     }
 
     /**
+     * Return one record for each term name.
+     *
+     * The terms table contains repeated First/Second/Third Term records
+     * for different academic years. Loading Term::all() therefore makes
+     * the create/edit dropdown display duplicate terms. We keep the
+     * latest record for each term name so every option has a valid ID.
+     */
+    private function availableTerms()
+    {
+        return Term::query()
+            ->orderByDesc('id')
+            ->get()
+            ->unique('name')
+            ->sortBy('id')
+            ->values();
+    }
+
+    /**
      * Display a listing of lesson notes.
      */
     public function index(Request $request)
@@ -75,8 +93,12 @@ class LessonNoteController extends Controller
 
         $classes = $this->authorization->accessibleClassSubjects(auth()->user())->orderBy('name')->get();
         $subjects = $this->authorization->isScopedStaff(auth()->user())
-            ? Subject::whereHas('classSubjectStaff', function ($q) {
-                $q->where('staff_id', $this->authorization->staffFor(auth()->user())->id);
+            ? Subject::whereIn('id', function ($query) {
+                $staff = $this->authorization->staffFor(auth()->user());
+
+                $query->select('subject_id')
+                    ->from('class_subject_staff')
+                    ->where('staff_id', optional($staff)->id);
             })->orderBy('name')->get()
             : Subject::all();
 
@@ -96,12 +118,16 @@ class LessonNoteController extends Controller
 
         $classes = $this->authorization->accessibleClassSubjects(auth()->user())->orderBy('name')->get();
         $subjects = $this->authorization->isScopedStaff(auth()->user())
-            ? Subject::whereHas('classSubjectStaff', function ($q) {
-                $q->where('staff_id', $this->authorization->staffFor(auth()->user())->id);
+            ? Subject::whereIn('id', function ($query) {
+                $staff = $this->authorization->staffFor(auth()->user());
+
+                $query->select('subject_id')
+                    ->from('class_subject_staff')
+                    ->where('staff_id', optional($staff)->id);
             })->orderBy('name')->get()
             : Subject::all();
         $academicYears = AcademicYear::all();
-        $terms = Term::all();
+        $terms = $this->availableTerms();
         
         return view('lesson-notes.create', compact('staffs', 'classes', 'subjects', 'academicYears', 'terms'));
     }
@@ -112,8 +138,6 @@ class LessonNoteController extends Controller
     public function store(Request $request)
     {
         abort_unless(auth()->user()->can('lesson-notes.create'), 403);
-
-        abort_unless(auth()->user()->can('lesson-notes.edit'), 403);
 
         $request->validate([
             'staff_id' => 'required|exists:staff,id',
@@ -249,7 +273,7 @@ class LessonNoteController extends Controller
         $classes = StudentClass::all();
         $subjects = Subject::all();
         $academicYears = AcademicYear::all();
-        $terms = Term::all();
+        $terms = $this->availableTerms();
         
         return view('lesson-notes.edit', compact('lessonNote', 'staffs', 'classes', 'subjects', 'academicYears', 'terms'));
     }

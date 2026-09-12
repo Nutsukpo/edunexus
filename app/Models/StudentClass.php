@@ -31,78 +31,193 @@ class StudentClass extends Model
 
     /*
     |--------------------------------------------------------------------------
-    | RELATIONSHIPS
+    | ACADEMIC RELATIONSHIPS
     |--------------------------------------------------------------------------
     */
 
     /**
-     * Get the academic year this class belongs to.
+     * Academic year this class belongs to.
      */
     public function academicYear()
     {
-        return $this->belongsTo(AcademicYear::class);
+        return $this->belongsTo(
+            AcademicYear::class,
+            'academic_year_id'
+        );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | FORM MASTER / CLASS STAFF
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Get the class teacher (staff).
+     * Legacy/direct Form Master stored on student_classes.staff_id.
+     *
+     * This is preserved for compatibility with the existing system.
      */
     public function classTeacher()
     {
-        return $this->belongsTo(Staff::class, 'staff_id');
+        return $this->belongsTo(
+            Staff::class,
+            'staff_id'
+        );
     }
 
     /**
-     * Get the class prefect (student).
+     * Form Master assignment records.
+     *
+     * Uses the period-aware student_class_staff table.
      */
+    public function formMasterAssignments()
+    {
+        return $this->hasMany(
+            StudentClassStaff::class,
+            'student_class_id'
+        );
+    }
+
+    /**
+     * Staff assigned to this class through student_class_staff.
+     *
+     * These are Form Master/class staff assignments.
+     */
+    public function staff()
+    {
+        return $this->belongsToMany(
+            Staff::class,
+            'student_class_staff',
+            'student_class_id',
+            'staff_id'
+        )
+        ->withPivot([
+            'academic_year_id',
+            'term_id',
+        ])
+        ->withTimestamps();
+    }
+
+    /**
+     * Form Masters assigned to this class.
+     *
+     * Alias for clarity when working with the new authorization system.
+     */
+    public function formMasters()
+    {
+        return $this->belongsToMany(
+            Staff::class,
+            'student_class_staff',
+            'student_class_id',
+            'staff_id'
+        )
+        ->withPivot([
+            'academic_year_id',
+            'term_id',
+        ])
+        ->withTimestamps();
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SUBJECT TEACHER ASSIGNMENTS
+    |--------------------------------------------------------------------------
+    */
+
+    /**
+     * Subject Teacher assignment records.
+     *
+     * Each record connects:
+     * Class + Subject + Staff + Academic Year + Term.
+     */
+    public function subjectStaff()
+    {
+        return $this->hasMany(
+            ClassSubjectStaff::class,
+            'student_class_id'
+        );
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | CLASS PREFECT
+    |--------------------------------------------------------------------------
+    */
+
     public function classPrefect()
     {
-        return $this->belongsTo(Student::class, 'class_prefect_id');
+        return $this->belongsTo(
+            Student::class,
+            'class_prefect_id'
+        );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | STUDENT ASSIGNMENTS
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Get enrollments for this class.
+     * Legacy enrollments relationship.
      */
     public function enrollments()
     {
-        return $this->hasMany(StudentEnrollment::class);
+        return $this->hasMany(
+            StudentEnrollment::class
+        );
     }
 
     /**
-     * Get student class assignments (NEW - for StudentClassAssignment model).
+     * Student class assignments.
      */
     public function studentClassAssignments()
     {
-        return $this->hasMany(StudentClassAssignment::class, 'student_class_id');
+        return $this->hasMany(
+            StudentClassAssignment::class,
+            'student_class_id'
+        );
     }
 
     /**
-     * Get active student class assignments.
+     * Current active student assignments.
      */
     public function activeStudentClassAssignments()
     {
-        return $this->hasMany(StudentClassAssignment::class, 'student_class_id')
-            ->where('is_current', true)
-            ->where('status', 'active');
+        return $this->hasMany(
+            StudentClassAssignment::class,
+            'student_class_id'
+        )
+        ->where('is_current', true)
+        ->where('status', 'active');
     }
 
     /**
-     * Get students through student class assignments (NEW).
+     * Students assigned to this class through
+     * student_class_assignments.
      */
     public function assignedStudents()
     {
         return $this->hasManyThrough(
             Student::class,
             StudentClassAssignment::class,
-            'student_class_id', // Foreign key on student_class_assignments table
-            'id', // Foreign key on students table
-            'id', // Local key on student_classes table
-            'student_id' // Local key on student_class_assignments table
-        )->where('student_class_assignments.is_current', true)
-         ->where('student_class_assignments.status', 'active');
+            'student_class_id',
+            'id',
+            'id',
+            'student_id'
+        )
+        ->where(
+            'student_class_assignments.is_current',
+            true
+        )
+        ->where(
+            'student_class_assignments.status',
+            'active'
+        );
     }
 
     /**
-     * Get students in class (MANY TO MANY via enrollments).
+     * Legacy students relationship.
      */
     public function students()
     {
@@ -115,7 +230,7 @@ class StudentClass extends Model
     }
 
     /**
-     * Get active students in this class via enrollments.
+     * Active students through legacy enrollments.
      */
     public function activeStudents()
     {
@@ -124,11 +239,12 @@ class StudentClass extends Model
             'student_enrollments',
             'student_class_id',
             'student_id'
-        )->where('is_active', true);
+        )
+        ->where('is_active', true);
     }
 
     /**
-     * Get students enrolled in this class for the current academic year.
+     * Students enrolled during the active academic year.
      */
     public function currentAcademicYearStudents()
     {
@@ -137,15 +253,25 @@ class StudentClass extends Model
             'student_enrollments',
             'student_class_id',
             'student_id'
-        )->whereHas('enrollments', function ($query) {
-            $query->whereHas('academicYear', function ($q) {
-                $q->where('is_active', true);
-            });
+        )
+        ->whereHas('enrollments', function ($query) {
+            $query->whereHas(
+                'academicYear',
+                function ($q) {
+                    $q->where('is_active', true);
+                }
+            );
         });
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | SUBJECTS
+    |--------------------------------------------------------------------------
+    */
+
     /**
-     * Get class subjects (MANY TO MANY).
+     * Subjects attached to this class.
      */
     public function subjects()
     {
@@ -157,62 +283,62 @@ class StudentClass extends Model
         );
     }
 
-    /**
-     * Get subject staff assignments.
-     */
-    public function subjectStaff()
-    {
-        return $this->hasMany(ClassSubjectStaff::class);
-    }
+    /*
+    |--------------------------------------------------------------------------
+    | ATTENDANCE
+    |--------------------------------------------------------------------------
+    */
 
-    /**
-     * Get attendance sessions for this class.
-     */
     public function attendanceSessions()
     {
-        return $this->hasMany(AttendanceSession::class);
-    }
-
-    /**
-     * Get staff linked to class (via pivot table).
-     */
-    public function staff()
-    {
-        return $this->belongsToMany(Staff::class, 'student_class_staff', 'student_class_id', 'staff_id');
+        return $this->hasMany(
+            AttendanceSession::class
+        );
     }
 
     /*
     |--------------------------------------------------------------------------
-    | ACCESSORS & MUTATORS
+    | ACCESSORS
     |--------------------------------------------------------------------------
     */
 
     /**
-     * Get the class teacher's full name.
+     * Legacy class teacher display name.
      */
     public function getTeacherNameAttribute()
     {
-        return $this->classTeacher ? $this->classTeacher->full_name : 'Not Assigned';
+        return $this->classTeacher
+            ? $this->classTeacher->full_name
+            : 'Not Assigned';
     }
 
     /**
-     * Get the class name with stream.
+     * Class name with stream.
      */
     public function getFullNameAttribute()
     {
-        return trim($this->name . ' ' . ($this->stream ?? ''));
+        return trim(
+            $this->name . ' ' . ($this->stream ?? '')
+        );
     }
 
     /**
-     * Get the class display name with code.
+     * Class display name with code.
      */
     public function getDisplayNameAttribute()
     {
-        return trim($this->name . ' ' . ($this->stream ?? '') . ' (' . $this->student_class_code . ')');
+        return trim(
+            $this->name .
+            ' ' .
+            ($this->stream ?? '') .
+            ' (' .
+            $this->student_class_code .
+            ')'
+        );
     }
 
     /**
-     * Get the total number of students in the class via enrollments.
+     * Student count through legacy enrollments.
      */
     public function getStudentCountAttribute()
     {
@@ -220,7 +346,7 @@ class StudentClass extends Model
     }
 
     /**
-     * Get the total number of active students in the class via enrollments.
+     * Active student count through legacy enrollments.
      */
     public function getActiveStudentCountAttribute()
     {
@@ -228,7 +354,7 @@ class StudentClass extends Model
     }
 
     /**
-     * Get the total number of assigned students via student class assignments.
+     * Current active assignment count.
      */
     public function getAssignedStudentCountAttribute()
     {
@@ -244,51 +370,51 @@ class StudentClass extends Model
     |--------------------------------------------------------------------------
     */
 
-    /**
-     * Scope a query to only include active classes.
-     */
     public function scopeActive($query)
     {
         return $query->where('is_active', true);
     }
 
-    /**
-     * Scope a query to only include classes with active assignments.
-     */
     public function scopeWithActiveAssignments($query)
     {
-        return $query->whereHas('studentClassAssignments', function($q) {
-            $q->where('is_current', true)->where('status', 'active');
-        });
+        return $query->whereHas(
+            'studentClassAssignments',
+            function ($q) {
+                $q->where('is_current', true)
+                    ->where('status', 'active');
+            }
+        );
     }
 
-    /**
-     * Scope a query to filter by class type.
-     */
     public function scopeOfType($query, $type)
     {
-        return $query->where('class_type', $type);
+        return $query->where(
+            'class_type',
+            $type
+        );
     }
 
-    /**
-     * Scope a query to filter by education type.
-     */
     public function scopeOfEducationType($query, $type)
     {
-        return $query->where('education_type', $type);
+        return $query->where(
+            'education_type',
+            $type
+        );
     }
 
-    /**
-     * Scope a query to filter by academic year.
-     */
-    public function scopeForAcademicYear($query, $academicYearId)
-    {
-        return $query->where('academic_year_id', $academicYearId);
+    public function scopeForAcademicYear(
+        $query,
+        $academicYearId
+    ) {
+        return $query->where(
+            'academic_year_id',
+            $academicYearId
+        );
     }
 
     /*
     |--------------------------------------------------------------------------
-    | BOOT & AUTO GENERATE CLASS CODE
+    | CLASS CODE GENERATION
     |--------------------------------------------------------------------------
     */
 
@@ -297,39 +423,75 @@ class StudentClass extends Model
         parent::boot();
 
         static::creating(function ($class) {
+
             if (!$class->student_class_code) {
-                $year = AcademicYear::find($class->academic_year_id);
+
+                $year = AcademicYear::find(
+                    $class->academic_year_id
+                );
+
                 $yearLabel = $year
-                    ? date('Y', strtotime($year->start_date))
+                    ? date(
+                        'Y',
+                        strtotime($year->start_date)
+                    )
                     : date('Y');
 
                 $prefix = 'CLS';
 
-                if ($class->class_type == 'Kindergarten (KG)') {
+                if (
+                    $class->class_type ===
+                    'Kindergarten (KG)'
+                ) {
                     $prefix = 'KG';
-                } elseif ($class->class_type == 'JHS') {
+
+                } elseif (
+                    $class->class_type === 'JHS'
+                ) {
                     $prefix = 'JHS';
-                } elseif ($class->class_type == 'Lower Primary') {
+
+                } elseif (
+                    $class->class_type ===
+                    'Lower Primary'
+                ) {
                     $prefix = 'LP';
-                } elseif ($class->class_type == 'Higher Primary') {
+
+                } elseif (
+                    $class->class_type ===
+                    'Higher Primary'
+                ) {
                     $prefix = 'HP';
                 }
 
                 $base = strtoupper(
-                    $prefix . '-' .
-                    Str::slug($class->stream ?? '') . '-' .
+                    $prefix .
+                    '-' .
+                    Str::slug(
+                        $class->stream ?? ''
+                    ) .
+                    '-' .
                     $yearLabel
                 );
 
                 $code = $base;
                 $counter = 1;
 
-                while (self::where('student_class_code', $code)->exists()) {
-                    $code = $base . '-' . $counter;
+                while (
+                    self::where(
+                        'student_class_code',
+                        $code
+                    )->exists()
+                ) {
+                    $code =
+                        $base .
+                        '-' .
+                        $counter;
+
                     $counter++;
                 }
 
-                $class->student_class_code = $code;
+                $class->student_class_code =
+                    $code;
             }
         });
     }
@@ -340,68 +502,64 @@ class StudentClass extends Model
     |--------------------------------------------------------------------------
     */
 
-    /**
-     * Check if the class has students.
-     */
     public function hasStudents()
     {
         return $this->students()->exists();
     }
 
-    /**
-     * Check if the class has active students.
-     */
     public function hasActiveStudents()
     {
         return $this->activeStudents()->exists();
     }
 
-    /**
-     * Get the class size (number of students).
-     */
     public function getClassSize()
     {
         return $this->students()->count();
     }
 
-    /**
-     * Get the percentage of capacity used.
-     */
     public function getCapacityPercentage()
     {
-        if (!$this->capacity || $this->capacity == 0) {
+        if (
+            !$this->capacity ||
+            $this->capacity == 0
+        ) {
             return 0;
         }
-        
+
         $count = $this->students()->count();
-        return round(($count / $this->capacity) * 100, 2);
+
+        return round(
+            ($count / $this->capacity) * 100,
+            2
+        );
     }
 
-    /**
-     * Check if the class is full.
-     */
     public function isFull()
     {
         if (!$this->capacity) {
             return false;
         }
-        
-        return $this->students()->count() >= $this->capacity;
+
+        return $this->students()->count()
+            >= $this->capacity;
     }
 
-    /**
-     * Get the available slots in the class.
-     */
     public function getAvailableSlots()
     {
         if (!$this->capacity) {
             return 'Unlimited';
         }
-        
-        $available = $this->capacity - $this->students()->count();
+
+        $available =
+            $this->capacity -
+            $this->students()->count();
+
         return max(0, $available);
     }
 
+    /**
+     * Alias for student class assignments.
+     */
     public function assignments()
     {
         return $this->studentClassAssignments();

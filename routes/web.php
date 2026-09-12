@@ -57,6 +57,8 @@ use App\Http\Controllers\StudentFeeAllocationController;
 use App\Http\Controllers\SystemSettingController;
 use App\Http\Controllers\StudentImportController;
 use App\Http\Controllers\AcademicPeriodController;
+use App\Http\Controllers\StaffAssignmentController;
+
 
 /*
 |--------------------------------------------------------------------------
@@ -219,11 +221,68 @@ Route::middleware(['auth:web'])->group(function () {
         ->middlewareFor(['edit', 'update'], 'permission:classes.edit')
         ->middlewareFor('destroy', 'permission:classes.delete');
 
+            /*
+    |--------------------------------------------------------------------------
+    | STAFF CLASS & SUBJECT ASSIGNMENTS
+    |--------------------------------------------------------------------------
+    | Form Masters and Subject Teachers
+    |--------------------------------------------------------------------------
+    */
+
+    Route::prefix('staff-assignments')
+    ->name('staff-assignments.')
+    ->middleware('permission:classes.assign-staff')
+    ->group(function () {
+
+        /*
+        |--------------------------------------------------------------------------
+        | Assignment Management
+        |--------------------------------------------------------------------------
+        */
+
+        Route::get(
+            '/',
+            [StaffAssignmentController::class, 'index']
+        )->name('index');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Form Master
+        |--------------------------------------------------------------------------
+        */
+
+        Route::post(
+            '/form-master',
+            [StaffAssignmentController::class, 'storeFormMaster']
+        )->name('form-master.store');
+
+        Route::delete(
+            '/form-master/{assignment}',
+            [StaffAssignmentController::class, 'destroyFormMaster']
+        )->name('form-master.destroy');
+
+        /*
+        |--------------------------------------------------------------------------
+        | Subject Teacher
+        |--------------------------------------------------------------------------
+        */
+
+        Route::post(
+            '/subject-teacher',
+            [StaffAssignmentController::class, 'storeSubjectTeacher']
+        )->name('subject-teacher.store');
+
+        Route::delete(
+            '/subject-teacher/{assignment}',
+            [StaffAssignmentController::class, 'destroySubjectTeacher']
+        )->name('subject-teacher.destroy');
+    });
+
 
         // student-fee-allocations
-        Route::prefix('student-fee-allocations')
-    ->name('student-fee-allocations.')
-    ->group(function () {
+    Route::prefix('student-fee-allocations')
+        ->name('student-fee-allocations.')
+        ->group(function () {
 
         Route::get('/', [
             StudentFeeAllocationController::class,
@@ -922,7 +981,7 @@ Route::get(
             Route::get('/api/chart-data', [FeePaymentReportController::class, 'getChartData'])->middleware('permission:fees.reports')
 ->name('api.chart');
         });
-        
+
 
     /*
     |--------------------------------------------------------------------------
@@ -1075,7 +1134,7 @@ Route::get(
     Route::get('/timetables/{timetable}/preview', [TimetableController::class, 'preview'])
         ->middleware('permission:timetables.view')
         ->name('timetables.preview');
-    
+
     Route::get('/timetables/{timetable}/download', [TimetableController::class, 'download'])
         ->middleware('permission:timetables.download')
         ->name('timetables.download');
@@ -1587,6 +1646,8 @@ Route::middleware(['auth:web'])->group(function () {
             ->name('roles.permissions.update');
     });
 });
+
+
 
 Route::post(
     '/paystack/webhook',
