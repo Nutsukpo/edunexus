@@ -556,7 +556,7 @@
         <p>Sign in to access your academic dashboard</p>
         <span class="school-badge">
             <i class="fas fa-school me-1"></i>
-            Talha Prem. School Management System
+            Edunexus. School Management System
         </span>
     </div>
 

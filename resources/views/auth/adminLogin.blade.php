@@ -1,4 +1,5 @@
 <link rel="icon" type="image/png" href="{{ asset('img/ESSTECH_BANNER.png') }}">
+
 @extends('layouts.header')
 @section('title', 'Login')
 
