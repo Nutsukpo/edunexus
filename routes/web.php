@@ -58,6 +58,10 @@ use App\Http\Controllers\SystemSettingController;
 use App\Http\Controllers\StudentImportController;
 use App\Http\Controllers\AcademicPeriodController;
 use App\Http\Controllers\StaffAssignmentController;
+use App\Http\Controllers\AIController;
+use App\Http\Controllers\VoiceAIController;
+use App\Http\Controllers\Auth\ChangePasswordController;
+use App\Http\Controllers\ProfileController;
 
 
 /*
@@ -1647,9 +1651,55 @@ Route::middleware(['auth:web'])->group(function () {
     });
 });
 
+Route::middleware('auth:web')->group(function () {
+    Route::get('/change-password', [
+        ChangePasswordController::class,
+        'edit',
+    ])->name('password.change.form');
+
+    Route::put('/change-password', [
+        ChangePasswordController::class,
+        'update',
+    ])->name('password.change.update');
+});
+
+Route::middleware('auth:web')->group(function () {
+    Route::get('/profile', [ProfileController::class, 'show'])
+        ->name('profile.show');
+});
 
 
 Route::post(
     '/paystack/webhook',
     [PaystackWebhookController::class, 'handle']
 )->name('paystack.webhook');
+
+    Route::middleware(['auth'])->group(function () {
+        Route::get('/ai/lesson-notes', [
+            AIController::class,
+            'create',
+        ])
+            ->middleware('permission:lesson-notes.create')
+            ->name('ai.lesson-notes.create');
+
+        Route::post('/ai/lesson-notes/generate', [
+            AIController::class,
+            'generate',
+        ])
+            ->middleware('permission:lesson-notes.create')
+            ->name('ai.lesson-notes.generate');
+
+        Route::post('/ai/lesson-notes/use-generated', [
+            AIController::class,
+            'useGenerated',
+        ])
+            ->middleware('permission:lesson-notes.create')
+            ->name('ai.lesson-notes.use-generated');
+    });
+
+    Route::post('/ai/voice/command', [
+        VoiceAIController::class,
+        'command',
+    ])
+        ->middleware('auth')
+        ->name('ai.voice.command');

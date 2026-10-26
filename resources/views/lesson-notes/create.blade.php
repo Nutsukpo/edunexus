@@ -518,14 +518,20 @@
                             <div class="col-md-6">
                                 <div class="form-group">
                                     <label for="resources">Resources (URLs)</label>
-                                    <input type="text" name="resources" id="resources" 
-                                           class="form-control @error('resources') is-invalid @enderror" 
-                                           value="{{ old('resources') }}" 
-                                           placeholder="https://example.com, https://another.com">
-                                    <small class="form-text text-muted">Separate multiple URLs with commas</small>
-                                    @error('resources')
-                                        <span class="invalid-feedback">{{ $message }}</span>
-                                    @enderror
+                                    @php
+                                        $oldResources = old('resources', '');
+
+                                        if (is_array($oldResources)) {
+                                            $oldResources = implode(', ', $oldResources);
+                                        }
+                                    @endphp
+
+                                    <input type="text"
+                                        name="resources"
+                                        id="resources"
+                                        class="form-control @error('resources') is-invalid @enderror"
+                                        value="{{ e($oldResources) }}"
+                                        placeholder="https://example.com, https://another.com">
                                 </div>
                             </div>
                             <div class="col-md-6">

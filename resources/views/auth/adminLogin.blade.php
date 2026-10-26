@@ -1,4 +1,4 @@
-<link rel="icon" type="image/png" href="{{ asset('img/Talha.jpeg') }}">
+<link rel="icon" type="image/png" href="{{ asset('img/ESSTECH_BANNER.png') }}">
 @extends('layouts.header')
 @section('title', 'Login')
 
@@ -12,12 +12,12 @@
                         <!-- Nested Row within Card Body -->
                         <div class="row g-0">
                             <div class="col-lg-6 d-none d-lg-flex align-items-center justify-content-center bg-login-image animate-left">
-                                <img class="img-fluid w-75 pt-5 animate-float" style="max-width: 250px;" src="{{ asset('img/Talha.jpeg') }}" alt="Logo">
+                                <img class="img-fluid w-75 pt-5 animate-float" style="max-width: 700px;" src="{{ asset('img/ESSTECH_BANNER.png') }}" alt="Logo">
                             </div>
                             <div class="col-lg-6">
                                 <div class="p-4 p-md-5 animate-right">
                                     <div class="text-center mb-4 animate-fade-down">
-                                        <h1 class="h3 text-gray-900 mb-2 animate-gradient-text">Talha Prem Sch Mgt Sys!</h1>
+                                        <h1 class="h3 text-gray-900 mb-2 animate-gradient-text">Edunexus Sch Mgt Sys!</h1>
                                         <p class="text-muted small animate-fade-up">Welcome Back! Please sign in to your account</p>
                                     </div>
 

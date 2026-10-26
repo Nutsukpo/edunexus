@@ -261,7 +261,7 @@
                         </label>
 
                         <select
-                            name="academic_year_id"
+                            name="academic_year_display"
                             id="academicYear"
                             class="form-select"
                             required
@@ -285,6 +285,15 @@
                             @endforeach
 
                         </select>
+
+                    
+                        {{-- This hidden field is submitted even when the visible selector is disabled. --}}
+                        <input
+                            type="hidden"
+                            name="academic_year_id"
+                            id="submittedAcademicYearId"
+                            value="{{ old('academic_year_id', $currentAcademicYear?->id) }}"
+                        >
 
                     </div>
 
@@ -652,6 +661,10 @@ document.addEventListener('DOMContentLoaded', function () {
     const academicYear =
         document.getElementById('academicYear');
 
+    
+    const submittedAcademicYearId =
+        document.getElementById('submittedAcademicYearId');
+
     const term =
         document.getElementById('term');
 
@@ -723,6 +736,10 @@ document.addEventListener('DOMContentLoaded', function () {
     | RESET STUDENT
     |--------------------------------------------------------------------------
     */
+    function syncSubmittedAcademicYear() {
+        submittedAcademicYearId.value = academicYear.value || '';
+    }
+
 
     function resetStudent()
     {
@@ -1091,7 +1108,9 @@ document.addEventListener('DOMContentLoaded', function () {
             currentAcademicYearId || '';
 
 
-        /*
+        
+        syncSubmittedAcademicYear();
+/*
         |--------------------------------------------------------------------------
         | Keep academic year locked, but TERM MUST REMAIN ENABLED.
         |
@@ -1164,7 +1183,9 @@ document.addEventListener('DOMContentLoaded', function () {
 
         academicYear.value = '';
 
-        term.innerHTML = `
+        
+        syncSubmittedAcademicYear();
+term.innerHTML = `
             <option value="">
                 Select Academic Year first
             </option>
@@ -1225,6 +1246,7 @@ document.addEventListener('DOMContentLoaded', function () {
     academicYear.addEventListener(
         'change',
         async function () {
+            syncSubmittedAcademicYear();
 
             /*
             |--------------------------------------------------------------------------
@@ -1316,7 +1338,7 @@ document.addEventListener('DOMContentLoaded', function () {
         function (event) {
 
             if (
-                !academicYear.value ||
+                !submittedAcademicYearId.value ||
                 !term.value ||
                 !studentClass.value ||
                 !student.value

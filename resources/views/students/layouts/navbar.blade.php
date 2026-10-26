@@ -1,355 +1,235 @@
-<!-- Navigation Bar -->
-<nav class="navbar navbar-expand-lg shadow-sm mb-4" 
-     style="background: linear-gradient(135deg, #e3f2fd, #bbdefb, #90caf9); border-bottom: 3px solid #1976d2;">
+{{--
+    Student Portal Top Bar
+    Requires: Bootstrap 5 (JS bundle), Font Awesome 5/6
+    Optional variables: $pageTitle (string), $unreadNotifications (int)
+    Any element with the attribute  data-logout-trigger  opens the logout confirmation
+    (e.g. the sidebar logout button).
+--}}
 
-    <div class="container-fluid">
-        <!-- Brand/Logo -->
-        <div class="d-flex align-items-center">
-            <div class="brand-icon me-3" 
-                 style="width: 40px; height: 40px; background: linear-gradient(135deg, #0d47a1, #1976d2); border-radius: 10px; display: flex; align-items: center; justify-content: center;">
-                <i class="fas fa-graduation-cap text-white"></i>
-            </div>
-            <h4 class="mb-0" style="color: #0d47a1; font-weight: 700;">
-                Student Dashboard
-                <small class="text-muted d-block" style="font-size: 0.65rem; font-weight: 400; color: #1565c0 !important;">
-                    <i class="fas fa-user-graduate me-1"></i> Welcome back!
-                </small>
-            </h4>
-        </div>
+@php
+    $u        = Auth::guard('student')->user();
+    $fullName = $u->full_name ?? 'Student';
+    $firstName = $u->first_name ?? explode(' ', trim($fullName))[0];
+    $studentId = $u->student_id ?? '';
+    $initials = collect(explode(' ', trim($fullName)))->filter()->take(2)
+        ->map(fn ($w) => mb_strtoupper(mb_substr($w, 0, 1)))->implode('') ?: 'S';
+    $notifCount = (int) ($unreadNotifications ?? 0);
+    $title = $pageTitle ?? 'Student Dashboard';
+@endphp
 
-        <!-- Right Side -->
-        <div class="d-flex align-items-center">
-            <!-- Notifications -->
-            <div class="notification-wrapper me-3 position-relative">
-                <button class="btn btn-light btn-sm rounded-circle position-relative" 
-                        style="width: 40px; height: 40px; background: rgba(255,255,255,0.8); border: 1px solid rgba(13, 71, 161, 0.2);">
-                    <i class="fas fa-bell fs-5" style="color: #0d47a1;"></i>
-                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" 
-                          style="font-size: 0.6rem; padding: 0.25rem 0.5rem;">
-                        3
-                    </span>
-                </button>
-            </div>
-
-            <!-- User Profile -->
-            <div class="user-profile d-flex align-items-center ms-2 p-2 rounded-3"
-                 style="background: rgba(255,255,255,0.7); border: 1px solid rgba(13, 71, 161, 0.15);">
-                <!-- Avatar -->
-                <div class="avatar-wrapper me-2 position-relative">
-                    <img src="{{ Auth::guard('student')->user()->photo
-                            ? asset('storage/'.Auth::guard('student')->user()->photo)
-                            : asset('images/default-avatar.png') }}"
-                         width="45"
-                         height="45"
-                         class="rounded-circle border border-2" 
-                         style="border-color: #1976d2 !important; object-fit: cover;">
-                    <!-- Online Status Indicator -->
-                    <span class="position-absolute bottom-0 end-0 translate-middle p-1 bg-success rounded-circle border border-2 border-white"
-                          style="width: 12px; height: 12px;"></span>
-                </div>
-
-                <!-- User Info -->
-                <div class="user-info" style="line-height: 1.2;">
-                    <strong class="d-block" style="color: #0d47a1; font-size: 0.9rem;">
-                        {{ Auth::guard('student')->user()->full_name }}
-                    </strong>
-                    <small class="text-muted" style="color: #1565c0 !important; font-size: 0.7rem;">
-                        <i class="fas fa-id-card me-1"></i>
-                        {{ Auth::guard('student')->user()->student_id }}
-                    </small>
-                </div>
-
-                <!-- Logout Button -->
-                <button id="logoutBtn" 
-                        class="btn btn-sm ms-2" 
-                        style="background: rgba(13, 71, 161, 0.1); color: #0d47a1; border: 1px solid rgba(13, 71, 161, 0.2); border-radius: 50%; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; transition: all 0.3s ease;"
-                        onmouseover="this.style.background='rgba(211, 47, 47, 0.15)'; this.style.borderColor='#d32f2f'; this.style.color='#d32f2f';"
-                        onmouseout="this.style.background='rgba(13, 71, 161, 0.1)'; this.style.borderColor='rgba(13, 71, 161, 0.2)'; this.style.color='#0d47a1';"
-                        title="Logout">
-                    <i class="fas fa-sign-out-alt"></i>
-                </button>
-            </div>
+<header class="tb">
+    <div class="tb-left">
+        <span class="tb-mark"><i class="fas fa-graduation-cap"></i></span>
+        <div class="tb-titles">
+            <h1>{{ $title }}</h1>
+            <span>{{ now()->format('l, j F Y') }}</span>
         </div>
     </div>
-</nav>
 
-<!-- Logout Modal -->
+    <div class="tb-right">
+        {{-- Notifications --}}
+        <button type="button" class="tb-icon-btn" aria-label="Notifications{{ $notifCount ? ' ('.$notifCount.' unread)' : '' }}">
+            <i class="far fa-bell"></i>
+            @if ($notifCount > 0)
+                <span class="tb-dot">{{ $notifCount > 9 ? '9+' : $notifCount }}</span>
+            @endif
+        </button>
+
+        <span class="tb-divider"></span>
+
+        {{-- User menu --}}
+        <div class="dropdown">
+            <button class="tb-user" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <span class="tb-avatar">
+                    @if (!empty($u->photo))
+                        <img src="{{ asset('storage/' . $u->photo) }}" alt="{{ $fullName }}">
+                    @else
+                        {{ $initials }}
+                    @endif
+                    <i class="tb-status"></i>
+                </span>
+                <span class="tb-user-info">
+                    <strong>{{ $fullName }}</strong>
+                    <small>{{ $studentId }}</small>
+                </span>
+                <i class="fas fa-chevron-down tb-caret"></i>
+            </button>
+
+            <ul class="dropdown-menu dropdown-menu-end tb-menu">
+                <li class="tb-menu-head">
+                    <strong>{{ $fullName }}</strong>
+                    <small><i class="fas fa-id-card"></i> {{ $studentId }}</small>
+                </li>
+                <li><a class="dropdown-item" href="{{ url('/student/profile') }}"><i class="far fa-user"></i> My profile</a></li>
+                <li><a class="dropdown-item" href="{{ url('/student/fees') }}"><i class="fas fa-wallet"></i> School fees</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li>
+                    <button type="button" class="dropdown-item text-danger" data-logout-trigger>
+                        <i class="fas fa-right-from-bracket"></i> Log out
+                    </button>
+                </li>
+            </ul>
+        </div>
+    </div>
+</header>
+
+{{-- ================= Logout modal ================= --}}
 <div class="modal fade" id="logoutModal" tabindex="-1" aria-labelledby="logoutModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content" style="border-radius: 16px; border: none; box-shadow: 0 20px 60px rgba(0,0,0,0.15);">
-            <!-- Modal Header -->
-            <div class="modal-header border-0 pb-0" style="background: linear-gradient(135deg, #e3f2fd, #bbdefb); border-radius: 16px 16px 0 0;">
-                <div class="d-flex align-items-center">
-                    <div class="icon-wrapper me-3" 
-                         style="width: 50px; height: 50px; background: linear-gradient(135deg, #0d47a1, #1976d2); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                        <i class="fas fa-sign-out-alt text-white fa-lg"></i>
-                    </div>
-                    <div>
-                        <h5 class="modal-title fw-bold" id="logoutModalLabel" style="color: #0d47a1;">
-                            Confirm Logout
-                        </h5>
-                        <small class="text-muted" style="color: #1565c0 !important;">
-                            Are you sure you want to leave?
-                        </small>
-                    </div>
+    <div class="modal-dialog modal-dialog-centered" style="max-width: 420px;">
+        <div class="modal-content tb-modal">
+            <div class="tb-modal-body">
+                <span class="tb-modal-icon"><i class="fas fa-right-from-bracket"></i></span>
+                <h5 id="logoutModalLabel">Log out of your account?</h5>
+                <p>
+                    {{ $firstName }}, you'll be signed out of the Student Portal and returned to the login page.
+                </p>
+                <div class="tb-modal-actions">
+                    <button type="button" class="tb-btn ghost" data-bs-dismiss="modal">Stay signed in</button>
+                    <button type="button" class="tb-btn danger" id="confirmLogoutBtn">
+                        <i class="fas fa-right-from-bracket"></i> Log out
+                    </button>
                 </div>
-                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-            </div>
-
-            <!-- Modal Body -->
-            <div class="modal-body px-4 py-4">
-                <div class="alert alert-info d-flex align-items-center" 
-                     style="background: #e3f2fd; border: 1px solid #90caf9; border-radius: 12px;">
-                    <i class="fas fa-info-circle me-3" style="color: #0d47a1; font-size: 1.2rem;"></i>
-                    <div>
-                        <strong style="color: #0d47a1;">Hey {{ Auth::guard('student')->user()->first_name ?? 'Student' }}!</strong>
-                        <p class="mb-0" style="color: #1565c0; font-size: 0.9rem;">
-                            You will be redirected to the login page after logging out.
-                        </p>
-                    </div>
-                </div>
-                
-                <div class="d-flex justify-content-between align-items-center mt-2">
-                    <div>
-                        <i class="fas fa-user-circle me-2" style="color: #1976d2;"></i>
-                        <span style="color: #0d47a1; font-weight: 500;">
-                            {{ Auth::guard('student')->user()->full_name }}
-                        </span>
-                    </div>
-                    <span class="badge" style="background: #1976d2; padding: 0.4rem 0.8rem;">
-                        <i class="fas fa-clock me-1"></i> Session Active
-                    </span>
-                </div>
-            </div>
-
-            <!-- Modal Footer -->
-            <div class="modal-footer border-0 pt-0 pb-4 px-4">
-                <button type="button" class="btn btn-light" data-bs-dismiss="modal" 
-                        style="border-radius: 10px; padding: 0.6rem 1.8rem; border: 1px solid #dee2e6;">
-                    <i class="fas fa-times me-2"></i> Cancel
-                </button>
-                <button type="button" class="btn" id="confirmLogoutBtn"
-                        style="background: linear-gradient(135deg, #0d47a1, #1976d2); color: white; border-radius: 10px; padding: 0.6rem 1.8rem; border: none; box-shadow: 0 4px 15px rgba(13, 71, 161, 0.3); transition: all 0.3s ease;"
-                        onmouseover="this.style.boxShadow='0 6px 25px rgba(13, 71, 161, 0.4)';"
-                        onmouseout="this.style.boxShadow='0 4px 15px rgba(13, 71, 161, 0.3)';">
-                    <i class="fas fa-sign-out-alt me-2"></i> Yes, Logout
-                </button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Logout Toast Notification -->
-<div class="position-fixed top-0 end-0 p-3" style="z-index: 9999; display: none;" id="logoutToast">
-    <div class="toast show" role="alert" aria-live="assertive" aria-atomic="true" 
-         style="border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,0.12); border-left: 4px solid #1976d2;">
-        <div class="toast-header" style="background: linear-gradient(135deg, #0d47a1, #1976d2); color: white; border-radius: 12px 12px 0 0;">
-            <i class="fas fa-check-circle me-2"></i>
-            <strong class="me-auto">Success</strong>
-            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="toast"></button>
-        </div>
-        <div class="toast-body" style="color: #0d47a1; padding: 1rem;">
-            <i class="fas fa-spinner fa-spin me-2"></i>
-            You have been logged out successfully. Redirecting...
-        </div>
-    </div>
-</div>
+<form id="topbarLogoutForm" action="{{ route('logout') }}" method="POST" class="d-none">@csrf</form>
 
 <style>
-    /* Navbar Styles */
-    .navbar {
-        border-radius: 16px !important;
-        padding: 0.8rem 1.5rem !important;
-        backdrop-filter: blur(10px);
+    .tb {
+        --tb-navy: #0b2447; --tb-blue: #1d6fd6; --tb-ink: #14213d; --tb-muted: #667388; --tb-line: #e7ebf1;
+        position: sticky; top: 0; z-index: 1030;
+        display: flex; align-items: center; justify-content: space-between; gap: 16px;
+        height: 68px; padding: 0 clamp(16px, 3vw, 36px);
+        background: rgba(255, 255, 255, .88); backdrop-filter: saturate(180%) blur(12px);
+        border-bottom: 1px solid var(--tb-line);
+        font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    }
+    .tb-left { display: flex; align-items: center; gap: 14px; min-width: 0; }
+    .tb-mark {
+        width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; display: grid; place-items: center;
+        color: #fff; background: linear-gradient(135deg, #4da3ff, #1d6fd6); box-shadow: 0 4px 12px rgba(29,111,214,.35);
+    }
+    .tb-titles h1 { margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.01em; color: var(--tb-ink); line-height: 1.2; }
+    .tb-titles span { font-size: 12px; color: var(--tb-muted); }
+
+    .tb-right { display: flex; align-items: center; gap: 12px; }
+    .tb-divider { width: 1px; height: 28px; background: var(--tb-line); }
+
+    .tb-icon-btn {
+        position: relative; width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--tb-line);
+        background: #fff; color: var(--tb-navy); font-size: 16px; display: grid; place-items: center;
+        transition: background .15s ease, border-color .15s ease;
+    }
+    .tb-icon-btn:hover { background: #f1f5fb; border-color: #d3dcea; }
+    .tb-dot {
+        position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 99px;
+        background: #d64545; color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center;
+        border: 2px solid #fff;
     }
 
-    .brand-icon {
-        transition: transform 0.3s ease;
+    .tb-user {
+        display: flex; align-items: center; gap: 10px; padding: 5px 10px 5px 5px; border-radius: 14px;
+        border: 1px solid transparent; background: transparent; text-align: left; transition: background .15s ease, border-color .15s ease;
     }
-    .brand-icon:hover {
-        transform: scale(1.05) rotate(-5deg);
+    .tb-user:hover, .tb-user[aria-expanded="true"] { background: #f1f5fb; border-color: var(--tb-line); }
+    .tb-avatar {
+        position: relative; width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%;
+        display: grid; place-items: center; font-size: 13px; font-weight: 700; color: #fff;
+        background: linear-gradient(135deg, #1d6fd6, #0b2447);
     }
+    .tb-avatar img { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+    .tb-status { position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 50%; background: #16a36a; border: 2px solid #fff; }
+    .tb-user-info { line-height: 1.2; }
+    .tb-user-info strong { display: block; font-size: 13.5px; color: var(--tb-ink); max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tb-user-info small { font-size: 11.5px; color: var(--tb-muted); }
+    .tb-caret { font-size: 10px; color: var(--tb-muted); }
 
-    .notification-wrapper .btn {
-        transition: all 0.3s ease;
-    }
-    .notification-wrapper .btn:hover {
-        transform: scale(1.05);
-        box-shadow: 0 4px 15px rgba(13, 71, 161, 0.2);
-    }
+    .tb-menu { min-width: 230px; padding: 8px; border: 1px solid var(--tb-line); border-radius: 14px; box-shadow: 0 16px 40px rgba(16,36,72,.14); margin-top: 10px !important; }
+    .tb-menu-head { padding: 8px 12px 10px; }
+    .tb-menu-head strong { display: block; font-size: 14px; color: var(--tb-ink); }
+    .tb-menu-head small { font-size: 12px; color: var(--tb-muted); }
+    .tb-menu .dropdown-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 9px; font-size: 13.5px; }
+    .tb-menu .dropdown-item i { width: 16px; text-align: center; opacity: .75; }
+    .tb-menu .dropdown-item:hover { background: #eef4fd; }
+    .tb-menu .dropdown-item.text-danger:hover { background: #fdecec; }
 
-    .user-profile {
-        transition: all 0.3s ease;
+    /* Modal */
+    .tb-modal { border: 0; border-radius: 20px; box-shadow: 0 24px 60px rgba(11,36,71,.25); overflow: hidden; }
+    .tb-modal-body { padding: 32px 28px 26px; text-align: center; }
+    .tb-modal-icon {
+        width: 58px; height: 58px; margin: 0 auto 16px; border-radius: 50%; display: grid; place-items: center;
+        font-size: 22px; background: #fdecec; color: #d64545;
     }
-    .user-profile:hover {
-        box-shadow: 0 4px 20px rgba(13, 71, 161, 0.15);
-        transform: translateY(-2px);
+    .tb-modal-body h5 { font-size: 19px; font-weight: 700; color: #14213d; margin-bottom: 8px; }
+    .tb-modal-body p { font-size: 13.5px; line-height: 1.55; color: #667388; margin-bottom: 24px; }
+    .tb-modal-actions { display: flex; gap: 10px; }
+    .tb-btn {
+        flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 16px;
+        border-radius: 12px; font-size: 14px; font-weight: 600; border: 1px solid transparent; transition: background .15s ease, box-shadow .15s ease;
     }
+    .tb-btn.ghost { background: #fff; border-color: #dbe2ec; color: #14213d; }
+    .tb-btn.ghost:hover { background: #f1f5fb; }
+    .tb-btn.danger { background: #d64545; color: #fff; box-shadow: 0 6px 16px rgba(214,69,69,.3); }
+    .tb-btn.danger:hover { background: #bf3636; }
+    .tb-btn:disabled { opacity: .7; cursor: not-allowed; }
 
-    .avatar-wrapper {
-        cursor: pointer;
+    /* Toast */
+    .tb-toast {
+        position: fixed; top: 20px; right: 20px; z-index: 2000; display: none; align-items: center; gap: 12px;
+        padding: 14px 18px; border-radius: 14px; background: #0b2447; color: #fff; font-size: 13.5px;
+        box-shadow: 0 14px 36px rgba(11,36,71,.35); animation: tbIn .3s ease-out;
     }
-    .avatar-wrapper img {
-        transition: all 0.3s ease;
-    }
-    .avatar-wrapper:hover img {
-        transform: scale(1.05);
-        border-color: #0d47a1 !important;
-    }
+    .tb-toast.show { display: flex; }
+    @keyframes tbIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: none; } }
 
-    /* Modal Styles */
-    .modal-content {
-        animation: modalSlideIn 0.3s ease-out;
+    @media (max-width: 767.98px) {
+        .tb { height: 62px; }
+        .tb-titles span, .tb-user-info, .tb-caret, .tb-divider { display: none; }
+        .tb-user { padding: 4px; }
+        .tb-titles h1 { font-size: 15px; }
     }
-
-    @keyframes modalSlideIn {
-        from {
-            opacity: 0;
-            transform: scale(0.9) translateY(-20px);
-        }
-        to {
-            opacity: 1;
-            transform: scale(1) translateY(0);
-        }
-    }
-
-    /* Toast Animation */
-    .toast {
-        animation: slideInRight 0.5s ease-out;
-    }
-
-    @keyframes slideInRight {
-        from {
-            opacity: 0;
-            transform: translateX(100px);
-        }
-        to {
-            opacity: 1;
-            transform: translateX(0);
-        }
-    }
-
-    /* Responsive */
-    @media (max-width: 768px) {
-        .navbar {
-            padding: 0.6rem 1rem !important;
-            border-radius: 12px !important;
-        }
-        
-        .user-info {
-            display: none;
-        }
-        
-        .user-profile {
-            padding: 0.3rem !important;
-        }
-        
-        .brand-icon {
-            width: 32px;
-            height: 32px;
-        }
-        
-        .brand-icon i {
-            font-size: 0.8rem;
-        }
-        
-        h4 {
-            font-size: 1.1rem;
-        }
-    }
-
-    @media (max-width: 576px) {
-        .navbar {
-            flex-wrap: wrap;
-            gap: 0.5rem;
-        }
-        
-        .user-profile {
-            margin-left: 0 !important;
-        }
-        
-        .notification-wrapper {
-            margin-right: 0.5rem !important;
-        }
-    }
+    @media (prefers-reduced-motion: reduce) { .tb-toast { animation: none; } }
 </style>
 
-<!-- Scripts -->
+<div class="tb-toast" id="logoutToast" role="status" aria-live="polite">
+    <i class="fas fa-spinner fa-spin"></i> Signing you out…
+</div>
+
 <script>
-    document.addEventListener('DOMContentLoaded', function() {
-        // ---- DOM Elements ----
-        const logoutBtn = document.getElementById('logoutBtn');
-        const confirmLogoutBtn = document.getElementById('confirmLogoutBtn');
-        const logoutModal = new bootstrap.Modal(document.getElementById('logoutModal'), {
-            backdrop: 'static',
-            keyboard: true
-        });
-        const logoutToast = document.getElementById('logoutToast');
+    document.addEventListener('DOMContentLoaded', function () {
+        var modalEl = document.getElementById('logoutModal');
+        if (!modalEl || typeof bootstrap === 'undefined') return;
 
-        // ---- Logout Button Click ----
-        logoutBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            logoutModal.show();
+        var modal = new bootstrap.Modal(modalEl);
+        var confirmBtn = document.getElementById('confirmLogoutBtn');
+        var toast = document.getElementById('logoutToast');
+        var form = document.getElementById('topbarLogoutForm');
+        var defaultLabel = confirmBtn.innerHTML;
+
+        document.querySelectorAll('[data-logout-trigger]').forEach(function (el) {
+            el.addEventListener('click', function (e) { e.preventDefault(); modal.show(); });
         });
 
-        // ---- Confirm Logout ----
-        confirmLogoutBtn.addEventListener('click', function() {
-            // Show loading state
+        confirmBtn.addEventListener('click', function () {
             this.disabled = true;
-            this.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Logging out...';
-
-            // Show toast notification
-            logoutToast.style.display = 'block';
-            
-            // Hide modal
-            logoutModal.hide();
-
-            // Redirect to login page after 2 seconds
-            setTimeout(function() {
-                // Use Laravel logout route
-                const logoutForm = document.createElement('form');
-                logoutForm.method = 'POST';
-                logoutForm.action = '{{ route("logout") }}';
-                
-                const csrfToken = document.createElement('input');
-                csrfToken.type = 'hidden';
-                csrfToken.name = '_token';
-                csrfToken.value = '{{ csrf_token() }}';
-                logoutForm.appendChild(csrfToken);
-                
-                document.body.appendChild(logoutForm);
-                logoutForm.submit();
-            }, 2000);
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Signing out…';
+            toast.classList.add('show');
+            modal.hide();
+            setTimeout(function () { form.submit(); }, 600);
         });
 
-        // ---- Reset Modal on Close ----
-        document.getElementById('logoutModal').addEventListener('hidden.bs.modal', function() {
-            confirmLogoutBtn.disabled = false;
-            confirmLogoutBtn.innerHTML = '<i class="fas fa-sign-out-alt me-2"></i> Yes, Logout';
+        modalEl.addEventListener('hidden.bs.modal', function () {
+            confirmBtn.disabled = false;
+            confirmBtn.innerHTML = defaultLabel;
         });
 
-        // ---- Keyboard Shortcut: Ctrl+Shift+L ----
-        document.addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.shiftKey && (e.key === 'L' || e.key === 'l')) {
+        document.addEventListener('keydown', function (e) {
+            if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'l') {
                 e.preventDefault();
-                logoutBtn.click();
+                modal.show();
             }
         });
-
-        // ---- Auto-hide toast after 3 seconds if not closed ----
-        setTimeout(function() {
-            const toast = document.querySelector('.toast');
-            if (toast) {
-                const bsToast = new bootstrap.Toast(toast, {
-                    delay: 5000
-                });
-                // Only auto-hide if not clicked
-                toast.addEventListener('hidden.bs.toast', function() {
-                    logoutToast.style.display = 'none';
-                });
-            }
-        }, 100);
-
-        console.log('Student dashboard with logout confirmation initialized');
     });
 </script>

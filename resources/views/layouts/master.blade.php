@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <title>@yield('title', 'TalhaPremier USMS')</title>
+    <title>@yield('title', 'Edunexus USMS')</title>
 
     {{-- =========================================================
          CORE LIBRARIES
@@ -17,7 +17,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css">
 
-    <link rel="icon" type="image/png" href="{{ asset('img/Talha.jpeg') }}">
+    <link rel="icon" type="image/png" href="{{ asset('img/ESSTECH_BANNER.png') }}">
 
     @yield('styles')
     @stack('styles')
@@ -674,7 +674,7 @@
                 <span class="dot"></span>
                 <span class="dot"></span>
             </div>
-            <div class="loader-text">Talha Prem USMS</div>
+            <div class="loader-text">Edunexus USMS</div>
             <div class="loader-subtext">
                 Loading at {{ now()->format('h:i:s A') }} ...
             </div>
@@ -699,7 +699,7 @@
                         <i class="fas fa-graduation-cap"></i>
                     </div>
                     <div class="sidebar-brand-text">
-                        <h5>Talha<span>Premier</span></h5>
+                        <h5>Edu<span>nexus</span></h5>
                         <small>Universal School Management System</small>
                     </div>
                 </div>
@@ -1287,6 +1287,29 @@
                 </div>
                 @endcanany
 
+
+                {{-- AI MANAGEMENT --}}
+            
+                <div class="nav-section nav-group" data-menu-group="ai">
+                    <button type="button" class="nav-link-main nav-toggle">
+                        <i class="fas fa-boxes-stacked"></i>
+                        <span>AI Manager</span>
+                        <i class="fas fa-chevron-down nav-chevron"></i>
+                    </button>
+                    <div class="nav-children">
+                        <a href="/ai/lesson-notes" class="nav-link-child">
+                            <i class="fas fa-archive"></i>
+                            <span>Lesson Note</span>
+                        </a>
+
+                        <a href="#" class="nav-link-child">
+                            <i class="fas fa-upload"></i>
+                            <span>Upload Docs</span>
+                        </a>
+                    </div>
+                </div>
+                
+
                 {{-- SYSTEM --}}
                 @canany(['users.view', 'roles.view', 'attendance.view'])
                 <div class="nav-section nav-group" data-menu-group="settings">
@@ -1317,9 +1340,6 @@
 
                         @endcan
 
-
-
-
                         @can('attendance-settings.view')
                             <a href="/attendance-settings" class="nav-link-child">
                                 <i class="fas fa-database"></i>
@@ -1328,12 +1348,12 @@
                         @endcan
 
 
-                        @can('settings.view')
+                       
                         <a href="/settings" class="nav-link-child">
                             <i class="fas fa-tools"></i>
-                            <span>Academic Settings</span>staff-assignments
+                            <span>Academic Settings</span>
                         </a>
-                        @endcan
+                       
 
 
                         <a href="/staff-assignments" class="nav-link-child">
@@ -1469,14 +1489,14 @@
                         <li><hr class="dropdown-divider"></li>
 
                         <li>
-                            <a class="dropdown-item" href="#">
+                            <a class="dropdown-item" href="{{ route('profile.show') }}">
                                 <i class="fas fa-user me-2"></i>
                                 My Profile
                             </a>
                         </li>
 
                         <li>
-                            <a class="dropdown-item" href="#">
+                            <a class="dropdown-item" href="{{ route('password.change.form') }}">
                                 <i class="fas fa-key me-2"></i>
                                 Change Password
                             </a>
@@ -1513,6 +1533,9 @@
             </div>
         </div>
     </footer>
+
+        {{-- GLOBAL ADMIN VOICE AI --}}
+    @include('components.voice-ai')
 
     {{-- Page-specific Bootstrap modals --}}
     @stack('modals')

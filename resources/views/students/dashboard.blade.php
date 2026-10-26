@@ -2,1964 +2,454 @@
 
 @section('title', 'Student Dashboard')
 
+@php
+    $attendancePct = min(100, max(0, (float) ($attendancePercentage ?? 0)));
+    $balance       = (float) ($feeBalance ?? 0);
+    $feesTotal     = (float) ($totalFees ?? 0);
+    $feesPaid      = (float) ($amountPaid ?? 0);
+    $feePct        = $feesTotal > 0 ? min(100, ($feesPaid / $feesTotal) * 100) : 0;
+    $className     = $assignment?->studentClass?->name ?? null;
+    $firstName     = $student->first_name ?? $student->student_id;
+    $hour          = (int) now()->format('G');
+    $greeting      = $hour < 12 ? 'Good morning' : ($hour < 17 ? 'Good afternoon' : 'Good evening');
+    $gradeFor      = fn ($s) => $s >= 80 ? 'A' : ($s >= 70 ? 'B' : ($s >= 60 ? 'C' : ($s >= 50 ? 'D' : 'F')));
+@endphp
+
 @section('content')
+<div class="sd">
 
-<div class="student-dashboard">
-
-    {{-- =========================================================
-         HEADER
-    ========================================================== --}}
-    <section class="dashboard-header">
-
-        <div class="container-fluid">
-
-            <div class="header-content">
-
-                <div class="student-introduction">
-
-                    <div class="student-avatar">
-
-                        @if(!empty($student->photo))
-
-                            <img
-                                src="{{ asset('storage/' . $student->photo) }}"
-                                alt="Student Photo"
-                            >
-
-                        @else
-
-                            <i class="fas fa-user-graduate"></i>
-
-                        @endif
-
-                    </div>
-
-
-                    <div>
-
-                        <div class="welcome-label">
-                            STUDENT PORTAL
-                        </div>
-
-                        <h1>
-                            Welcome back,
-                            {{ $student->first_name ?? $student->student_id }}
-                        </h1>
-
-
-                        <div class="student-meta">
-
-                            <span>
-                                <i class="fas fa-id-card"></i>
-                                {{ $student->student_id }}
-                            </span>
-
-
-                            <span>
-                                <i class="fas fa-school"></i>
-                                {{ $assignment?->studentClass?->name ?? 'Class not assigned' }}
-                            </span>
-
-
-                            <span>
-                                <i class="fas fa-calendar"></i>
-                                {{ $academicYear?->name ?? 'Academic year not configured' }}
-                            </span>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-
-                {{-- =================================================
-                     ADMIN CONTROLLED TERM
-                ================================================== --}}
-                <div class="term-display">
-
-                    <span class="term-label">
-                        CURRENT SCHOOL TERM
-                    </span>
-
-                    <strong>
-                        {{ $term?->name ?? '—' }}
-                    </strong>
-
-                    <small>
-                        {{ $academicYear?->name ?? '—' }}
-                    </small>
-
-                    <small class="portal-period-note">
-                        <i class="fas fa-shield-halved"></i>
-                        School period
-                    </small>
-
-                </div>
-
+    {{-- ================= HERO ================= --}}
+    <header class="sd-hero">
+        <div class="sd-hero-main">
+            <div class="sd-avatar">
+                @if(!empty($student->photo))
+                    <img src="{{ asset('storage/' . $student->photo) }}" alt="Student photo">
+                @else
+                    <i class="fas fa-user-graduate"></i>
+                @endif
             </div>
-
+            <div>
+                <div class="sd-eyebrow">{{ $greeting }}</div>
+                <h1>Welcome back, {{ $firstName }}</h1>
+                <div class="sd-chips">
+                    <span class="sd-chip"><i class="fas fa-id-card"></i>{{ $student->student_id }}</span>
+                    <span class="sd-chip"><i class="fas fa-school"></i>{{ $className ?? 'Class not assigned' }}</span>
+                    <span class="sd-chip"><i class="fas fa-calendar"></i>{{ $academicYear?->name ?? 'Academic year not configured' }}</span>
+                </div>
+            </div>
         </div>
 
+        <div class="sd-term">
+            <span class="sd-term-label">Current term</span>
+            <strong>{{ $term?->name ?? '—' }}</strong>
+            <small>{{ $academicYear?->name ?? '—' }}</small>
+            <span class="sd-term-note"><i class="fas fa-shield-halved"></i> Set by school administration</span>
+        </div>
+    </header>
+
+    {{-- ================= KPI ROW ================= --}}
+    <section class="sd-kpis">
+
+        <article class="sd-kpi is-green">
+            <div class="sd-kpi-head">
+                <span class="sd-kpi-icon"><i class="fas fa-calendar-check"></i></span>
+                <span class="sd-kpi-label">Attendance rate</span>
+            </div>
+            <div class="sd-kpi-value">{{ number_format($attendancePct, 1) }}<small>%</small></div>
+            <div class="sd-bar"><span style="width: {{ $attendancePct }}%"></span></div>
+            <div class="sd-kpi-foot">
+                <span><strong>{{ ($present ?? 0) + ($late ?? 0) }}</strong> attended</span>
+                <span>{{ $total ?? 0 }} sessions</span>
+            </div>
+        </article>
+
+        <article class="sd-kpi is-amber">
+            <div class="sd-kpi-head">
+                <span class="sd-kpi-icon"><i class="fas fa-wallet"></i></span>
+                <span class="sd-kpi-label">Fee balance</span>
+            </div>
+            <div class="sd-kpi-value sm {{ $balance > 0 ? 'text-due' : 'text-clear' }}">GH₵ {{ number_format($balance, 2) }}</div>
+            <div class="sd-kpi-foot">
+                <span>Paid <strong>GH₵ {{ number_format($feesPaid, 2) }}</strong></span>
+                <a href="{{ route('students.fees') }}">View account <i class="fas fa-arrow-right"></i></a>
+            </div>
+        </article>
+
+        <article class="sd-kpi is-blue">
+            <div class="sd-kpi-head">
+                <span class="sd-kpi-icon"><i class="fas fa-book-open"></i></span>
+                <span class="sd-kpi-label">Subjects</span>
+            </div>
+            <div class="sd-kpi-value">{{ $subjects ?? 0 }}</div>
+            <div class="sd-kpi-foot">
+                <span>Currently enrolled</span>
+                <a href="{{ route('students.results') }}">Results <i class="fas fa-arrow-right"></i></a>
+            </div>
+        </article>
+
+        <article class="sd-kpi is-violet">
+            <div class="sd-kpi-head">
+                <span class="sd-kpi-icon"><i class="fas fa-chart-column"></i></span>
+                <span class="sd-kpi-label">Total sessions</span>
+            </div>
+            <div class="sd-kpi-value">{{ $total ?? 0 }}</div>
+            <div class="sd-kpi-foot">
+                <span><strong>{{ $present ?? 0 }}</strong> present</span>
+                <a href="{{ route('students.attendance') }}">Attendance <i class="fas fa-arrow-right"></i></a>
+            </div>
+        </article>
     </section>
 
+    {{-- ================= ATTENDANCE + FEES ================= --}}
+    <section class="sd-grid-2">
 
-    {{-- =========================================================
-         MAIN CONTENT
-    ========================================================== --}}
-    <div class="container-fluid dashboard-container">
-
-
-        {{-- =====================================================
-             PERIOD STATUS
-        ====================================================== --}}
-        <section class="period-banner">
-
-            <div class="period-banner-icon">
-                <i class="fas fa-calendar-check"></i>
+        <div class="sd-panel">
+            <div class="sd-panel-head">
+                <div>
+                    <span class="sd-panel-eyebrow">Attendance</span>
+                    <h2>Attendance overview</h2>
+                    <p>Your performance for {{ $term?->name ?? 'the current period' }}.</p>
+                </div>
+                <a href="{{ route('students.attendance') }}" class="sd-link">View details <i class="fas fa-arrow-right"></i></a>
             </div>
 
-            <div>
+            <div class="sd-att">
+                <div class="sd-ring" style="--pct: {{ $attendancePct }}">
+                    <div class="sd-ring-inner">
+                        <strong>{{ number_format($attendancePct, 1) }}%</strong>
+                        <span>Attendance</span>
+                    </div>
+                </div>
 
-                <span>
-                    SCHOOL OPERATIONAL PERIOD
-                </span>
+                <div class="sd-att-stats">
+                    <div class="sd-stat s-present"><i></i><div><strong>{{ $present ?? 0 }}</strong><small>Present</small></div></div>
+                    <div class="sd-stat s-late"><i></i><div><strong>{{ $late ?? 0 }}</strong><small>Late</small></div></div>
+                    <div class="sd-stat s-absent"><i></i><div><strong>{{ $absent ?? 0 }}</strong><small>Absent</small></div></div>
+                    <div class="sd-stat s-excused"><i></i><div><strong>{{ $excused ?? 0 }}</strong><small>Excused</small></div></div>
+                </div>
+            </div>
+        </div>
 
-                <strong>
-                    {{ $academicYear?->name ?? 'Not configured' }}
-                    @if($term)
-                        — {{ $term->name }}
-                    @endif
-                </strong>
-
+        <div class="sd-panel">
+            <div class="sd-panel-head">
+                <div>
+                    <span class="sd-panel-eyebrow">Financial account</span>
+                    <h2>Fee account</h2>
+                    <p>Current school fee position.</p>
+                </div>
+                <a href="{{ route('students.fees') }}" class="sd-link">Manage <i class="fas fa-arrow-right"></i></a>
             </div>
 
-        </section>
-
-
-        {{-- =====================================================
-             KPI ROW
-        ====================================================== --}}
-        <section class="kpi-grid">
-
-            {{-- Attendance --}}
-            <div class="kpi-card attendance-card">
-
-                <div class="kpi-top">
-
-                    <div>
-
-                        <span class="kpi-label">
-                            ATTENDANCE RATE
-                        </span>
-
-                        <div class="kpi-value">
-
-                            {{ number_format(
-                                $attendancePercentage ?? 0,
-                                1
-                            ) }}<small>%</small>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="kpi-icon">
-                        <i class="fas fa-calendar-check"></i>
-                    </div>
-
-                </div>
-
-
-                <div class="kpi-footer">
-
-                    <span>
-                        <strong>
-                            {{ ($present ?? 0) + ($late ?? 0) }}
-                        </strong>
-                        attended
-                    </span>
-
-                    <span>
-                        {{ $total ?? 0 }} sessions
-                    </span>
-
-                </div>
-
-
-                <div class="kpi-progress">
-
-                    <div
-                        style="width: {{ min(
-                            (float)($attendancePercentage ?? 0),
-                            100
-                        ) }}%">
-                    </div>
-
-                </div>
-
-            </div>
-
-
-            {{-- Fee Balance --}}
-            <div class="kpi-card fee-card">
-
-                <div class="kpi-top">
-
-                    <div>
-
-                        <span class="kpi-label">
-                            FEE BALANCE
-                        </span>
-
-                        <div class="kpi-value currency
-                            {{ ($feeBalance ?? 0) > 0
-                                ? 'balance-due'
-                                : 'balance-clear' }}">
-
-                            GH₵
-                            {{ number_format(
-                                $feeBalance ?? 0,
-                                2
-                            ) }}
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="kpi-icon">
-                        <i class="fas fa-wallet"></i>
-                    </div>
-
-                </div>
-
-
-                <div class="kpi-footer">
-
-                    <span>
-                        Paid
-
-                        <strong>
-                            GH₵
-                            {{ number_format(
-                                $amountPaid ?? 0,
-                                2
-                            ) }}
-                        </strong>
-
-                    </span>
-
-
-                    <a href="{{ route('students.fees') }}">
-
-                        View account
-
-                        <i class="fas fa-arrow-right"></i>
-
-                    </a>
-
-                </div>
-
-            </div>
-
-
-            {{-- Subjects --}}
-            <div class="kpi-card subject-card">
-
-                <div class="kpi-top">
-
-                    <div>
-
-                        <span class="kpi-label">
-                            SUBJECTS
-                        </span>
-
-                        <div class="kpi-value">
-                            {{ $subjects ?? 0 }}
-                        </div>
-
-                    </div>
-
-
-                    <div class="kpi-icon">
-                        <i class="fas fa-book-open"></i>
-                    </div>
-
-                </div>
-
-
-                <div class="kpi-footer">
-
-                    <span>
-                        Currently enrolled
-                    </span>
-
-
-                    <a href="{{ route('students.results') }}">
-
-                        Results
-
-                        <i class="fas fa-arrow-right"></i>
-
-                    </a>
-
-                </div>
-
-            </div>
-
-
-            {{-- Sessions --}}
-            <div class="kpi-card session-card">
-
-                <div class="kpi-top">
-
-                    <div>
-
-                        <span class="kpi-label">
-                            TOTAL SESSIONS
-                        </span>
-
-                        <div class="kpi-value">
-                            {{ $total ?? 0 }}
-                        </div>
-
-                    </div>
-
-
-                    <div class="kpi-icon">
-                        <i class="fas fa-chart-column"></i>
-                    </div>
-
-                </div>
-
-
-                <div class="kpi-footer">
-
-                    <span>
-
-                        <strong>
-                            {{ $present ?? 0 }}
-                        </strong>
-
-                        present
-
-                    </span>
-
-
-                    <a href="{{ route('students.attendance') }}">
-
-                        Attendance
-
-                        <i class="fas fa-arrow-right"></i>
-
-                    </a>
-
-                </div>
-
-            </div>
-
-        </section>
-
-
-        {{-- =====================================================
-             MAIN TWO COLUMN AREA
-        ====================================================== --}}
-        <section class="dashboard-grid">
-
-
-            {{-- =================================================
-                 ATTENDANCE
-            ================================================== --}}
-            <div class="dashboard-panel">
-
-                <div class="panel-header">
-
-                    <div>
-
-                        <span class="panel-eyebrow">
-                            ATTENDANCE
-                        </span>
-
-                        <h2>
-                            Attendance Overview
-                        </h2>
-
-                        <p>
-                            Your attendance performance for
-                            {{ $term?->name ?? 'the current period' }}.
-                        </p>
-
-                    </div>
-
-
-                    <a
-                        href="{{ route('students.attendance') }}"
-                        class="panel-action"
-                    >
-
-                        View details
-
-                        <i class="fas fa-arrow-right"></i>
-
-                    </a>
-
-                </div>
-
-
-                <div class="attendance-content">
-
-                    <div class="attendance-circle">
-
-                        <div class="circle-inner">
-
-                            <strong>
-                                {{ number_format(
-                                    $attendancePercentage ?? 0,
-                                    1
-                                ) }}%
-                            </strong>
-
-                            <span>
-                                Attendance
-                            </span>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="attendance-stats">
-
-                        <div class="attendance-stat present">
-
-                            <span class="stat-dot"></span>
-
-                            <div>
-
-                                <strong>
-                                    {{ $present ?? 0 }}
-                                </strong>
-
-                                <small>
-                                    Present
-                                </small>
-
-                            </div>
-
-                        </div>
-
-
-                        <div class="attendance-stat late">
-
-                            <span class="stat-dot"></span>
-
-                            <div>
-
-                                <strong>
-                                    {{ $late ?? 0 }}
-                                </strong>
-
-                                <small>
-                                    Late
-                                </small>
-
-                            </div>
-
-                        </div>
-
-
-                        <div class="attendance-stat absent">
-
-                            <span class="stat-dot"></span>
-
-                            <div>
-
-                                <strong>
-                                    {{ $absent ?? 0 }}
-                                </strong>
-
-                                <small>
-                                    Absent
-                                </small>
-
-                            </div>
-
-                        </div>
-
-
-                        <div class="attendance-stat excused">
-
-                            <span class="stat-dot"></span>
-
-                            <div>
-
-                                <strong>
-                                    {{ $excused ?? 0 }}
-                                </strong>
-
-                                <small>
-                                    Excused
-                                </small>
-
-                            </div>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-
-            {{-- =================================================
-                 FEE ACCOUNT
-            ================================================== --}}
-            <div class="dashboard-panel">
-
-                <div class="panel-header">
-
-                    <div>
-
-                        <span class="panel-eyebrow">
-                            FINANCIAL ACCOUNT
-                        </span>
-
-                        <h2>
-                            Fee Account
-                        </h2>
-
-                        <p>
-                            Current school fee position.
-                        </p>
-
-                    </div>
-
-
-                    <a
-                        href="{{ route('students.fees') }}"
-                        class="panel-action"
-                    >
-
-                        Manage
-
-                        <i class="fas fa-arrow-right"></i>
-
-                    </a>
-
-                </div>
-
-
-                @if($feeAccount)
-
-                    <div class="fee-summary">
-
-                        <div class="fee-main">
-
-                            <span>
-                                OUTSTANDING BALANCE
-                            </span>
-
-                            <strong class="
-                                {{ ($feeBalance ?? 0) > 0
-                                    ? 'balance-due'
-                                    : 'balance-clear' }}
-                            ">
-
-                                GH₵
-                                {{ number_format(
-                                    $feeBalance ?? 0,
-                                    2
-                                ) }}
-
-                            </strong>
-
-
-                            @if(($feeBalance ?? 0) <= 0)
-
-                                <small class="status-clear">
-
-                                    <i class="fas fa-circle-check"></i>
-
-                                    Account fully settled
-
-                                </small>
-
-                            @else
-
-                                <small class="status-due">
-
-                                    <i class="fas fa-circle-exclamation"></i>
-
-                                    Balance outstanding
-
-                                </small>
-
-                            @endif
-
-                        </div>
-
-
-                        <div class="fee-breakdown">
-
-                            <div>
-
-                                <span>
-                                    Total Fees
-                                </span>
-
-                                <strong>
-                                    GH₵
-                                    {{ number_format(
-                                        $totalFees ?? 0,
-                                        2
-                                    ) }}
-                                </strong>
-
-                            </div>
-
-
-                            <div>
-
-                                <span>
-                                    Amount Paid
-                                </span>
-
-                                <strong class="paid-amount">
-                                    GH₵
-                                    {{ number_format(
-                                        $amountPaid ?? 0,
-                                        2
-                                    ) }}
-                                </strong>
-
-                            </div>
-
-                        </div>
-
-
-                        @php
-
-                            $feePercentage =
-                                ($totalFees ?? 0) > 0
-
-                                    ? min(
-                                        100,
-                                        (
-                                            ($amountPaid ?? 0)
-                                            / $totalFees
-                                        ) * 100
-                                    )
-
-                                    : 0;
-
-                        @endphp
-
-
-                        <div class="fee-progress">
-
-                            <div class="fee-progress-label">
-
-                                <span>
-                                    Payment progress
-                                </span>
-
-                                <strong>
-                                    {{ number_format(
-                                        $feePercentage,
-                                        1
-                                    ) }}%
-                                </strong>
-
-                            </div>
-
-
-                            <div class="progress-track">
-
-                                <div
-                                    class="progress-fill"
-                                    style="width: {{ $feePercentage }}%"
-                                ></div>
-
-                            </div>
-
-                        </div>
-
-                    </div>
-
-                @else
-
-                    <div class="empty-state">
-
-                        <i class="fas fa-file-invoice-dollar"></i>
-
-                        <h3>
-                            No fee account
-                        </h3>
-
-                        <p>
-                            No fee account has been allocated to you yet.
-                        </p>
-
-                    </div>
-
-                @endif
-
-            </div>
-
-        </section>
-
-
-        {{-- =====================================================
-             LOWER GRID
-        ====================================================== --}}
-        <section class="lower-grid">
-
-
-            {{-- =================================================
-                 ACADEMIC INFORMATION
-            ================================================== --}}
-            <div class="dashboard-panel academic-panel">
-
-                <div class="panel-header">
-
-                    <div>
-
-                        <span class="panel-eyebrow">
-                            ACADEMIC PROFILE
-                        </span>
-
-                        <h2>
-                            My Academic Information
-                        </h2>
-
-                    </div>
-
-                </div>
-
-
-                <div class="academic-list">
-
-                    <div class="academic-row">
-
-                        <div class="academic-icon">
-                            <i class="fas fa-graduation-cap"></i>
-                        </div>
-
-                        <div>
-
-                            <span>
-                                Current Class
-                            </span>
-
-                            <strong>
-                                {{ $assignment?->studentClass?->name ?? 'Not assigned' }}
-                            </strong>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="academic-row">
-
-                        <div class="academic-icon">
-                            <i class="fas fa-calendar-days"></i>
-                        </div>
-
-                        <div>
-
-                            <span>
-                                Academic Year
-                            </span>
-
-                            <strong>
-                                {{ $academicYear?->name ?? '—' }}
-                            </strong>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="academic-row">
-
-                        <div class="academic-icon">
-                            <i class="fas fa-layer-group"></i>
-                        </div>
-
-                        <div>
-
-                            <span>
-                                Current Term
-                            </span>
-
-                            <strong>
-                                {{ $term?->name ?? '—' }}
-                            </strong>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="academic-row">
-
-                        <div class="academic-icon">
-                            <i class="fas fa-book"></i>
-                        </div>
-
-                        <div>
-
-                            <span>
-                                Enrolled Subjects
-                            </span>
-
-                            <strong>
-                                {{ $subjects ?? 0 }}
-                            </strong>
-
-                        </div>
-
-                    </div>
-
-                </div>
-
-            </div>
-
-
-            {{-- =================================================
-                 ANNOUNCEMENTS
-            ================================================== --}}
-            <div class="dashboard-panel">
-
-                <div class="panel-header">
-
-                    <div>
-
-                        <span class="panel-eyebrow">
-                            SCHOOL UPDATES
-                        </span>
-
-                        <h2>
-                            Announcements
-                        </h2>
-
-                    </div>
-
-                </div>
-
-
-                <div class="announcement-list">
-
-                    @forelse($announcements as $announcement)
-
-                        <div class="announcement-item">
-
-                            <div class="announcement-icon">
-                                <i class="fas fa-bullhorn"></i>
-                            </div>
-
-
-                            <div class="announcement-body">
-
-                                <h3>
-                                    {{ $announcement->title }}
-                                </h3>
-
-
-                                @if($announcement->content)
-
-                                    <p>
-                                        {{ \Illuminate\Support\Str::limit(
-                                            strip_tags(
-                                                $announcement->content
-                                            ),
-                                            110
-                                        ) }}
-                                    </p>
-
-                                @endif
-
-
-                                <small>
-
-                                    <i class="far fa-calendar"></i>
-
-                                    {{ $announcement->created_at?->format('d M Y') }}
-
-                                </small>
-
-                            </div>
-
-                        </div>
-
-                    @empty
-
-                        <div class="empty-state compact">
-
-                            <i class="fas fa-bell-slash"></i>
-
-                            <p>
-                                No announcements available.
-                            </p>
-
-                        </div>
-
-                    @endforelse
-
-                </div>
-
-            </div>
-
-
-            {{-- =================================================
-                 RECENT RESULTS
-            ================================================== --}}
-            <div class="dashboard-panel">
-
-                <div class="panel-header">
-
-                    <div>
-
-                        <span class="panel-eyebrow">
-                            ACADEMIC PERFORMANCE
-                        </span>
-
-                        <h2>
-                            Recent Results
-                        </h2>
-
-                    </div>
-
-
-                    @if(
-                        isset($recentResults) &&
-                        count($recentResults)
-                    )
-
-                        <a
-                            href="{{ route('students.results') }}"
-                            class="panel-action"
-                        >
-
-                            All results
-
-                            <i class="fas fa-arrow-right"></i>
-
-                        </a>
-
-                    @endif
-
-                </div>
-
-
-                <div class="results-list">
-
-                    @if(
-                        isset($recentResults) &&
-                        count($recentResults)
-                    )
-
-                        @foreach($recentResults as $result)
-
-                            @php
-
-                                $score =
-                                    $result->score ?? 0;
-
-                                $grade =
-                                    $result->grade ??
-                                    (
-                                        $score >= 80
-                                            ? 'A'
-                                            : (
-                                                $score >= 70
-                                                    ? 'B'
-                                                    : (
-                                                        $score >= 60
-                                                            ? 'C'
-                                                            : (
-                                                                $score >= 50
-                                                                    ? 'D'
-                                                                    : 'F'
-                                                            )
-                                                    )
-                                            )
-                                    );
-
-                            @endphp
-
-
-                            <div class="result-item">
-
-                                <div class="result-subject">
-
-                                    <div class="subject-icon">
-                                        <i class="fas fa-book-open"></i>
-                                    </div>
-
-
-                                    <div>
-
-                                        <strong>
-                                            {{ $result->subject?->name ?? 'Subject' }}
-                                        </strong>
-
-                                        <small>
-                                            {{ $result->assessment?->name ?? 'Assessment' }}
-                                        </small>
-
-                                    </div>
-
-                                </div>
-
-
-                                <div class="result-score">
-
-                                    <strong>
-                                        {{ $score }}%
-                                    </strong>
-
-
-                                    <span class="
-                                        grade
-                                        grade-{{ strtolower($grade) }}
-                                    ">
-                                        {{ $grade }}
-                                    </span>
-
-                                </div>
-
-                            </div>
-
-                        @endforeach
-
+            @if(!empty($feeAccount))
+                <div class="sd-fee-main {{ $balance > 0 ? 'is-due' : 'is-clear' }}">
+                    <span>Outstanding balance</span>
+                    <strong>GH₵ {{ number_format($balance, 2) }}</strong>
+                    @if($balance <= 0)
+                        <small class="text-clear"><i class="fas fa-circle-check"></i> Account fully settled</small>
                     @else
-
-                        <div class="empty-state compact">
-
-                            <i class="fas fa-chart-line"></i>
-
-                            <p>
-                                No results available yet.
-                            </p>
-
-                        </div>
-
+                        <small class="text-due"><i class="fas fa-circle-exclamation"></i> Balance outstanding</small>
                     @endif
-
                 </div>
 
+                <div class="sd-fee-split">
+                    <div><span>Total fees</span><strong>GH₵ {{ number_format($feesTotal, 2) }}</strong></div>
+                    <div><span>Amount paid</span><strong class="text-clear">GH₵ {{ number_format($feesPaid, 2) }}</strong></div>
+                </div>
+
+                <div class="sd-fee-progress">
+                    <div><span>Payment progress</span><strong>{{ number_format($feePct, 1) }}%</strong></div>
+                    <div class="sd-bar lg"><span style="width: {{ $feePct }}%"></span></div>
+                </div>
+            @else
+                <div class="sd-empty">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                    <h3>No fee account</h3>
+                    <p>No fee account has been allocated to you yet.</p>
+                </div>
+            @endif
+        </div>
+    </section>
+
+    {{-- ================= LOWER GRID ================= --}}
+    <section class="sd-grid-3">
+
+        {{-- Academic info --}}
+        <div class="sd-panel sd-span">
+            <div class="sd-panel-head">
+                <div>
+                    <span class="sd-panel-eyebrow">Academic profile</span>
+                    <h2>My academic information</h2>
+                </div>
+            </div>
+            <ul class="sd-info">
+                <li><span class="sd-info-icon"><i class="fas fa-graduation-cap"></i></span><div><small>Current class</small><strong>{{ $className ?? 'Not assigned' }}</strong></div></li>
+                <li><span class="sd-info-icon"><i class="fas fa-calendar-days"></i></span><div><small>Academic year</small><strong>{{ $academicYear?->name ?? '—' }}</strong></div></li>
+                <li><span class="sd-info-icon"><i class="fas fa-layer-group"></i></span><div><small>Current term</small><strong>{{ $term?->name ?? '—' }}</strong></div></li>
+                <li><span class="sd-info-icon"><i class="fas fa-book"></i></span><div><small>Enrolled subjects</small><strong>{{ $subjects ?? 0 }}</strong></div></li>
+            </ul>
+        </div>
+
+        {{-- Announcements --}}
+        <div class="sd-panel">
+            <div class="sd-panel-head">
+                <div>
+                    <span class="sd-panel-eyebrow">School updates</span>
+                    <h2>Announcements</h2>
+                </div>
+                <a href="{{ url('/student/announcements') }}" class="sd-link">All <i class="fas fa-arrow-right"></i></a>
             </div>
 
-        </section>
+            <div class="sd-list">
+                @forelse(($announcements ?? []) as $announcement)
+                    <div class="sd-item">
+                        <span class="sd-item-icon amber"><i class="fas fa-bullhorn"></i></span>
+                        <div class="sd-item-body">
+                            <h3>{{ $announcement->title }}</h3>
+                            @if($announcement->content)
+                                <p>{{ \Illuminate\Support\Str::limit(strip_tags($announcement->content), 110) }}</p>
+                            @endif
+                            <small><i class="far fa-calendar"></i> {{ $announcement->created_at?->format('d M Y') }}</small>
+                        </div>
+                    </div>
+                @empty
+                    <div class="sd-empty compact">
+                        <i class="fas fa-bell-slash"></i>
+                        <p>No announcements available.</p>
+                    </div>
+                @endforelse
+            </div>
+        </div>
 
-    </div>
+        {{-- Recent results --}}
+        <div class="sd-panel">
+            <div class="sd-panel-head">
+                <div>
+                    <span class="sd-panel-eyebrow">Academic performance</span>
+                    <h2>Recent results</h2>
+                </div>
+                @if(isset($recentResults) && count($recentResults))
+                    <a href="{{ route('students.results') }}" class="sd-link">All results <i class="fas fa-arrow-right"></i></a>
+                @endif
+            </div>
 
+            <div class="sd-list">
+                @if(isset($recentResults) && count($recentResults))
+                    @foreach($recentResults as $result)
+                        @php
+                            $score = $result->score ?? 0;
+                            $grade = $result->grade ?? $gradeFor($score);
+                        @endphp
+                        <div class="sd-item between">
+                            <div class="sd-item-left">
+                                <span class="sd-item-icon blue"><i class="fas fa-book-open"></i></span>
+                                <div>
+                                    <strong>{{ $result->subject?->name ?? 'Subject' }}</strong>
+                                    <small>{{ $result->assessment?->name ?? 'Assessment' }}</small>
+                                </div>
+                            </div>
+                            <div class="sd-score">
+                                <strong>{{ $score }}%</strong>
+                                <span class="sd-grade g-{{ strtolower($grade) }}">{{ $grade }}</span>
+                            </div>
+                        </div>
+                    @endforeach
+                @else
+                    <div class="sd-empty compact">
+                        <i class="fas fa-chart-line"></i>
+                        <p>No results available yet.</p>
+                    </div>
+                @endif
+            </div>
+        </div>
+    </section>
 </div>
 
-
-{{-- =============================================================
-     DESIGN CSS
-============================================================== --}}
 @push('styles')
-
 <style>
-
-:root {
-    --dashboard-primary: #173f5f;
-    --dashboard-secondary: #20639b;
-    --dashboard-success: #2e8b57;
-    --dashboard-warning: #d99a00;
-    --dashboard-danger: #c0392b;
-    --dashboard-text: #172b4d;
-    --dashboard-muted: #6b778c;
-    --dashboard-border: #e6e9ef;
-    --dashboard-background: #f5f7fa;
-}
-
-
-/* =============================================================
-   BASE
-============================================================= */
-
-.student-dashboard {
-    background: var(--dashboard-background);
-    min-height: calc(100vh - 70px);
-    color: var(--dashboard-text);
-}
-
-
-/* =============================================================
-   HEADER
-============================================================= */
-
-.dashboard-header {
-    background: #ffffff;
-    border-bottom: 1px solid var(--dashboard-border);
-}
-
-.header-content {
-    min-height: 190px;
-    padding: 36px 10px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 30px;
-}
-
-.student-introduction {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-}
-
-.student-avatar {
-    width: 76px;
-    height: 76px;
-    border-radius: 18px;
-    background: var(--dashboard-primary);
-    color: #ffffff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 28px;
-    overflow: hidden;
-    flex-shrink: 0;
-}
-
-.student-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
-.welcome-label {
-    font-size: 11px;
-    letter-spacing: 1.5px;
-    font-weight: 700;
-    color: var(--dashboard-secondary);
-    margin-bottom: 5px;
-}
-
-.student-introduction h1 {
-    font-size: 28px;
-    font-weight: 700;
-    margin: 0 0 12px;
-}
-
-.student-meta {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 18px;
-}
-
-.student-meta span {
-    color: var(--dashboard-muted);
-    font-size: 13px;
-}
-
-.student-meta i {
-    color: var(--dashboard-secondary);
-    margin-right: 5px;
-}
-
-.term-display {
-    text-align: right;
-    min-width: 190px;
-}
-
-.term-label {
-    display: block;
-    color: var(--dashboard-muted);
-    font-size: 10px;
-    letter-spacing: 1.3px;
-    font-weight: 700;
-    margin-bottom: 4px;
-}
-
-.term-display strong {
-    display: block;
-    font-size: 17px;
-}
-
-.term-display small {
-    display: block;
-    color: var(--dashboard-muted);
-    font-size: 12px;
-    margin-top: 2px;
-}
-
-.portal-period-note {
-    color: var(--dashboard-secondary) !important;
-    font-size: 10px !important;
-    margin-top: 7px !important;
-}
-
-
-/* =============================================================
-   PERIOD BANNER
-============================================================= */
-
-.period-banner {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    background: #ffffff;
-    border: 1px solid var(--dashboard-border);
-    padding: 14px 18px;
-    margin-bottom: 22px;
-}
-
-.period-banner-icon {
-    width: 42px;
-    height: 42px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #edf5fb;
-    color: var(--dashboard-secondary);
-    flex-shrink: 0;
-}
-
-.period-banner span {
-    display: block;
-    color: var(--dashboard-muted);
-    font-size: 9px;
-    letter-spacing: 1.2px;
-    font-weight: 700;
-}
-
-.period-banner strong {
-    display: block;
-    margin-top: 3px;
-    font-size: 14px;
-}
-
-
-/* =============================================================
-   CONTAINER
-============================================================= */
-
-.dashboard-container {
-    padding-top: 28px;
-    padding-bottom: 50px;
-}
-
-
-/* =============================================================
-   KPI
-============================================================= */
-
-.kpi-grid {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 18px;
-    margin-bottom: 22px;
-}
-
-.kpi-card {
-    background: #ffffff;
-    border: 1px solid var(--dashboard-border);
-    padding: 22px;
-    position: relative;
-    min-height: 155px;
-    transition: .2s ease;
-}
-
-.kpi-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 24px rgba(23, 43, 77, .08);
-}
-
-.kpi-card::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 4px;
-}
-
-.attendance-card::before {
-    background: var(--dashboard-success);
-}
-
-.fee-card::before {
-    background: var(--dashboard-warning);
-}
-
-.subject-card::before {
-    background: var(--dashboard-secondary);
-}
-
-.session-card::before {
-    background: #6857c7;
-}
-
-.kpi-top {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-}
-
-.kpi-label {
-    color: var(--dashboard-muted);
-    font-size: 10px;
-    letter-spacing: 1px;
-    font-weight: 700;
-}
-
-.kpi-value {
-    font-size: 29px;
-    font-weight: 750;
-    margin-top: 5px;
-    line-height: 1.2;
-}
-
-.kpi-value small {
-    font-size: 16px;
-}
-
-.currency {
-    font-size: 21px;
-}
-
-.kpi-icon {
-    width: 43px;
-    height: 43px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #f1f4f8;
-    color: var(--dashboard-primary);
-}
-
-.kpi-footer {
-    margin-top: 17px;
-    display: flex;
-    justify-content: space-between;
-    gap: 10px;
-    color: var(--dashboard-muted);
-    font-size: 11px;
-}
-
-.kpi-footer strong {
-    color: var(--dashboard-text);
-}
-
-.kpi-footer a {
-    color: var(--dashboard-secondary);
-    text-decoration: none;
-    font-weight: 600;
-}
-
-.kpi-footer i {
-    font-size: 9px;
-}
-
-.kpi-progress {
-    margin-top: 10px;
-    height: 4px;
-    background: #edf0f3;
-}
-
-.kpi-progress div {
-    height: 100%;
-    background: var(--dashboard-success);
-}
-
-.balance-due {
-    color: var(--dashboard-danger);
-}
-
-.balance-clear {
-    color: var(--dashboard-success);
-}
-
-
-/* =============================================================
-   PANELS
-============================================================= */
-
-.dashboard-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 22px;
-    margin-bottom: 22px;
-}
-
-.dashboard-panel {
-    background: #ffffff;
-    border: 1px solid var(--dashboard-border);
-    padding: 25px;
-}
-
-.panel-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 15px;
-    margin-bottom: 25px;
-}
-
-.panel-eyebrow {
-    display: block;
-    color: var(--dashboard-secondary);
-    font-size: 9px;
-    font-weight: 750;
-    letter-spacing: 1.5px;
-    margin-bottom: 5px;
-}
-
-.panel-header h2 {
-    font-size: 18px;
-    font-weight: 700;
-    margin: 0;
-}
-
-.panel-header p {
-    color: var(--dashboard-muted);
-    font-size: 12px;
-    margin: 5px 0 0;
-}
-
-.panel-action {
-    color: var(--dashboard-secondary);
-    font-size: 11px;
-    font-weight: 650;
-    text-decoration: none;
-    white-space: nowrap;
-}
-
-.panel-action i {
-    font-size: 9px;
-    margin-left: 4px;
-}
-
-
-/* =============================================================
-   ATTENDANCE
-============================================================= */
-
-.attendance-content {
-    display: flex;
-    align-items: center;
-    gap: 45px;
-}
-
-.attendance-circle {
-    width: 155px;
-    height: 155px;
-    border-radius: 50%;
-    background:
-        conic-gradient(
-            var(--dashboard-success)
-            {{ min(
-                (float)($attendancePercentage ?? 0),
-                100
-            ) }}%,
-            #edf1f4 0
-        );
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.circle-inner {
-    width: 118px;
-    height: 118px;
-    border-radius: 50%;
-    background: #ffffff;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-}
-
-.circle-inner strong {
-    font-size: 25px;
-    font-weight: 750;
-}
-
-.circle-inner span {
-    color: var(--dashboard-muted);
-    font-size: 10px;
-}
-
-.attendance-stats {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 18px 25px;
-    width: 100%;
-}
-
-.attendance-stat {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.stat-dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 50%;
-    flex-shrink: 0;
-}
-
-.present .stat-dot {
-    background: var(--dashboard-success);
-}
-
-.late .stat-dot {
-    background: var(--dashboard-warning);
-}
-
-.absent .stat-dot {
-    background: var(--dashboard-danger);
-}
-
-.excused .stat-dot {
-    background: #3688b8;
-}
-
-.attendance-stat strong {
-    display: block;
-    font-size: 18px;
-}
-
-.attendance-stat small {
-    color: var(--dashboard-muted);
-    font-size: 10px;
-}
-
-
-/* =============================================================
-   FEES
-============================================================= */
-
-.fee-main {
-    padding: 17px;
-    background: #f7f9fb;
-    border-left: 3px solid var(--dashboard-warning);
-}
-
-.fee-main > span {
-    display: block;
-    color: var(--dashboard-muted);
-    font-size: 9px;
-    font-weight: 700;
-    letter-spacing: 1px;
-}
-
-.fee-main strong {
-    display: block;
-    font-size: 28px;
-    margin: 5px 0;
-}
-
-.fee-main small {
-    font-size: 11px;
-}
-
-.status-clear {
-    color: var(--dashboard-success);
-}
-
-.status-due {
-    color: var(--dashboard-danger);
-}
-
-.fee-breakdown {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    border: 1px solid var(--dashboard-border);
-    border-top: 0;
-}
-
-.fee-breakdown > div {
-    padding: 15px;
-}
-
-.fee-breakdown > div + div {
-    border-left: 1px solid var(--dashboard-border);
-}
-
-.fee-breakdown span {
-    display: block;
-    color: var(--dashboard-muted);
-    font-size: 10px;
-}
-
-.fee-breakdown strong {
-    display: block;
-    margin-top: 4px;
-    font-size: 14px;
-}
-
-.paid-amount {
-    color: var(--dashboard-success);
-}
-
-.fee-progress {
-    margin-top: 20px;
-}
-
-.fee-progress-label {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 7px;
-    font-size: 10px;
-    color: var(--dashboard-muted);
-}
-
-.fee-progress-label strong {
-    color: var(--dashboard-text);
-}
-
-.progress-track {
-    height: 6px;
-    background: #e9edf1;
-}
-
-.progress-fill {
-    height: 100%;
-    background: var(--dashboard-success);
-}
-
-
-/* =============================================================
-   LOWER GRID
-============================================================= */
-
-.lower-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 22px;
-}
-
-
-/* =============================================================
-   ACADEMIC
-============================================================= */
-
-.academic-list {
-    border-top: 1px solid var(--dashboard-border);
-}
-
-.academic-row {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    padding: 14px 0;
-    border-bottom: 1px solid var(--dashboard-border);
-}
-
-.academic-icon {
-    width: 36px;
-    height: 36px;
-    background: #f1f5f9;
-    color: var(--dashboard-secondary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.academic-row span {
-    display: block;
-    color: var(--dashboard-muted);
-    font-size: 10px;
-}
-
-.academic-row strong {
-    display: block;
-    margin-top: 3px;
-    font-size: 13px;
-}
-
-
-/* =============================================================
-   ANNOUNCEMENTS
-============================================================= */
-
-.announcement-item {
-    display: flex;
-    gap: 13px;
-    padding: 13px 0;
-    border-bottom: 1px solid var(--dashboard-border);
-}
-
-.announcement-item:first-child {
-    padding-top: 0;
-}
-
-.announcement-item:last-child {
-    border-bottom: 0;
-}
-
-.announcement-icon {
-    width: 35px;
-    height: 35px;
-    background: #fff5dc;
-    color: #bd8200;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-}
-
-.announcement-body h3 {
-    font-size: 13px;
-    font-weight: 650;
-    margin: 0 0 4px;
-}
-
-.announcement-body p {
-    color: var(--dashboard-muted);
-    font-size: 11px;
-    margin: 0 0 5px;
-    line-height: 1.5;
-}
-
-.announcement-body small {
-    color: #8993a4;
-    font-size: 9px;
-}
-
-
-/* =============================================================
-   RESULTS
-============================================================= */
-
-.result-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 13px 0;
-    border-bottom: 1px solid var(--dashboard-border);
-}
-
-.result-item:first-child {
-    padding-top: 0;
-}
-
-.result-item:last-child {
-    border-bottom: 0;
-}
-
-.result-subject {
-    display: flex;
-    align-items: center;
-    gap: 11px;
-}
-
-.subject-icon {
-    width: 34px;
-    height: 34px;
-    background: #edf5fb;
-    color: var(--dashboard-secondary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.result-subject strong {
-    display: block;
-    font-size: 12px;
-}
-
-.result-subject small {
-    display: block;
-    color: var(--dashboard-muted);
-    font-size: 9px;
-    margin-top: 3px;
-}
-
-.result-score {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.result-score > strong {
-    font-size: 12px;
-}
-
-.grade {
-    min-width: 28px;
-    padding: 5px 7px;
-    text-align: center;
-    font-size: 10px;
-    font-weight: 700;
-}
-
-.grade-a,
-.grade-b {
-    background: #e5f5eb;
-    color: var(--dashboard-success);
-}
-
-.grade-c,
-.grade-d {
-    background: #fff4d9;
-    color: #a97500;
-}
-
-.grade-f {
-    background: #fde8e7;
-    color: var(--dashboard-danger);
-}
-
-
-/* =============================================================
-   EMPTY STATE
-============================================================= */
-
-.empty-state {
-    min-height: 190px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    text-align: center;
-}
-
-.empty-state i {
-    color: #aeb7c3;
-    font-size: 27px;
-    margin-bottom: 10px;
-}
-
-.empty-state h3 {
-    font-size: 14px;
-    margin: 0 0 4px;
-}
-
-.empty-state p {
-    color: var(--dashboard-muted);
-    font-size: 11px;
-    margin: 0;
-}
-
-.empty-state.compact {
-    min-height: 130px;
-}
-
-
-/* =============================================================
-   RESPONSIVE
-============================================================= */
-
-@media (max-width: 1200px) {
-
-    .kpi-grid {
-        grid-template-columns: repeat(2, 1fr);
+    .sd {
+        --navy: #0b2447; --navy-2: #123a73; --blue: #1d6fd6; --sky: #4da3ff;
+        --green: #16a36a; --amber: #e29a0b; --red: #d64545; --violet: #6d5bd0;
+        --ink: #14213d; --muted: #667388; --line: #e7ebf1; --bg: #f4f6fa; --card: #fff;
+        --radius: 16px; --shadow: 0 1px 2px rgba(16,36,72,.04), 0 6px 20px rgba(16,36,72,.05);
+        background: var(--bg); color: var(--ink);
+        min-height: 100vh; padding: 28px clamp(16px, 3vw, 36px) 56px;
+        font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
     }
+    .sd *, .sd *::before, .sd *::after { box-sizing: border-box; }
+    .sd h1, .sd h2, .sd h3, .sd p { margin: 0; }
+    .sd .text-due { color: var(--red); }
+    .sd .text-clear { color: var(--green); }
 
-    .lower-grid {
-        grid-template-columns: 1fr 1fr;
+    /* ---------- Hero ---------- */
+    .sd-hero {
+        display: flex; justify-content: space-between; align-items: center; gap: 28px; flex-wrap: wrap;
+        padding: 30px 34px; margin-bottom: 24px; color: #fff;
+        border-radius: 20px; position: relative; overflow: hidden;
+        background: linear-gradient(120deg, var(--navy) 0%, var(--navy-2) 60%, #1b5aa8 100%);
+        box-shadow: 0 12px 32px rgba(11,36,71,.22);
     }
-
-    .academic-panel {
-        grid-column: span 2;
+    .sd-hero::after {
+        content: ""; position: absolute; right: -80px; top: -120px; width: 320px; height: 320px; border-radius: 50%;
+        background: radial-gradient(circle, rgba(77,163,255,.35), transparent 70%); pointer-events: none;
     }
-
-}
-
-
-@media (max-width: 900px) {
-
-    .dashboard-grid {
-        grid-template-columns: 1fr;
+    .sd-hero-main { display: flex; align-items: center; gap: 22px; position: relative; z-index: 1; }
+    .sd-avatar {
+        width: 78px; height: 78px; flex-shrink: 0; border-radius: 20px; overflow: hidden;
+        display: grid; place-items: center; font-size: 28px;
+        background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.25);
     }
-
-    .lower-grid {
-        grid-template-columns: 1fr;
+    .sd-avatar img { width: 100%; height: 100%; object-fit: cover; }
+    .sd-eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: rgba(255,255,255,.7); margin-bottom: 4px; }
+    .sd-hero h1 { font-size: clamp(22px, 2.6vw, 30px); font-weight: 700; letter-spacing: -.01em; margin-bottom: 14px; }
+    .sd-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .sd-chip {
+        display: inline-flex; align-items: center; gap: 7px; padding: 6px 12px; border-radius: 999px;
+        font-size: 12.5px; background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.16);
     }
+    .sd-chip i { color: var(--sky); font-size: 12px; }
 
-    .academic-panel {
-        grid-column: auto;
+    .sd-term {
+        position: relative; z-index: 1; min-width: 210px; padding: 16px 20px; border-radius: 14px;
+        background: rgba(255,255,255,.10); border: 1px solid rgba(255,255,255,.18); backdrop-filter: blur(6px);
     }
+    .sd-term-label { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.65); }
+    .sd-term strong { display: block; font-size: 20px; margin: 4px 0 2px; }
+    .sd-term small { display: block; font-size: 12.5px; color: rgba(255,255,255,.75); }
+    .sd-term-note { display: block; margin-top: 10px; font-size: 10.5px; color: var(--sky); }
 
-    .header-content {
-        align-items: flex-start;
-        flex-direction: column;
+    /* ---------- KPIs ---------- */
+    .sd-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; margin-bottom: 22px; }
+    .sd-kpi {
+        --tone: var(--blue); --tint: #e8f1fd;
+        background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+        padding: 20px 22px; box-shadow: var(--shadow); transition: transform .18s ease, box-shadow .18s ease;
     }
+    .sd-kpi:hover { transform: translateY(-3px); box-shadow: 0 14px 32px rgba(16,36,72,.10); }
+    .sd-kpi.is-green  { --tone: var(--green);  --tint: #e3f6ee; }
+    .sd-kpi.is-amber  { --tone: var(--amber);  --tint: #fdf1d9; }
+    .sd-kpi.is-blue   { --tone: var(--blue);   --tint: #e8f1fd; }
+    .sd-kpi.is-violet { --tone: var(--violet); --tint: #eeebfa; }
+    .sd-kpi-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+    .sd-kpi-icon { width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--tint); color: var(--tone); }
+    .sd-kpi-label { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+    .sd-kpi-value { font-size: 32px; font-weight: 700; line-height: 1.1; letter-spacing: -.02em; }
+    .sd-kpi-value small { font-size: 17px; font-weight: 600; color: var(--muted); margin-left: 2px; }
+    .sd-kpi-value.sm { font-size: 24px; padding: 4px 0; }
+    .sd-kpi-foot { display: flex; justify-content: space-between; gap: 10px; margin-top: 16px; font-size: 12px; color: var(--muted); }
+    .sd-kpi-foot strong { color: var(--ink); }
+    .sd-kpi-foot a { color: var(--blue); font-weight: 600; text-decoration: none; white-space: nowrap; }
+    .sd-kpi-foot a:hover { text-decoration: underline; }
+    .sd-kpi-foot i { font-size: 10px; margin-left: 2px; }
+    .sd-kpi .sd-bar { margin-top: 14px; }
 
-    .term-display {
-        text-align: left;
+    .sd-bar { height: 6px; border-radius: 99px; background: #e9eef4; overflow: hidden; }
+    .sd-bar.lg { height: 8px; }
+    .sd-bar span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--green), #35c58a); }
+
+    /* ---------- Panels ---------- */
+    .sd-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-bottom: 22px; }
+    .sd-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+    .sd-panel { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow); }
+    .sd-panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 22px; }
+    .sd-panel-eyebrow { display: block; margin-bottom: 4px; font-size: 10.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--blue); }
+    .sd-panel-head h2 { font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+    .sd-panel-head p { margin-top: 4px; font-size: 12.5px; color: var(--muted); }
+    .sd-link { font-size: 12.5px; font-weight: 600; color: var(--blue); text-decoration: none; white-space: nowrap; padding: 6px 10px; border-radius: 8px; }
+    .sd-link:hover { background: #eef4fd; }
+    .sd-link i { font-size: 10px; margin-left: 3px; }
+
+    /* ---------- Attendance ---------- */
+    .sd-att { display: flex; align-items: center; gap: 36px; }
+    .sd-ring {
+        --pct: 0; width: 160px; height: 160px; flex-shrink: 0; border-radius: 50%; display: grid; place-items: center;
+        background: conic-gradient(var(--green) calc(var(--pct) * 1%), #e9eef4 0);
     }
+    .sd-ring-inner { width: 124px; height: 124px; border-radius: 50%; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; box-shadow: inset 0 0 0 1px var(--line); }
+    .sd-ring-inner strong { font-size: 26px; font-weight: 700; letter-spacing: -.02em; }
+    .sd-ring-inner span { font-size: 11px; color: var(--muted); }
+    .sd-att-stats { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    .sd-stat { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 12px; background: #f7f9fc; border: 1px solid var(--line); }
+    .sd-stat i { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .sd-stat strong { display: block; font-size: 20px; line-height: 1.1; }
+    .sd-stat small { font-size: 11.5px; color: var(--muted); }
+    .s-present i { background: var(--green); } .s-late i { background: var(--amber); }
+    .s-absent i { background: var(--red); } .s-excused i { background: var(--sky); }
 
-}
+    /* ---------- Fees ---------- */
+    .sd-fee-main { padding: 18px 20px; border-radius: 14px; margin-bottom: 14px; border: 1px solid var(--line); }
+    .sd-fee-main.is-due { background: #fdf3f2; border-color: #f6d5d2; }
+    .sd-fee-main.is-clear { background: #eef9f3; border-color: #cdeedd; }
+    .sd-fee-main span { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+    .sd-fee-main strong { display: block; margin: 6px 0; font-size: 30px; letter-spacing: -.02em; }
+    .sd-fee-main.is-due strong { color: var(--red); } .sd-fee-main.is-clear strong { color: var(--green); }
+    .sd-fee-main small { font-size: 12px; font-weight: 600; }
+    .sd-fee-split { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+    .sd-fee-split > div { padding: 14px 16px; }
+    .sd-fee-split > div + div { border-left: 1px solid var(--line); }
+    .sd-fee-split span { display: block; font-size: 11.5px; color: var(--muted); }
+    .sd-fee-split strong { display: block; margin-top: 4px; font-size: 15px; }
+    .sd-fee-progress { margin-top: 18px; }
+    .sd-fee-progress > div:first-child { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 12px; color: var(--muted); }
+    .sd-fee-progress strong { color: var(--ink); }
 
+    /* ---------- Academic info ---------- */
+    .sd-info { list-style: none; margin: 0; padding: 0; }
+    .sd-info li { display: flex; align-items: center; gap: 14px; padding: 13px 0; border-top: 1px solid var(--line); }
+    .sd-info li:first-child { border-top: 0; padding-top: 0; }
+    .sd-info-icon { width: 38px; height: 38px; flex-shrink: 0; border-radius: 11px; display: grid; place-items: center; background: #e8f1fd; color: var(--blue); }
+    .sd-info small { display: block; font-size: 11.5px; color: var(--muted); }
+    .sd-info strong { display: block; margin-top: 2px; font-size: 14px; }
 
-@media (max-width: 600px) {
+    /* ---------- Lists ---------- */
+    .sd-item { display: flex; gap: 13px; padding: 14px 0; border-top: 1px solid var(--line); }
+    .sd-item:first-child { border-top: 0; padding-top: 0; }
+    .sd-item.between { justify-content: space-between; align-items: center; }
+    .sd-item-left { display: flex; align-items: center; gap: 12px; min-width: 0; }
+    .sd-item-icon { width: 38px; height: 38px; flex-shrink: 0; border-radius: 11px; display: grid; place-items: center; }
+    .sd-item-icon.amber { background: #fdf1d9; color: #b97d00; }
+    .sd-item-icon.blue { background: #e8f1fd; color: var(--blue); }
+    .sd-item-body h3 { font-size: 13.5px; font-weight: 600; margin-bottom: 3px; }
+    .sd-item-body p { font-size: 12px; line-height: 1.5; color: var(--muted); margin-bottom: 5px; }
+    .sd-item-body small { font-size: 11px; color: #8b96a8; }
+    .sd-item-left strong { display: block; font-size: 13.5px; }
+    .sd-item-left small { display: block; margin-top: 2px; font-size: 11.5px; color: var(--muted); }
+    .sd-score { display: flex; align-items: center; gap: 10px; }
+    .sd-score > strong { font-size: 13.5px; }
+    .sd-grade { min-width: 30px; text-align: center; padding: 5px 8px; border-radius: 8px; font-size: 11.5px; font-weight: 700; }
+    .g-a, .g-b { background: #e3f6ee; color: var(--green); }
+    .g-c, .g-d { background: #fdf1d9; color: #a97500; }
+    .g-e, .g-f { background: #fde8e7; color: var(--red); }
 
-    .dashboard-container {
-        padding-top: 18px;
+    /* ---------- Empty ---------- */
+    .sd-empty { min-height: 200px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+    .sd-empty.compact { min-height: 140px; }
+    .sd-empty i { font-size: 26px; margin-bottom: 10px; color: #b3bccb; }
+    .sd-empty h3 { font-size: 15px; margin-bottom: 4px; }
+    .sd-empty p { font-size: 12.5px; color: var(--muted); }
+
+    /* ---------- Responsive ---------- */
+    @media (max-width: 1280px) {
+        .sd-kpis { grid-template-columns: repeat(2, 1fr); }
+        .sd-grid-3 { grid-template-columns: 1fr 1fr; }
+        .sd-span { grid-column: span 2; }
     }
-
-    .header-content {
-        padding: 25px 5px;
+    @media (max-width: 960px) {
+        .sd-grid-2, .sd-grid-3 { grid-template-columns: 1fr; }
+        .sd-span { grid-column: auto; }
+        .sd-term { width: 100%; }
     }
-
-    .student-introduction {
-        align-items: flex-start;
+    @media (max-width: 640px) {
+        .sd { padding: 18px 14px 90px; }
+        .sd-hero { padding: 22px 20px; border-radius: 16px; }
+        .sd-hero-main { align-items: flex-start; gap: 14px; }
+        .sd-avatar { width: 56px; height: 56px; font-size: 21px; border-radius: 14px; }
+        .sd-kpis { grid-template-columns: 1fr; }
+        .sd-att { flex-direction: column; gap: 22px; }
+        .sd-att-stats { width: 100%; }
+        .sd-panel { padding: 20px; }
+        .sd-panel-head { flex-direction: column; gap: 6px; }
     }
-
-    .student-avatar {
-        width: 58px;
-        height: 58px;
-        font-size: 21px;
-    }
-
-    .student-introduction h1 {
-        font-size: 21px;
-    }
-
-    .student-meta {
-        display: block;
-    }
-
-    .student-meta span {
-        display: block;
-        margin-bottom: 5px;
-    }
-
-    .kpi-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .dashboard-panel {
-        padding: 19px;
-    }
-
-    .attendance-content {
-        flex-direction: column;
-        gap: 25px;
-    }
-
-    .attendance-stats {
-        width: 100%;
-    }
-
-    .panel-header {
-        flex-direction: column;
-    }
-
-    .period-banner {
-        align-items: flex-start;
-    }
-
-}
-
+    @media (prefers-reduced-motion: reduce) { .sd-kpi { transition: none; } }
 </style>
-
 @endpush
-
 @endsection

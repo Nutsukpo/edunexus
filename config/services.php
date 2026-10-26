@@ -8,9 +8,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | This file is for storing the credentials for third party services such
-    | as Mailgun, Postmark, AWS and more. This file provides the de facto
-    | location for this type of information, allowing packages to have
-    | a conventional file to locate the various service credentials.
+    | as Mailgun, Postmark, AWS and more. Laravel uses this file to access
+    | third-party service credentials.
     |
     */
 
@@ -35,7 +34,6 @@ return [
         ],
     ],
 
-
     'google' => [
         'maps_api_key' => env('GOOGLE_MAPS_API_KEY'),
     ],
@@ -45,4 +43,11 @@ return [
         'secret_key' => env('PAYSTACK_SECRET_KEY'),
         'currency' => env('PAYSTACK_CURRENCY', 'GHS'),
     ],
+
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+        'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+        'timeout' => (int) env('OPENAI_TIMEOUT', 60),
+    ],
+
 ];

@@ -274,10 +274,10 @@
 
         <div class="school-header">
 
-            @if(file_exists(public_path('img/Talha.jpeg')))
+            @if(file_exists(public_path('img/ESSTECH_BANNER.png')))
 
                 <img
-                    src="{{ asset('img/Talha.jpeg') }}"
+                    src="{{ asset('img/ESSTECH_BANNER.png') }}"
                     alt="School Logo"
                     class="school-logo"
                 >
@@ -286,7 +286,7 @@
 
 
             <h2>
-                {{ $schoolName ?? 'TALHA PREMIER INTERNATIONAL ACADEMY' }}
+                {{ $schoolName ?? 'ees-Tech INTERNATIONAL ACADEMY' }}
             </h2>
 
 
